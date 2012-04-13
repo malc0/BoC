@@ -45,6 +45,8 @@ sub clean_email
 sub load_template
 {
 	my $tmpl = HTML::Template->new(filename => "$_[0]") or die;
+	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
+	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
 	return $tmpl;
 }
 
@@ -341,6 +343,8 @@ my $cgi = CGI->new;
 die 'Can\'t find "Root" key in ./boc_config' unless exists $config{Root};
 die 'Can\'t find "TemplateDir" key in ./boc_config' unless exists $config{TemplateDir};
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
+die 'Can\'t find "ShortName" key in ./boc_config' unless exists $config{ShortName};
+die 'Can\'t find "LongName" key in ./boc_config' unless exists $config{LongName};
 
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
 
