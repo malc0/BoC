@@ -21,13 +21,9 @@ sub read_simp_cfg
 		s/^\s+//;		# no leading white
 		s/\s+$//;		# no trailing white
 		next unless length;	# anything left?
+		($_) = (/^(.*)$/);	# forcably untaint file input.  if it's bad it shouldn't have got there.
 		my ($key, $value) = split(' ', $_, 2);
-		# forcably untaint file input.  if it's bad it shouldn't have got there.
-		if (defined $value) {
-			($config{$key}) = ($value =~ /^(.*)$/g);
-		} else {
-			$config{$key} = undef;
-		}
+		$config{$key} = $value;
 	}
 	close(FH);
 
