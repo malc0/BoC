@@ -43,6 +43,10 @@ sub read_tg
 	}
 	close(FH);
 
+	($content{Headings}[0] eq 'Creditor') or die "tg data is broken ($content{Headings}[0])";
+	($content{Headings}[1] eq 'Amount') or die "tg data is broken ($content{Headings}[1])";
+	($content{Headings}[$#{$content{Headings}}] eq 'Description') or die "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
+
 	return %content;
 }
 
