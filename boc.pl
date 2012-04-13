@@ -369,9 +369,10 @@ my %userdetails = read_simp_cfg($admins[0]);
 die 'Admininstrator account with no password set?' unless defined $userdetails{Password};
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
+my $last_tmpl = (defined $cgi->param('tmpl')) ? $cgi->param('tmpl') : '';
 
-unless ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') eq 'login') {
-	$session->clear('EditingAcct') unless ($cgi->param('tmpl') =~ m/^edit_v?acc$/);
+unless ($session->is_empty or $last_tmpl eq 'login') {
+	$session->clear('EditingAcct') unless ($last_tmpl =~ m/^edit_v?acc$/);
 	$session->flush();
 	$session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
 	# the despatchers fall through if the requested action is unknown (or undef): make them log in again!
@@ -382,7 +383,7 @@ unless ($session->is_empty) {
 }
 
 my $whinge = '';
-if (defined $cgi->param('tmpl') and $cgi->param('tmpl') eq 'login') {
+if ($last_tmpl eq 'login') {
 	$whinge = do_login($cgi, \%userdetails);
 }
 unless ($whinge eq 'ok') {
