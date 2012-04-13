@@ -202,6 +202,48 @@ sub verify_login_nopw
 	return 'ok';
 }
 
+sub get_new_session
+{
+	my ($session, $cgi) = @_;
+	my $last_tmpl = (defined $cgi->param('tmpl')) ? $cgi->param('tmpl') : '';
+
+	$session->delete();
+	$session->flush();
+
+	my %userdetails;
+	my $whinge = '';
+	my $tmpl;
+	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
+		$whinge = verify_login_nopw($cgi, \%userdetails);
+		if ($whinge eq 'No PW login on account with password set?') {
+			$tmpl = load_template('login.html');
+			$whinge = '';
+		} elsif ($whinge ne 'ok') {
+			$tmpl = gen_login_nopw;
+		}
+	} elsif ($last_tmpl eq 'login') {
+		$whinge = verify_login($cgi, \%userdetails);
+		$tmpl = load_template('login.html') unless ($whinge eq 'ok');
+	} else {
+		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
+	}
+
+	if (defined $tmpl) {
+		$tmpl->param(WHINGE => format_whinge($whinge));
+		print "Content-Type: text/html\n\n", $tmpl->output;
+		exit;
+	}
+
+	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
+	print $session->header();
+	$session->param('User', $userdetails{User});
+	$session->param('IsAdmin', (exists $userdetails{IsAdmin}));
+	$session->expire('+10m');
+	$session->flush();
+
+	return $session;
+}
+
 sub gen_view_accs
 {
 	my $people = $_[0];
@@ -400,47 +442,12 @@ my %userdetails = read_simp_cfg($admins[0]);
 die 'Admininstrator account with no password set?' unless defined $userdetails{Password};
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
-my $last_tmpl = (defined $cgi->param('tmpl')) ? $cgi->param('tmpl') : '';
 
-unless ($session->is_empty or $last_tmpl =~ m/^login(_nopw)?$/) {
-	$session->clear('EditingAcct') unless ($last_tmpl =~ m/^edit_v?acc$/);
-	$session->flush();
-	$session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
-	# the despatchers fall through if the requested action is unknown (or undef): make them log in again!
-}
-unless ($session->is_empty) {
-	$session->delete();
-	$session->flush();
-}
+$session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
 
-my $whinge = '';
-my $tmpl;
-if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
-	$whinge = verify_login_nopw($cgi, \%userdetails);
-	if ($whinge eq 'No PW login on account with password set?') {
-		$tmpl = load_template('login.html');
-		$whinge = '';
-	} elsif ($whinge ne 'ok') {
-		$tmpl = gen_login_nopw;
-	}
-} elsif ($last_tmpl eq 'login') {
-	$whinge = verify_login($cgi, \%userdetails);
-	$tmpl = load_template('login.html') unless ($whinge eq 'ok');
-} else {
-	$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
-}
-
-if (defined $tmpl) {
-	$tmpl->param(WHINGE => format_whinge($whinge));
-	print "Content-Type: text/html\n\n", $tmpl->output;
-	exit;
-}
-
-$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
-print $session->header();
-$session->param('User', $userdetails{User});
-$session->param('IsAdmin', (exists $userdetails{IsAdmin}));
-$session->expire('+10m');
+$session->clear('EditingAcct') unless ($cgi->param('tmpl') =~ m/^edit_v?acc$/);
 $session->flush();
-
 $session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
+
+# the despatchers fall through if the requested action is unknown: make them log in again!
+get_new_session($session, $cgi);
