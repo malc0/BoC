@@ -74,7 +74,7 @@ sub create_datastore
 
 	return 'Disallowed characters in username' unless defined clean_username($user);
 	return 'Username too short' if length $user < 3;
-	return 'Username too long' if length $user > 20;
+	return 'Username too long' if length $user > 10;
 	$user = clean_username($user);
 
 	(mkdir "$root/users" or die) unless (-d "$root/users");
@@ -302,7 +302,7 @@ sub despatch_admin
 			$whinge = 'Full name too long' if length $cgi->param('fullname') > 100;
 			$whinge = 'Disallowed characters in short name' unless defined $user;
 			$whinge = 'Short name too short' if length $user < 3;
-			$whinge = 'Short name too long' if length $user > 20;
+			$whinge = 'Short name too long' if length $user > 10;
 			if ($whinge ne '') {
 				my $tmpl = gen_add_edit_acc($edit, $person, $user, $session);
 				$tmpl->param(WHINGE => format_whinge($whinge));
