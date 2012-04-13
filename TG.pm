@@ -14,7 +14,6 @@ sub read_tg
 	my $file = $_[0];
 	my %content;
 	my $in_header = 1;
-	my @headings;
 
 	open(FH, "<$file") or die;
 	while (<FH>) {
@@ -32,12 +31,12 @@ sub read_tg
 			$content{$key} = $value;
 		} else {
 			next if m/^===/;
-			unless (@headings) {
-				@headings = split;
+			unless ($content{Headings}) {
+				$content{Headings} = [ split ];
 			} else {
-				my @line = split(' ', $_, scalar(@headings));
-				foreach my $i (0 .. $#headings) {
-					push(@{$content{$headings[$i]}}, $line[$i]) if exists $line[$i];
+				my @line = split(' ', $_, scalar(@{$content{Headings}}));
+				foreach my $i (0 .. $#{$content{Headings}}) {
+					push(@{$content{$content{Headings}[$i]}}, $line[$i]) if exists $line[$i];
 				}
 			}
 		}
@@ -50,39 +49,34 @@ sub read_tg
 sub write_tg
 {
 	my ($file, %content) = @_;
-	my $cols = 0;
+
+	($content{Headings}[0] eq 'Creditor') or die "tg data is broken ($content{Headings}[0])";
+	($content{Headings}[1] eq 'Amount') or die "tg data is broken ($content{Headings}[1])";
+	($content{Headings}[$#{$content{Headings}}] eq 'Description') or die "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
 
 	open(FH, ">$file") or die;
 	foreach my $key (keys %content) {
-		ref($content{$key}) ? $cols += 1 : say FH ((exists $content{$key}) ? "$key	$content{$key}" : "$key");
+		say FH ((exists $content{$key}) ? "$key	$content{$key}" : "$key") unless ref($content{$key});
 	}
+
+	my $cols = scalar(@{$content{Headings}});
 
 	print FH '==========	' foreach (2 .. $cols);
 	say FH '==================================================';
 
-	print FH 'Creditor	Amount	';
-	foreach my $key (keys %content) {
-		next unless ref($content{$key});
-		next if $key eq 'Creditor';
-		next if $key eq 'Amount';
-		next if $key eq 'Description';
+	foreach my $key (@{$content{Headings}}) {
 		print FH "$key	";
 	}
-	say FH 'Description';
+	print FH "\n";
 
 	print FH '==========	' foreach (2 .. $cols);
 	say FH '==================================================';
 
 	foreach my $row (0 .. $#{$content{Creditor}}) {
-		print FH "$content{Creditor}[$row]	$content{Amount}[$row]	";
-		foreach my $key (keys %content) {
-			next unless ref($content{$key});
-			next if $key eq 'Creditor';
-			next if $key eq 'Amount';
-			next if $key eq 'Description';
+		foreach my $key (@{$content{Headings}}) {
 			print FH "$content{$key}[$row]	";
 		}
-		say FH "$content{Description}[$row]";
+		print FH "\n";
 	}
 
 	say FH "\n# vim: ts=11";
