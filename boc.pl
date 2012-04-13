@@ -42,6 +42,12 @@ sub clean_email
 	return $1;
 }
 
+sub load_template
+{
+	my $tmpl = HTML::Template->new(filename => "$_[0]") or die;
+	return $tmpl;
+}
+
 sub read_simp_cfg
 {
 	my $file = $_[0];
@@ -81,7 +87,7 @@ sub write_simp_cfg
 sub create_datastore_p
 {
 	my ($reason, $whinge) = @_;
-	my $create_ds_tmpl = HTML::Template->new(filename => 'templates/create_ds_p.html') or die;
+	my $create_ds_tmpl = load_template('create_ds_p.html');
 
 	$create_ds_tmpl->param(REASON => $reason);
 	$create_ds_tmpl->param(ROOT => $config{Root});
@@ -166,7 +172,7 @@ sub do_login
 sub gen_view_accs
 {
 	my $people = $_[0];
-	my $tmpl = HTML::Template->new(filename => $people ? 'templates/view_people.html' : 'templates/view_vaccounts.html') or die;
+	my $tmpl = load_template($people ? 'view_people.html' : 'view_vaccounts.html');
 	my @accounts = $people ? glob("$config{Root}/users/*") : glob("$config{Root}/accounts/*");
 	my @acctlist;
 
@@ -199,9 +205,9 @@ sub gen_add_edit_acc
 	my $tmpl;
 
 	if ($add) {
-		$tmpl = HTML::Template->new(filename => $person ? 'templates/new_account.html' : 'templates/new_vaccount.html') or die;
+		$tmpl = load_template($person ? 'new_account.html' : 'new_vaccount.html');
 	} else {
-		$tmpl = HTML::Template->new(filename => $person ? 'templates/edit_account.html' : 'templates/edit_vaccount.html') or die;
+		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html') or die;
 
 		my %acctdetails = read_simp_cfg($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct");
 		$tmpl->param(ACC => $acct);
@@ -287,7 +293,7 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccs') {
 		my $tmpl;
 		if (defined $cgi->param('to_cp')) {
-			$tmpl = HTML::Template->new(filename => 'templates/treasurer_cp.html') or die;
+			$tmpl = load_template('treasurer_cp.html');
 		} else {
 			my $acct;
 			my $edit = 1;
@@ -333,6 +339,8 @@ my $cgi = CGI->new;
 %config = read_simp_cfg('boc_config');
 
 die 'Can\'t find "Root" key in ./boc_config' unless exists $config{Root};
+die 'Can\'t find "TemplateDir" key in ./boc_config' unless exists $config{TemplateDir};
+$ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
 
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
 
