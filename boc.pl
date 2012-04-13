@@ -150,7 +150,7 @@ sub find_admins
 	return @admins;
 }
 
-sub do_login
+sub verify_login
 {
 	my ($cgi, $userdetout) = @_;
 	my $user = clean_username($cgi->param('user'));
@@ -165,6 +165,37 @@ sub do_login
 	my $cryptpass = unix_md5_crypt($pass, $salt);
 
 	return 'Login failed!' unless ($cryptpass eq $userdetails{Password});
+
+	$userdetails{User} = $user;
+	%{$userdetout} = %userdetails;
+	return 'ok';
+}
+
+sub gen_login_nopw
+{
+	my $tmpl = load_template('login_nopw.html');
+
+	my @users = glob("$config{Root}/users/*");
+	my @userlist;
+
+	foreach my $user (@users) {
+		$user =~ /.*\/(.*)/;
+		my %outputdetails = ( USER => $1 );
+		push(@userlist, \%outputdetails);
+	}
+	$tmpl->param(PPL => \@userlist);
+
+	return $tmpl;
+}
+
+sub verify_login_nopw
+{
+	my ($cgi, $userdetout) = @_;
+	my $user = clean_username($cgi->param('user'));
+
+	return 'Login failed!' unless (-r "$config{Root}/users/$user");
+	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
+	return 'No PW login on account with password set?' if defined $userdetails{Password};
 
 	$userdetails{User} = $user;
 	%{$userdetout} = %userdetails;
@@ -371,7 +402,7 @@ die 'Admininstrator account with no password set?' unless defined $userdetails{P
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 my $last_tmpl = (defined $cgi->param('tmpl')) ? $cgi->param('tmpl') : '';
 
-unless ($session->is_empty or $last_tmpl eq 'login') {
+unless ($session->is_empty or $last_tmpl =~ m/^login(_nopw)?$/) {
 	$session->clear('EditingAcct') unless ($last_tmpl =~ m/^edit_v?acc$/);
 	$session->flush();
 	$session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
@@ -383,13 +414,25 @@ unless ($session->is_empty) {
 }
 
 my $whinge = '';
-if ($last_tmpl eq 'login') {
-	$whinge = do_login($cgi, \%userdetails);
+my $tmpl;
+if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
+	$whinge = verify_login_nopw($cgi, \%userdetails);
+	if ($whinge eq 'No PW login on account with password set?') {
+		$tmpl = load_template('login.html');
+		$whinge = '';
+	} elsif ($whinge ne 'ok') {
+		$tmpl = gen_login_nopw;
+	}
+} elsif ($last_tmpl eq 'login') {
+	$whinge = verify_login($cgi, \%userdetails);
+	$tmpl = load_template('login.html') unless ($whinge eq 'ok');
+} else {
+	$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
 }
-unless ($whinge eq 'ok') {
-	my $login_tmpl = HTML::Template->new(filename => 'templates/login.html') or die;
-	$login_tmpl->param(WHINGE => format_whinge($whinge));
-	print "Content-Type: text/html\n\n", $login_tmpl->output;
+
+if (defined $tmpl) {
+	$tmpl->param(WHINGE => format_whinge($whinge));
+	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
 
