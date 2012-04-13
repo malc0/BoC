@@ -97,7 +97,7 @@ sub create_datastore_p
 
 	print "Content-Type: text/html\n\n", $create_ds_tmpl->output;
 
-	exit
+	exit;
 }
 
 sub create_datastore
@@ -232,7 +232,7 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'login') {
 		my $tmpl = HTML::Template->new(filename => 'templates/treasurer_cp.html') or die;
 		print $tmpl->output;
-		exit
+		exit;
 	}
 	if ($cgi->param('tmpl') eq 'tcp') {
 		my $tmpl;
@@ -243,7 +243,7 @@ sub despatch_admin
 			$tmpl = gen_view_accs(0);
 		}
 		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit
+		exit;
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
 		my $edit_acct = $session->param('EditingAcct');
@@ -267,7 +267,7 @@ sub despatch_admin
 				my $tmpl = gen_add_edit_acc($add, $person, $user, $session);
 				$tmpl->param(WHINGE => format_whinge($whinge));
 				print "Content-Type: text/html\n\n", $tmpl->output;
-				exit
+				exit;
 			}
 
 			my $root = $config{Root};
@@ -298,7 +298,7 @@ sub despatch_admin
 			$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Saved edits to account \"$user\"" : "Edit account cancelled"));
 		}
 		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit
+		exit;
 	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccs') {
 		my $tmpl;
@@ -328,7 +328,7 @@ sub despatch_admin
 			}
 		}
 		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit
+		exit;
 	}
 }
 
@@ -389,7 +389,7 @@ unless ($whinge eq 'ok') {
 	my $login_tmpl = HTML::Template->new(filename => 'templates/login.html') or die;
 	$login_tmpl->param(WHINGE => format_whinge($whinge));
 	print "Content-Type: text/html\n\n", $login_tmpl->output;
-	exit
+	exit;
 }
 
 $session = CGI::Session->new($cgi) or die CGI::Session->errstr;
