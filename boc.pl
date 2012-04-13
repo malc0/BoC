@@ -365,6 +365,8 @@ my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 unless ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') eq 'login') {
 	$session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
 	# the despatchers fall through if the requested action is unknown (or undef): make them log in again!
+}
+unless ($session->is_empty) {
 	$session->delete();
 	$session->flush();
 }
