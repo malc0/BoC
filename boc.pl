@@ -305,7 +305,6 @@ sub despatch_admin
 
 			if ($edit) {
 				$tmpl = gen_add_edit_acc((defined $cgi->param('add_acc') or defined $cgi->param('add_vacc')), $person, $acct, $cgi);
-				$tmpl->param(WHINGE => '');
 			} else {
 				unlink($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct") or die;
 				$tmpl = gen_view_accs($person);
