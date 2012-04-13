@@ -11,9 +11,11 @@ use CGI::Session '-ip-match';
 use Crypt::Cracklib;
 use Crypt::PasswdMD5;
 use HTML::Template;
+use UUID::Tiny;
 
 use lib '.';
 use SimpCfg;
+use TG;
 
 our %config;
 
@@ -47,7 +49,7 @@ sub clean_email
 
 sub load_template
 {
-	my $tmpl = HTML::Template->new(filename => "$_[0]") or die;
+	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1) or die;
 	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
 	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
 	return $tmpl;
@@ -372,15 +374,198 @@ sub despatch_admin
 	}
 }
 
+sub query_all_accts_in_path
+{
+	my ($path, $key) = @_;
+
+	my @accts = glob("$path/*");
+	my %response;
+
+	foreach my $acct (@accts) {
+		my %acctdetails = read_simp_cfg($acct);
+		$acct =~ /.*\/(.*)/;
+		$response{$1} = $acctdetails{$key};
+	}
+
+	return %response;
+}
+
+sub gen_view_tgs
+{
+	my $tmpl = load_template('manage_transactions.html');
+
+	my @tgs = glob("$config{Root}/transaction_groups/*");
+	my @tglist;
+
+	foreach my $tg (@tgs) {
+		my %tgdetails = read_tg($tg);
+		$tg =~ /.*\/(.*)/;
+		my %outputdetails = (
+				ACC => $1,
+				NAME => $tgdetails{Name},
+				DATE => $tgdetails{Date},
+		);
+		push(@tglist, \%outputdetails);
+	}
+	$tmpl->param(TGS => \@tglist);
+
+	return $tmpl;
+}
+
+sub merge_tg(\%\%\%)
+{
+	my ($file_tg, $ppl, $vaccts) = @_;
+
+	my @sort_ppl = sort(keys $ppl);
+	my @sort_vaccts = sort(keys $vaccts);
+	my @sorted = ( 'Creditor', 'Amount' );
+	foreach my $key (@sort_ppl) {
+		push (@sorted, $ppl->{$key});
+	}
+	foreach my $key (@sort_vaccts) {
+		push (@sorted, $vaccts->{$key});
+	}
+	push (@sorted, 'Description');
+
+	my @zerocol;
+	foreach my $row (0 .. $#{$file_tg->{Creditor}}) {
+		push(@zerocol, 0);
+	}
+
+	foreach my $acct (@sorted) {
+		@{$file_tg->{$acct}} = @zerocol unless exists $file_tg->{$acct};
+	}
+	@{$file_tg->{Headings}} = @sorted;
+
+	return %$file_tg;
+}
+
+sub gen_tg
+{
+	my ($tgref, $view) = @_;
+	my %tgdetails = %$tgref;
+
+	my $tmpl = load_template('edit_tg.html');
+
+	my %ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+	my %acct_names = (%ppl, %vaccts);
+	my %rppl = reverse(%ppl);
+	my %rvaccts = reverse(%vaccts);
+
+	%tgdetails = merge_tg(%tgdetails, %rppl, %rvaccts);
+
+	$tmpl->param(NAME => $tgdetails{Name});
+	$tmpl->param(RO => $view);
+	$tmpl->param(DATE => $tgdetails{Date});
+	my @headings;
+	foreach my $key (@{$tgdetails{Headings}}) {
+		my $h = (exists $acct_names{$key}) ? $acct_names{$key} : $key;
+		my %heading = ( H => $h );
+		push(@headings, \%heading);
+	}
+	$tmpl->param(HEADINGS => \@headings);
+
+	my @rows;
+	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
+		$tmpl->param(CRNAME => "Creditor_$row");
+		my $options = "<option>Select creditor</option>";
+		foreach my $key (@{$tgdetails{Headings}}) {
+			next unless exists $acct_names{$key};
+			if ((defined $tgdetails{Creditor}[$row]) and $tgdetails{Creditor}[$row] eq $key) {
+				$options .= "<option value=\"$key\" selected=\"selected\">$acct_names{$key}</option>"
+			} else {
+				$options .= "<option value=\"$key\">$acct_names{$key}</option>"
+			}
+		}
+
+		my @rowcontents;
+		foreach my $key (@{$tgdetails{Headings}}[1 .. $#{$tgdetails{Headings}}]) {
+			my %data = ( D => $tgdetails{$key}[$row], N => "${key}_$row" );
+			push(@rowcontents, \%data);
+		}
+		my %row = ( R => \@rowcontents, CROPTIONS => $options );
+		push (@rows, \%row);
+	}
+	$tmpl->param(ROWS => \@rows);
+
+	return $tmpl;
+}
+
 sub despatch_user
 {
 	my $session = $_[0];
 	my $cgi = $session->query();
+	my $tmpl;
 
 	return if (defined $cgi->param('logout'));
 
-	if ($cgi->param('tmpl') eq 'login') {
-		say "Mortal!";
+	if ($cgi->param('tmpl') eq 'login_nopw') {
+		$tmpl = gen_view_tgs;
+		print $tmpl->output;
+		exit;
+	}
+	if ($cgi->param('tmpl') eq 'view_tgs') {
+		if (defined $cgi->param('view') or defined $cgi->param('add')) {
+			my $view = $cgi->param('view');
+			my %tgdetails;
+
+			if ($view) {
+				my $tg = "$config{Root}/transaction_groups/" . $view;
+
+				unless (-r $tg) {
+					$tmpl = gen_view_tgs;
+					print "Content-Type: text/html\n\n", $tmpl->output;
+					exit;
+				}
+
+				%tgdetails = read_tg($tg);
+			} else {
+				push(@{$tgdetails{Creditor}}, undef) foreach (0 .. 9);
+			}
+
+			$tmpl = gen_tg(\%tgdetails, $view);
+		}
+		print "Content-Type: text/html\n\n", $tmpl->output;
+		exit;
+	}
+	if ($cgi->param('tmpl') eq 'edit_tg') {
+		if (defined $cgi->param('save')) {
+			my %tg;
+			# FIXME ha ha
+
+			if (defined $session->param('EditingTG')) {
+				write_tg($session->param('EditingTG'), %tg);
+			} else {
+				my $id;
+				my $tg_path = "$config{Root}/transaction_groups";
+				(mkdir "$tg_path" or die) unless (-d $tg_path);
+				do {
+					$id = create_UUID_as_string(UUID_V4);
+				} while (-e "$tg_path/$id");
+				write_tg("$tg_path/$id", %tg);
+			}
+		}
+		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
+			if (defined $session->param('EditingTG')) {
+				$session->clear('EditingTG');
+				$session->flush();
+#				$tmpl = gen_tg(\$tgdetails, 1);
+#				$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled"));
+			} else {
+				$tmpl = gen_view_tgs;
+#				$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled"));
+			}
+		} elsif (defined $cgi->param('edit')) {
+#			$session->param('EditingTG', $config{Root}/transaction_groups/$UUID);
+			$session->flush();
+			# need a tgdetails for edit -- FIXME
+#			$tmpl = gen_tg(\%tgdetails, undef);
+		} elsif (defined $cgi->param('view_tgs')) {
+			$tmpl = gen_view_tgs;
+		}
+		print "Content-Type: text/html\n\n", $tmpl->output;
+		exit;
 	}
 }
 
@@ -413,6 +598,7 @@ my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
 
 $session->clear('EditingAcct') unless ($cgi->param('tmpl') =~ m/^edit_v?acc$/);
+$session->clear('EditingTG') unless ($cgi->param('tmpl') eq 'edit_tg');
 $session->flush();
 $session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
 

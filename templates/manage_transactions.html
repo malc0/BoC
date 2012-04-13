@@ -1,0 +1,23 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> transaction groups</title>
+	</head>
+	<body>
+		<h1>Transaction groups</h1>
+
+		<form action="boc.pl" method="post">
+			<input type="hidden" name="tmpl" value="view_tgs"/>
+
+			<table border=1>
+				<tr><th>Name</th><th>Date</th></tr>
+				<TMPL_LOOP NAME=TGS>
+				<tr><td><a href="boc.pl?tmpl=view_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td></tr>
+				</TMPL_LOOP>
+			</table>
+			<p><input type="submit" name="add" value="Add new transaction group"/></p>
+			<TMPL_VAR NAME=STATUS>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</form>
+	</body>
+</html>

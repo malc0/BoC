@@ -1,0 +1,30 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> transaction group "<TMPL_VAR NAME=NAME>"</title>
+	</head>
+	<body>
+		<form action="boc.pl" method="post">
+			<input type="hidden" name="tmpl" value="edit_tg"/>
+
+			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1>
+			<TMPL_ELSE>
+			<h2><label>Transaction group name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="tg_name"/></label></h2></TMPL_IF>
+
+			<p><label>Date: <input type="text" value="<TMPL_VAR NAME=DATE>" <TMPL_IF NAME=RO>readonly="readonly"</TMPL_IF> name="tg_date"/></label></p>
+
+			<table border=1>
+				<tr><TMPL_LOOP NAME=HEADINGS><th><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
+				<TMPL_LOOP NAME=ROWS>
+				<tr><td><select name="<TMPL_VAR NAME=CRNAME>" <TMPL_IF NAME=RO>disabled="disabled"</TMPL_IF>><TMPL_VAR NAME=CROPTIONS></select></td><TMPL_LOOP NAME=R><td><input type="text" value="<TMPL_VAR NAME=D>" <TMPL_IF NAME=RO>readonly="readonly"</TMPL_IF> name="<TMPL_VAR NAME=N>"/></td></TMPL_LOOP></tr>
+				</TMPL_LOOP>
+			</table>
+
+			<p><TMPL_IF NAME=RO><input type="submit" name="edit" value="Edit"/><TMPL_ELSE>
+			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save"/></TMPL_IF></p>
+			<TMPL_VAR NAME=STATUS>
+			<p><input type="submit" name="view_tgs" value="Back to transaction group list"/></p>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</form>
+	</body>
+</html>
