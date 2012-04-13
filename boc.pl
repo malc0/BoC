@@ -203,7 +203,7 @@ sub gen_view_accs
 
 sub gen_add_edit_acc
 {
-	my ($add, $person, $acct, $cgi) = @_;
+	my ($add, $person, $acct, $session) = @_;
 	my $tmpl;
 
 	if ($add) {
@@ -211,7 +211,9 @@ sub gen_add_edit_acc
 	} else {
 		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html') or die;
 
-		my %acctdetails = read_simp_cfg($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct");
+		$session->param('EditingAcct', $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct");
+		$session->flush();
+		my %acctdetails = read_simp_cfg($session->param('EditingAcct'));
 		$tmpl->param(ACC => $acct);
 		$tmpl->param(NAME => $acctdetails{Name});
 		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
@@ -244,10 +246,10 @@ sub despatch_admin
 		exit
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
-		my $olduser = clean_username($cgi->param('old_acct'));
+		my $edit_acct = $session->param('EditingAcct');
 		my $user = clean_username($cgi->param('account'));
-		my $add = ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'add_vacc');
-		my $person = ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc');
+		my $add = (not defined $edit_acct);
+		my $person = ($cgi->param('tmpl') eq 'add_acc' or $edit_acct =~ m/\/users\/[^\/]+$/);
 
 		if (defined $cgi->param('save')) {
 			my $whinge = '';
@@ -262,7 +264,7 @@ sub despatch_admin
 			$whinge = 'Short name too short' if length $user < 3;
 			$whinge = 'Short name too long' if length $user > 20;
 			if ($whinge ne '') {
-				my $tmpl = gen_add_edit_acc($add, $person, $user, $cgi);
+				my $tmpl = gen_add_edit_acc($add, $person, $user, $session);
 				$tmpl->param(WHINGE => format_whinge($whinge));
 				print "Content-Type: text/html\n\n", $tmpl->output;
 				exit
@@ -270,7 +272,7 @@ sub despatch_admin
 
 			my $root = $config{Root};
 			my %userdetails;
-			%userdetails = read_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $olduser) unless ($add);
+			%userdetails = read_simp_cfg($edit_acct) unless ($add);
 			$userdetails{Name} = $cgi->param('fullname');
 			if ($person) {
 				$userdetails{email} = $cgi->param('email');
@@ -280,9 +282,15 @@ sub despatch_admin
 				(mkdir "$root/accounts" or die) unless (-d "$root/accounts");
 			}
 			write_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $user, %userdetails);
-			# support renaming...
-			unlink(($person ? "$root/users/" : "$root/accounts/") . $olduser) unless ($add or ($olduser eq $user));
+			unless ($add) {
+				# support renaming...
+				$edit_acct =~ /\/([^\/]+)$/;
+				(unlink($edit_acct) or die) unless ($1 eq $user);
+			}	
 		}
+		$session->clear('EditingAcct');
+		$session->flush();
+
 		my $tmpl = gen_view_accs($person);
 		if ($add) {
 			$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled"));
@@ -312,7 +320,7 @@ sub despatch_admin
 			}
 
 			if ($edit) {
-				$tmpl = gen_add_edit_acc((defined $cgi->param('add_acc') or defined $cgi->param('add_vacc')), $person, $acct, $cgi);
+				$tmpl = gen_add_edit_acc((defined $cgi->param('add_acc') or defined $cgi->param('add_vacc')), $person, $acct, $session);
 			} else {
 				unlink($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct") or die;
 				$tmpl = gen_view_accs($person);
@@ -363,6 +371,8 @@ die 'Admininstrator account with no password set?' unless defined $userdetails{P
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 
 unless ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') eq 'login') {
+	$session->clear('EditingAcct') unless ($cgi->param('tmpl') =~ m/^edit_v?acc$/);
+	$session->flush();
 	$session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
 	# the despatchers fall through if the requested action is unknown (or undef): make them log in again!
 }
