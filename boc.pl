@@ -221,7 +221,6 @@ sub despatch_admin
 
 	if ($cgi->param('tmpl') eq 'login') {
 		my $tmpl = HTML::Template->new(filename => 'templates/treasurer_cp.html') or die;
-		print "Content-Type: text/html\n\n" unless $cgi->param('tmpl') eq 'login';
 		print $tmpl->output;
 		exit
 	}
