@@ -313,9 +313,9 @@ sub despatch_admin
 			my $root = $config{Root};
 			my %userdetails;
 			%userdetails = read_simp_cfg($edit_acct) if ($edit);
-			$userdetails{Name} = $cgi->param('fullname');
+			$userdetails{Name} = clean_fullname($cgi->param('fullname'));
 			if ($person) {
-				$userdetails{email} = $cgi->param('email');
+				$userdetails{email} = clean_email($cgi->param('email'));
 				# FIXME: need to deal with, and validate, this field.  Somehow.
 				#$userdetails{Address} = $cgi->param('address');
 			} else {
