@@ -243,10 +243,10 @@ sub gen_view_accs
 
 sub gen_add_edit_acc
 {
-	my ($add, $person, $acct, $session) = @_;
+	my ($edit, $person, $acct, $session) = @_;
 	my $tmpl;
 
-	if ($add) {
+	unless ($edit) {
 		$tmpl = load_template($person ? 'new_account.html' : 'new_vaccount.html');
 	} else {
 		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html') or die;
@@ -288,8 +288,8 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
 		my $edit_acct = $session->param('EditingAcct');
 		my $user = clean_username($cgi->param('account'));
-		my $add = (not defined $edit_acct);
-		my $person = ($cgi->param('tmpl') eq 'add_acc' or $edit_acct =~ m/\/users\/[^\/]+$/);
+		my $edit = (defined $edit_acct);
+		my $person = ($cgi->param('tmpl') eq 'add_acc' or ($edit and $edit_acct =~ m/\/users\/[^\/]+$/));
 
 		if (defined $cgi->param('save')) {
 			my $whinge = '';
@@ -304,7 +304,7 @@ sub despatch_admin
 			$whinge = 'Short name too short' if length $user < 3;
 			$whinge = 'Short name too long' if length $user > 20;
 			if ($whinge ne '') {
-				my $tmpl = gen_add_edit_acc($add, $person, $user, $session);
+				my $tmpl = gen_add_edit_acc($edit, $person, $user, $session);
 				$tmpl->param(WHINGE => format_whinge($whinge));
 				print "Content-Type: text/html\n\n", $tmpl->output;
 				exit;
@@ -312,7 +312,7 @@ sub despatch_admin
 
 			my $root = $config{Root};
 			my %userdetails;
-			%userdetails = read_simp_cfg($edit_acct) unless ($add);
+			%userdetails = read_simp_cfg($edit_acct) if ($edit);
 			$userdetails{Name} = $cgi->param('fullname');
 			if ($person) {
 				$userdetails{email} = $cgi->param('email');
@@ -322,7 +322,7 @@ sub despatch_admin
 				(mkdir "$root/accounts" or die) unless (-d "$root/accounts");
 			}
 			write_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $user, %userdetails);
-			unless ($add) {
+			if ($edit) {
 				# support renaming...
 				$edit_acct =~ /\/([^\/]+)$/;
 				(unlink($edit_acct) or die) unless ($1 eq $user);
@@ -332,10 +332,10 @@ sub despatch_admin
 		$session->flush();
 
 		my $tmpl = gen_view_accs($person);
-		if ($add) {
-			$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled"));
-		} else {
+		if ($edit) {
 			$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Saved edits to account \"$user\"" : "Edit account cancelled"));
+		} else {
+			$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled"));
 		}
 		print "Content-Type: text/html\n\n", $tmpl->output;
 		exit;
@@ -360,7 +360,7 @@ sub despatch_admin
 			}
 
 			if ($edit) {
-				$tmpl = gen_add_edit_acc((defined $cgi->param('add_acc') or defined $cgi->param('add_vacc')), $person, $acct, $session);
+				$tmpl = gen_add_edit_acc((defined $cgi->param('edit_acc') or defined $cgi->param('edit_vacc')), $person, $acct, $session);
 			} else {
 				unlink($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct") or die;
 				$tmpl = gen_view_accs($person);
