@@ -12,6 +12,9 @@ use Crypt::Cracklib;
 use Crypt::PasswdMD5;
 use HTML::Template;
 
+use lib '.';
+use SimpCfg;
+
 our %config;
 
 sub format_whinge
@@ -48,42 +51,6 @@ sub load_template
 	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
 	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
 	return $tmpl;
-}
-
-sub read_simp_cfg
-{
-	my $file = $_[0];
-	my %config;
-
-	open(FH, "<$file") or die;
-	while (<FH>) {
-		chomp;			# no newline
-		s/#.*//;		# no comments
-		s/^\s+//;		# no leading white
-		s/\s+$//;		# no trailing white
-		next unless length;	# anything left?
-		my ($key, $value) = split(' ', $_, 2);
-		# forcably untaint file input.  if it's bad it shouldn't have got there.
-		if (defined $value) {
-			($config{$key}) = ($value =~ /^(.*)$/g);
-		} else {
-			$config{$key} = undef;
-		}
-	}
-	close(FH);
-
-	return %config;
-}
-
-sub write_simp_cfg
-{
-	my ($file, %config) = @_;
-
-	open(FH, ">$file") or die;
-	foreach my $key (keys %config) {
-		say FH (exists $config{$key}) ? "$key	$config{$key}" : "$key";
-	}
-	close(FH);
 }
 
 sub create_datastore_p
