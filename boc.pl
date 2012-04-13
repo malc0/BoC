@@ -348,11 +348,11 @@ my $cgi = CGI->new;
 
 %config = read_simp_cfg('boc_config');
 
-die 'Can\'t find "Root" key in ./boc_config' unless exists $config{Root};
-die 'Can\'t find "TemplateDir" key in ./boc_config' unless exists $config{TemplateDir};
+die 'Can\'t find value for "Root" key in ./boc_config' unless defined $config{Root};
+die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $config{TemplateDir};
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
-die 'Can\'t find "ShortName" key in ./boc_config' unless exists $config{ShortName};
-die 'Can\'t find "LongName" key in ./boc_config' unless exists $config{LongName};
+die 'Can\'t find value for "ShortName" key in ./boc_config' unless defined $config{ShortName};
+die 'Can\'t find value for "LongName" key in ./boc_config' unless defined $config{LongName};
 
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
 
