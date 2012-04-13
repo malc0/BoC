@@ -1,0 +1,25 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>Create BoC data store?</title>
+	</head>
+	<body>
+		<h1><TMPL_VAR NAME=REASON></h1>
+
+		<p>This could be due to an incorrect configuration of where to find the data store,
+		a corrupt data store, or this being a new installation.</p>
+
+		<p>Clicking the "Create" button below will attempt to set-up a new data store in <TMPL_VAR NAME=ROOT> with the given account details as administrator.</p>
+
+		<p>Allowed user name characters are a-z, 0-9, -, +, and _.  User names must be between 3 and 20 characters long.</p>
+
+		<form action="boc.pl" method="post">
+			<input type="hidden" name="tmpl" value="create_ds_p"/>
+			<!-- FIXME: validate with JS -->
+			<p><label>User name: <input type="text" name="user"/></label></p>
+			<p><label>Password: <input type="password" name="pass"/></label></p>
+			<p><input type="submit" value="Create!"/></p>
+			<TMPL_VAR NAME=WHINGE>
+		</form>
+	</body>
+</html>

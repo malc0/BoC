@@ -1,0 +1,27 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title>Add new BoC account</title>
+	</head>
+	<body>
+		<h1>Add new account</h1>
+
+		<!-- FIXME: validate client side -->
+		<p>Allowed account name characters are a-z, 0-9, -, +, and _.  Account names must be between 3 and 20 characters long.</p>
+
+		<form action="boc.pl" method="post">
+			<input type="hidden" name="tmpl" value="add_acc"/>
+
+			<p><label>Account (short) name: <input type="text" name="account" /></label></p>
+			<p><label>Full name: <input type="text" name="fullname" /></label></p>
+			<p><label>e-mail: <input type="text" name="email" /></label></p>
+			<!-- FIXME: college drop-down -->
+			<!--	<p><label>Real-world address: <textarea name="address" cols=40 rows=5></textarea></label></p>	-->
+
+			<p><input type="submit" name="cancel" value="Cancel"/>
+			<input type="submit" name="save" value="Add account"/></p>
+			<TMPL_VAR NAME=WHINGE>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</form>
+	</body>
+</html>
