@@ -438,8 +438,17 @@ sub merge_tg(\%\%\%)
 
 sub gen_tg
 {
-	my ($tgref, $view) = @_;
-	my %tgdetails = %$tgref;
+	my ($tg_file, $edit_mode, $session) = @_;
+	my %tgdetails;
+
+	if ($tg_file) {
+		%tgdetails = read_tg($tg_file);
+		if ($edit_mode) {
+			push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 4);
+		}
+	} else {
+		push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 9);
+	}
 
 	my $tmpl = load_template('edit_tg.html');
 
@@ -451,7 +460,9 @@ sub gen_tg
 
 	%tgdetails = merge_tg(%tgdetails, %rppl, %rvaccts);
 
-	$tmpl->param(RO => $view);
+	$tg_file =~ /\/([^\/]+)$/;
+	$tmpl->param(TG_ID => $1) if (!$edit_mode and $tg_file);
+	$tmpl->param(RO => (!$edit_mode and $tg_file));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(NOACCTS => scalar keys %acct_names);
@@ -500,18 +511,14 @@ sub despatch_user
 	if ($cgi->param('tmpl') eq 'view_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = $cgi->param('view');
-			my %tgdetails;
+			my $tg;
 
 			if ($view) {
-				my $tg = "$config{Root}/transaction_groups/" . $view;
+				$tg = "$config{Root}/transaction_groups/" . $view;
 				emit(gen_view_tgs) unless (-r $tg);
-				%tgdetails = read_tg($tg);
-			} else {
-				push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 9);
 			}
 
-			$tmpl = gen_tg(\%tgdetails, $view);
-			$tmpl->param(TG_ID => $view) if $view;
+			$tmpl = gen_tg($tg, 0, $session);
 		}
 		emit($tmpl);
 	}
@@ -534,18 +541,17 @@ sub despatch_user
 		}
 		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
 			if (defined $session->param('EditingTG')) {
+				$tmpl = gen_tg($session->param('EditingTG'), 0, $session);
 				$session->clear('EditingTG');
 				$session->flush();
-#				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled", gen_tg(\$tgdetails, 1));
+#				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled", $tmpl);
 			} else {
 #				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled", gen_view_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
 			my $tg = "$config{Root}/transaction_groups/" . $cgi->param('tg_id');
 			emit(gen_view_tgs) unless (-r $tg);
-			my %tgdetails = read_tg($tg);
-			push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 4);
-			$tmpl = gen_tg(\%tgdetails, undef);
+			$tmpl = gen_tg($tg, 1, $session);
 			$session->param('EditingTG', "$config{Root}/transaction_groups/" . $cgi->param('tg_id'));
 			$session->flush();
 		} elsif (defined $cgi->param('view_tgs')) {
