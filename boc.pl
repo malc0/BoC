@@ -50,6 +50,20 @@ sub load_template
 	return $tmpl;
 }
 
+sub emit
+{
+	print "Content-Type: text/html\n\n", $_[0]->output;
+	exit;
+}
+
+sub emit_with_status
+{
+	my ($status, $tmpl) = @_;
+	set_status($tmpl, $status);
+	print "Content-Type: text/html\n\n", $_[0]->output;
+	exit;
+}
+
 sub whinge
 {
 	my ($whinge, $tmpl) = @_;
@@ -90,9 +104,7 @@ sub create_datastore
 		(mkdir $user_path or die) unless (-d "$user_path");
 		write_simp_cfg("$user_path$user", %userdetails);
 	} else {
-		my $tmpl = gen_cds_p($reason);
-		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit;
+		emit(gen_cds_p($reason));
 	}
 }
 
@@ -171,18 +183,12 @@ sub get_new_session
 	$session->flush();
 
 	my %userdetails;
-	my $tmpl;
 	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
-		$tmpl = load_template('login.html') if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
+		emit(load_template('login.html')) if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
 	} elsif ($last_tmpl eq 'login') {
 		login($cgi, \%userdetails);
 	} else {
-		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
-	}
-
-	if (defined $tmpl) {
-		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit;
+		emit((exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html'));
 	}
 
 	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
@@ -259,15 +265,8 @@ sub despatch_admin
 		exit;
 	}
 	if ($cgi->param('tmpl') eq 'tcp') {
-		my $tmpl;
-		if (defined $cgi->param('view_ppl')) {
-			$tmpl = gen_view_accs(1);
-		}
-		if (defined $cgi->param('view_accs')) {
-			$tmpl = gen_view_accs(0);
-		}
-		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit;
+		emit(gen_view_accs(1)) if (defined $cgi->param('view_ppl'));
+		emit(gen_view_accs(0)) if (defined $cgi->param('view_accs'));
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
 		my $edit_acct = $session->param('EditingAcct');
@@ -307,22 +306,18 @@ sub despatch_admin
 				(unlink($edit_acct) or die) unless ($1 eq $user);
 			}	
 		}
-		$session->clear('EditingAcct');
-		$session->flush();
 
-		my $tmpl = gen_view_accs($person);
 		if ($edit) {
-			set_status($tmpl, (defined $cgi->param('save')) ? "Saved edits to account \"$user\"" : "Edit account cancelled");
+			$session->clear('EditingAcct');
+			$session->flush();
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$user\"" : "Edit account cancelled", gen_view_accs($person));
 		} else {
-			set_status($tmpl, (defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled");
+			emit_with_status((defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled", gen_view_accs($person));
 		}
-		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit;
 	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccs') {
-		my $tmpl;
 		if (defined $cgi->param('to_cp')) {
-			$tmpl = load_template('treasurer_cp.html');
+			emit(load_template('treasurer_cp.html'));
 		} else {
 			my $acct;
 			my $edit = 1;
@@ -339,15 +334,12 @@ sub despatch_admin
 			}
 
 			if ($edit) {
-				$tmpl = gen_add_edit_acc((defined $cgi->param('edit_acc') or defined $cgi->param('edit_vacc')), $person, $acct, $session);
+				emit(gen_add_edit_acc((defined $cgi->param('edit_acc') or defined $cgi->param('edit_vacc')), $person, $acct, $session));
 			} else {
 				unlink($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct") or die;
-				$tmpl = gen_view_accs($person);
-				set_status($tmpl, "Deleted account \"$acct\"");
+				emit_with_status("Deleted account \"$acct\"", gen_view_accs($person));
 			}
 		}
-		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit;
 	}
 }
 
@@ -512,13 +504,7 @@ sub despatch_user
 
 			if ($view) {
 				my $tg = "$config{Root}/transaction_groups/" . $view;
-
-				unless (-r $tg) {
-					$tmpl = gen_view_tgs;
-					print "Content-Type: text/html\n\n", $tmpl->output;
-					exit;
-				}
-
+				emit(gen_view_tgs) unless (-r $tg);
 				%tgdetails = read_tg($tg);
 			} else {
 				push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 9);
@@ -526,8 +512,7 @@ sub despatch_user
 
 			$tmpl = gen_tg(\%tgdetails, $view);
 		}
-		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit;
+		emit($tmpl);
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
 		if (defined $cgi->param('save')) {
@@ -550,11 +535,9 @@ sub despatch_user
 			if (defined $session->param('EditingTG')) {
 				$session->clear('EditingTG');
 				$session->flush();
-#				$tmpl = gen_tg(\$tgdetails, 1);
-#				set_status($tmpl, (defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled");
+#				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled", gen_tg(\$tgdetails, 1));
 			} else {
-				$tmpl = gen_view_tgs;
-#				set_status($tmpl, (defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled");
+#				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled", gen_view_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
 #			$session->param('EditingTG', $config{Root}/transaction_groups/$UUID);
@@ -564,8 +547,7 @@ sub despatch_user
 		} elsif (defined $cgi->param('view_tgs')) {
 			$tmpl = gen_view_tgs;
 		}
-		print "Content-Type: text/html\n\n", $tmpl->output;
-		exit;
+		emit($tmpl);
 	}
 }
 
