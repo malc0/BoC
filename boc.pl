@@ -32,13 +32,6 @@ sub clean_username
 	return $1;
 }
 
-sub clean_fullname
-{
-	return undef unless defined $_[0];
-	$_[0] =~ /^([\w.\'-+ ]*)$/;
-	return $1;
-}
-
 sub clean_email
 {
 	return undef unless defined $_[0];
@@ -300,7 +293,7 @@ sub despatch_admin
 		my $person = ($cgi->param('tmpl') eq 'add_acc' or ((defined $edit_acct_file) and $edit_acct_file =~ m/\/users\/[^\/]+$/));
 
 		if (defined $cgi->param('save')) {
-			my $fullname = clean_fullname($cgi->param('fullname'));
+			my $fullname = clean_text($cgi->param('fullname'));
 			my $email = $person ? clean_email($cgi->param('email')) : undef;
 			my $address = $person ? clean_text($cgi->param('address')) : undef;
 			my $root = $config{Root};
@@ -309,8 +302,7 @@ sub despatch_admin
 			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $session)) if length $new_acct < 3;
 			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $session)) if length $new_acct > 10;
 			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $session)) if (-e ($person ? "$root/accounts/" : "$root/users/") . $new_acct);
-			whinge('Disallowed characters in full name', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $fullname;
-			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $session)) if length $fullname < 1;
+			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $fullname;
 			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $session)) if length $fullname > 100;
 			if ($person) {
 				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $email;
