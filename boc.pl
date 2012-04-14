@@ -457,7 +457,6 @@ sub gen_tg
 
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
-		$tmpl->param(CRNAME => "Creditor_$row");
 		my $options = "";
 		foreach my $key (@{$tgdetails{Headings}}) {
 			next unless exists $acct_names{$key};
@@ -473,7 +472,7 @@ sub gen_tg
 			my %data = ( D => $tgdetails{$key}[$row], N => "${key}_$row" );
 			push(@rowcontents, \%data);
 		}
-		my %row = ( R => \@rowcontents, CROPTIONS => $options );
+		my %row = ( R => \@rowcontents, CRNAME => "Creditor_$row", CROPTIONS => $options );
 		push (@rows, \%row);
 	}
 	$tmpl->param(ROWS => \@rows);
