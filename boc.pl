@@ -58,7 +58,7 @@ sub clean_decimal
 {
 	return 0 unless defined $_[0];
 	return 0 if ($_[0] =~ /^\s*$/);
-	$_[0] =~ /^\s*(\d*\.?\d*)\s*$/;
+	$_[0] =~ /^\s*(-?\d*\.?\d*)\s*$/;
 	return $1;
 }
 
