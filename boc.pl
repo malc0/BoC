@@ -492,7 +492,7 @@ sub gen_tg
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
 		$tmpl->param(CRNAME => "Creditor_$row");
-		my $options = "<option>Select creditor</option>";
+		my $options = "";
 		foreach my $key (@{$tgdetails{Headings}}) {
 			next unless exists $acct_names{$key};
 			if ((defined $tgdetails{Creditor}[$row]) and $tgdetails{Creditor}[$row] eq $key) {
@@ -544,7 +544,7 @@ sub despatch_user
 
 				%tgdetails = read_tg($tg);
 			} else {
-				push(@{$tgdetails{Creditor}}, undef) foreach (0 .. 9);
+				push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 9);
 			}
 
 			$tmpl = gen_tg(\%tgdetails, $view);
