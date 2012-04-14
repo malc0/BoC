@@ -568,25 +568,33 @@ sub despatch_user
 					whinge("Non existant account \"$acct\"", gen_tg($session->param('EditingTG'), 1, $session)) unless exists $acct_names{$acct};
 				}
 
-				my @cred_tmp;
 				foreach my $row (0 .. $max_rows) {
 					my $cred = clean_username($cgi->param("Creditor_$row"));
 					my $amnt = clean_decimal($cgi->param("Amount_$row"));
 					my $desc = clean_text($cgi->param("Description_$row"));
 					whinge("Non existant account \"$cred\"", gen_tg($session->param('EditingTG'), 1, $session)) unless exists $acct_names{$cred};
-					push (@cred_tmp, $cred);
 					whinge('Non numerics in amount', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $amnt;
-					push (@{$tg{Amount}}, $amnt);
-					push (@{$tg{Description}}, $desc);
+					my $set = $amnt == 0 ? 0 : 10000;
+					$set += 10000 if defined $desc;
+					my @rowshares;
 					foreach my $acct (@accts) {
-						my $val = clean_decimal($cgi->param("${acct}_$row"));
-						whinge('Non numerics in share value', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $val;
-						push (@{$tg{$acct}}, $val);
+						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
+						whinge('Non numerics in debt share', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $rowshares[$#rowshares];
+						$set += 1 unless $rowshares[$#rowshares] == 0;
 					}
-					# FIXME require whole rows
+
+					if ($set > 20000) {
+						push (@{$tg{Creditor}}, $cred);
+						push (@{$tg{Amount}}, $amnt);
+						push (@{$tg{Description}}, $desc);
+						foreach my $i (0 .. $#accts) {
+							push (@{$tg{$accts[$i]}}, $rowshares[$i]);
+						}
+					} elsif ($set > 0 or $cred ne $session->param('User')) {
+						whinge('Insufficient values set in row', gen_tg($session->param('EditingTG'), 1, $session));
+					}
 				}
-				@{$tg{Creditor}} = @cred_tmp;	#FIXME
-	
+
 				my %all_ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
 				my %all_vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
 				my (%ppl, %vaccts);
