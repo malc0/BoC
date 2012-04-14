@@ -390,20 +390,43 @@ sub query_all_accts_in_path
 	return %response;
 }
 
+sub get_acct_name_map
+{
+	my %ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+	return (%ppl, %vaccts);
+}
+
 sub gen_view_tgs
 {
 	my $tmpl = load_template('manage_transactions.html');
 
+	my %acct_names = get_acct_name_map;
 	my @tgs = glob("$config{Root}/transaction_groups/*");
 	my @tglist;
 
 	foreach my $tg (@tgs) {
 		my %tgdetails = read_tg($tg);
+
+		my %summary;
+		my $sum_str = "";
+		foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
+			my $acct = $tgdetails{Creditor}[$i];
+			next if exists $summary{$acct};
+			$summary{$acct} = 0;
+			foreach my $j ($i .. $#{$tgdetails{Creditor}}) {
+				next unless $tgdetails{Creditor}[$j] eq $acct;
+				$summary{$acct} += $tgdetails{Amount}[$j];
+			}
+			$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
+		}
+
 		$tg =~ /.*\/(.*)/;
 		my %outputdetails = (
 				ACC => $1,
 				NAME => $tgdetails{Name},
 				DATE => $tgdetails{Date},
+				SUMMARY => substr($sum_str, 0, -2),
 		);
 		push(@tglist, \%outputdetails);
 	}
