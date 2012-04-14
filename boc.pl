@@ -10,6 +10,7 @@ use CGI::Carp qw(fatalsToBrowser);
 use CGI::Session '-ip-match';
 use Crypt::Cracklib;
 use Crypt::PasswdMD5;
+use HTML::Entities;
 use HTML::Template;
 use UUID::Tiny;
 
@@ -40,6 +41,12 @@ sub clean_email
 {
 	$_[0] =~ /^\s*(.+\@.+)\s*$/;
 	return $1;
+}
+
+sub clean_text
+{
+	my $escaped_text = encode_entities($_[0], '^A-Za-z0-9\$%^()\-_=+{}\[\];:@#,.?\\');
+	return length $escaped_text ? $escaped_text : undef;
 }
 
 sub load_template
@@ -247,6 +254,7 @@ sub gen_add_edit_acc
 		$tmpl->param(ACC => $edit_acct);
 		$tmpl->param(NAME => $acctdetails{Name});
 		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
+		$tmpl->param(ADDRESS => $acctdetails{Address}) if $person;
 	}
 
 	return $tmpl;
@@ -278,6 +286,7 @@ sub despatch_admin
 		if (defined $cgi->param('save')) {
 			my $fullname = clean_fullname($cgi->param('fullname'));
 			my $email = $person ? clean_email($cgi->param('email')) : undef;
+			my $address = $person ? clean_text($cgi->param('address')) : undef;
 
 			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $new_acct;
 			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $session)) if length $new_acct < 3;
@@ -287,6 +296,7 @@ sub despatch_admin
 			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $session)) if length $fullname > 100;
 			if ($person) {
 				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $email;
+				whinge('No real-world contact details given', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $address;
 			}
 
 			my $root = $config{Root};
@@ -295,8 +305,7 @@ sub despatch_admin
 			$userdetails{Name} = $fullname;
 			if ($person) {
 				$userdetails{email} = $email;
-				# FIXME: need to deal with, and validate, this field.  Somehow.
-				#$userdetails{Address} = $cgi->param('address');
+				$userdetails{Address} = $address;
 			} else {
 				(mkdir "$root/accounts" or die) unless (-d "$root/accounts");
 			}
