@@ -8,23 +8,21 @@
 			<input type="hidden" name="tmpl" value="edit_tg"/>
 			<TMPL_IF NAME=TG_ID><input type="hidden" name="tg_id" value="<TMPL_VAR NAME=TG_ID>"/></TMPL_IF>
 
-			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1>
-			<TMPL_ELSE>
-			<h2><label>Transaction group name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="tg_name"/></label></h2></TMPL_IF>
+			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Transaction group name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="tg_name"/></label></h2></TMPL_IF>
 
-			<p><label>Date: <input type="text" value="<TMPL_VAR NAME=DATE>" <TMPL_IF NAME=RO>readonly="readonly"</TMPL_IF> name="tg_date"/></label></p>
+			<TMPL_IF NAME=RO><p>Date: <TMPL_VAR NAME=DATE></p><TMPL_ELSE><p><label>Date: <input type="text" value="<TMPL_VAR NAME=DATE>" name="tg_date"/></label></p></TMPL_IF>
 
 			<table border=1>
 				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Description</th></tr>
 				<tr><TMPL_LOOP NAME=HEADINGS><th><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr>
-					<td>
-						<select name="<TMPL_VAR NAME=CRNAME>" <TMPL_IF NAME=RO>disabled="disabled"</TMPL_IF>>
+					<td><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><TMPL_VAR NAME=O></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+						<select name="<TMPL_VAR NAME=CRNAME>">
 							<TMPL_LOOP NAME=CREDS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 							</TMPL_LOOP>
 						</select>
-					</td>
+					</TMPL_IF></td>
 					<TMPL_LOOP NAME=R><td><TMPL_IF NAME=RO><TMPL_VAR NAME=D><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=D>" name="<TMPL_VAR NAME=N>"/></TMPL_IF></td>
 					</TMPL_LOOP>
 				</tr>
