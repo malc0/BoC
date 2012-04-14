@@ -404,6 +404,10 @@ sub gen_view_tgs
 		my $sum_str = "";
 		foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
 			my $acct = $tgdetails{Creditor}[$i];
+			unless (defined $acct_names{$acct}) {
+				$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  ";
+				last;
+			}
 			next if exists $summary{$acct};
 			$summary{$acct} = 0;
 			foreach my $j ($i .. $#{$tgdetails{Creditor}}) {
@@ -411,6 +415,9 @@ sub gen_view_tgs
 				$summary{$acct} += $tgdetails{Amount}[$j];
 			}
 			$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
+		}
+		foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)]) {
+			$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  " unless (defined $acct_names{$acct});
 		}
 
 		$tg =~ /.*\/(.*)/;
