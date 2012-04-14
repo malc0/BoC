@@ -35,7 +35,7 @@ sub clean_username
 sub clean_fullname
 {
 	return undef unless defined $_[0];
-	$_[0] =~ /^([\w.\-+ ]*)$/;
+	$_[0] =~ /^([\w.\'-+ ]*)$/;
 	return $1;
 }
 
