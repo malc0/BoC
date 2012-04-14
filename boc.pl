@@ -53,7 +53,7 @@ sub load_template
 sub whinge
 {
 	my ($whinge, $tmpl) = @_;
-	$tmpl->param(WHINGE => "<p><b>$whinge</b></p>");
+	$tmpl->param(STATUS => "<p><b>$whinge</b></p>");
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
