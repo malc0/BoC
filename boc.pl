@@ -50,7 +50,7 @@ sub clean_text
 {
 	return undef unless defined $_[0];
 	my $escaped_text = encode_entities($_[0], '^A-Za-z0-9\$%^()\-_=+{}\[\];:@,.?\\');	# hash not included to avoid getting treated as comment in file!
-	$escaped_text =~ /^(.*)$/;
+	$escaped_text =~ /^(.+)$/;
 	return $1;
 }
 
