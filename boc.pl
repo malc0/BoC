@@ -19,9 +19,9 @@ use TG;
 
 our %config;
 
-sub format_status
+sub set_status
 {
-	return ($_[0] eq '') ? '' : "<p><b>Status: $_[0]</b></p>";
+	$_[0]->param(STATUS => "<p><b>Status: $_[1]</b></p>");
 }
 
 sub clean_username
@@ -312,9 +312,9 @@ sub despatch_admin
 
 		my $tmpl = gen_view_accs($person);
 		if ($edit) {
-			$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Saved edits to account \"$user\"" : "Edit account cancelled"));
+			set_status($tmpl, (defined $cgi->param('save')) ? "Saved edits to account \"$user\"" : "Edit account cancelled");
 		} else {
-			$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled"));
+			set_status($tmpl, (defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled");
 		}
 		print "Content-Type: text/html\n\n", $tmpl->output;
 		exit;
@@ -343,7 +343,7 @@ sub despatch_admin
 			} else {
 				unlink($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct") or die;
 				$tmpl = gen_view_accs($person);
-				$tmpl->param(STATUS => format_status("Deleted account \"$acct\""));
+				set_status($tmpl, "Deleted account \"$acct\"");
 			}
 		}
 		print "Content-Type: text/html\n\n", $tmpl->output;
@@ -551,10 +551,10 @@ sub despatch_user
 				$session->clear('EditingTG');
 				$session->flush();
 #				$tmpl = gen_tg(\$tgdetails, 1);
-#				$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled"));
+#				set_status($tmpl, (defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled");
 			} else {
 				$tmpl = gen_view_tgs;
-#				$tmpl->param(STATUS => format_status((defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled"));
+#				set_status($tmpl, (defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled");
 			}
 		} elsif (defined $cgi->param('edit')) {
 #			$session->param('EditingTG', $config{Root}/transaction_groups/$UUID);
