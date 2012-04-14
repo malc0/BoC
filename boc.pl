@@ -419,13 +419,9 @@ sub merge_tg(\%\%\%)
 	}
 	push (@sorted, 'Description');
 
-	my @zerocol;
-	foreach my $row (0 .. $#{$file_tg->{Creditor}}) {
-		push(@zerocol, 0);
-	}
-
 	foreach my $acct (@sorted) {
-		@{$file_tg->{$acct}} = @zerocol unless exists $file_tg->{$acct};
+		my $lower = exists $file_tg->{$acct} ? scalar(@{$file_tg->{$acct}}) : 0;
+		push (@{$file_tg->{$acct}}, ($acct eq 'Description') ? '' : 0) foreach ($lower .. $#{$file_tg->{Creditor}});
 	}
 	@{$file_tg->{Headings}} = @sorted;
 
