@@ -54,6 +54,14 @@ sub clean_text
 	return $1;
 }
 
+sub clean_decimal
+{
+	return 0 unless defined $_[0];
+	return 0 if ($_[0] =~ /^\s*$/);
+	$_[0] =~ /^\s*(\d*\.?\d*)\s*$/;
+	return $1;
+}
+
 sub load_template
 {
 	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1) or die;
@@ -419,9 +427,9 @@ sub gen_view_tgs
 	return $tmpl;
 }
 
-sub merge_tg(\%\%\%)
+sub sort_accts(\%\%)
 {
-	my ($file_tg, $ppl, $vaccts) = @_;
+	my ($ppl, $vaccts) = @_;
 
 	my @sort_ppl = sort(keys $ppl);
 	my @sort_vaccts = sort(keys $vaccts);
@@ -434,13 +442,7 @@ sub merge_tg(\%\%\%)
 	}
 	push (@sorted, 'Description');
 
-	foreach my $acct (@sorted) {
-		my $lower = exists $file_tg->{$acct} ? scalar(@{$file_tg->{$acct}}) : 0;
-		push (@{$file_tg->{$acct}}, ($acct eq 'Description') ? '' : 0) foreach ($lower .. $#{$file_tg->{Creditor}});
-	}
-	@{$file_tg->{Headings}} = @sorted;
-
-	return %$file_tg;
+	return @sorted;
 }
 
 sub gen_tg
@@ -464,8 +466,13 @@ sub gen_tg
 	my %acct_names = (%ppl, %vaccts);
 	my %rppl = reverse(%ppl);
 	my %rvaccts = reverse(%vaccts);
+	my @sorted_accts = sort_accts(%rppl, %rvaccts);
 
-	%tgdetails = merge_tg(%tgdetails, %rppl, %rvaccts);
+	foreach my $acct (@sorted_accts) {
+		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
+		push (@{$tgdetails{$acct}}, ($acct eq 'Description') ? '' : 0) foreach ($lower .. $#{$tgdetails{Creditor}});
+	}
+	@{$tgdetails{Headings}} = @sorted_accts;
 
 	if ($tg_file) {
 		$tg_file =~ /\/([^\/]+)$/;
@@ -543,7 +550,43 @@ sub despatch_user
 				whinge('No transaction group name supplied', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $tg{Name};
 				whinge('No transaction group date supplied', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $tg{Date};
 
-				# FIXME store data!
+				my $max_rows = -1;
+				$max_rows += 1 while ($max_rows < 10000 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
+				whinge('No transactions?', gen_tg($session->param('EditingTG'), 1, $session)) unless $max_rows >= 0;
+
+				my %acct_names = get_acct_name_map;
+				my @accts = grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
+				s/_0$// for @accts;
+				foreach my $acct (@accts) {
+					whinge("Non existant account \"$acct\"", gen_tg($session->param('EditingTG'), 1, $session)) unless exists $acct_names{$acct};
+				}
+
+				my @cred_tmp;
+				foreach my $row (0 .. $max_rows) {
+					my $cred = clean_username($cgi->param("Creditor_$row"));
+					my $amnt = clean_decimal($cgi->param("Amount_$row"));
+					my $desc = clean_text($cgi->param("Description_$row"));
+					whinge("Non existant account \"$cred\"", gen_tg($session->param('EditingTG'), 1, $session)) unless exists $acct_names{$cred};
+					push (@cred_tmp, $cred);
+					whinge('Non numerics in amount', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $amnt;
+					push (@{$tg{Amount}}, $amnt);
+					push (@{$tg{Description}}, $desc);
+					foreach my $acct (@accts) {
+						my $val = clean_decimal($cgi->param("${acct}_$row"));
+						whinge('Non numerics in share value', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $val;
+						push (@{$tg{$acct}}, $val);
+					}
+					# FIXME require whole rows
+				}
+				@{$tg{Creditor}} = @cred_tmp;	#FIXME
+	
+				my %all_ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
+				my %all_vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+				my (%ppl, %vaccts);
+				foreach my $acct (@accts) {
+					((exists $all_ppl{$acct}) ? $ppl{$all_ppl{$acct}} : $vaccts{$all_vaccts{$acct}}) = $acct;
+				}
+				@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
 
 				if (defined $session->param('EditingTG')) {
 					write_tg($session->param('EditingTG'), %tg);
