@@ -523,30 +523,39 @@ sub despatch_user
 		emit($tmpl);
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
-		if (defined $cgi->param('save')) {
-			my %tg;
-			# FIXME ha ha
-
-			if (defined $session->param('EditingTG')) {
-				write_tg($session->param('EditingTG'), %tg);
-			} else {
-				my $id;
-				my $tg_path = "$config{Root}/transaction_groups";
-				(mkdir "$tg_path" or die) unless (-d $tg_path);
-				do {
-					$id = create_UUID_as_string(UUID_V4);
-				} while (-e "$tg_path/$id");
-				write_tg("$tg_path/$id", %tg);
-			}
-		}
 		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
+			my %tg;
+
+			if (defined $cgi->param('save')) {
+				$tg{Name} = clean_text($cgi->param('tg_name'));
+				# FIXME want a real date helper
+				$tg{Date} = clean_text($cgi->param('tg_date'));
+
+				whinge('No transaction group name supplied', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $tg{Name};
+				whinge('No transaction group date supplied', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $tg{Date};
+
+				# FIXME store data!
+
+				if (defined $session->param('EditingTG')) {
+					write_tg($session->param('EditingTG'), %tg);
+				} else {
+					my $id;
+					my $tg_path = "$config{Root}/transaction_groups";
+					(mkdir "$tg_path" or die) unless (-d $tg_path);
+					do {
+						$id = create_UUID_as_string(UUID_V4);
+					} while (-e "$tg_path/$id");
+					write_tg("$tg_path/$id", %tg);
+				}
+			}
+
 			if (defined $session->param('EditingTG')) {
 				$tmpl = gen_tg($session->param('EditingTG'), 0, $session);
 				$session->clear('EditingTG');
 				$session->flush();
-#				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$user\" transaction group" : "Edit cancelled", $tmpl);
+				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" transaction group" : "Edit cancelled", $tmpl);
 			} else {
-#				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled", gen_view_tgs);
+				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\"" : "Add transaction group cancelled", gen_view_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
 			my $tg = "$config{Root}/transaction_groups/" . $cgi->param('tg_id');
