@@ -19,11 +19,6 @@ use TG;
 
 our %config;
 
-sub format_whinge
-{
-	return ($_[0] eq '') ? '' : "<p><b>$_[0]</b></p>";
-}
-
 sub format_status
 {
 	return ($_[0] eq '') ? '' : "<p><b>Status: $_[0]</b></p>";
@@ -55,53 +50,50 @@ sub load_template
 	return $tmpl;
 }
 
-sub create_datastore_p
+sub whinge
 {
-	my ($reason, $whinge) = @_;
-	my $create_ds_tmpl = load_template('create_ds_p.html');
-
-	$create_ds_tmpl->param(REASON => $reason);
-	$create_ds_tmpl->param(ROOT => $config{Root});
-	$create_ds_tmpl->param(WHINGE => format_whinge($whinge));
-
-	print "Content-Type: text/html\n\n", $create_ds_tmpl->output;
-
+	my ($whinge, $tmpl) = @_;
+	$tmpl->param(WHINGE => "<p><b>$whinge</b></p>");
+	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
+}
+
+sub gen_cds_p
+{
+	my $reason = $_[0];
+	my $tmpl = load_template('create_ds_p.html');
+	$tmpl->param(REASON => $reason);
+	$tmpl->param(ROOT => $config{Root});
+
+	return $tmpl;
 }
 
 sub create_datastore
 {
-	my ($user, $pass) = @_;
-	my $root = $config{Root};
-
-	return 'Disallowed characters in username' unless defined clean_username($user);
-	return 'Username too short' if length $user < 3;
-	return 'Username too long' if length $user > 10;
-	$user = clean_username($user);
-
-	(mkdir "$root/users" or die) unless (-d "$root/users");
-
-	my $cracklib_rv = fascist_check($pass);
-#	return "Problem with password: $cracklib_rv" unless ($cracklib_rv eq 'ok');
-	my $cryptpass = unix_md5_crypt($pass);
-	my %userdetails = (
-		Password => $cryptpass,
-		IsAdmin => undef,
-	);
-	write_simp_cfg("$root/users/$user", %userdetails);
-
-	return 'ok';
-}
-
-sub cds_handler
-{
 	my ($cgi, $reason) = @_;
-	my $whinge = '';
 
 	if (defined $cgi->param('tmpl') and $cgi->param('tmpl') eq 'create_ds_p') {
-		$whinge = create_datastore($cgi->param('user'), $cgi->param('pass'));
+		my $user_path = "$config{Root}/users";
+		my $user = clean_username($cgi->param('user'));
+
+		whinge('Disallowed characters in username', gen_cds_p($reason)) unless defined $user;
+		whinge('Username too short', gen_cds_p($reason)) if length $user < 3;
+		whinge('Username too long', gen_cds_p($reason)) if length $user > 10;
+		my $cracklib_rv = fascist_check($cgi->param('pass'));
+		whinge("Problem with password: $cracklib_rv", gen_cds_p($reason)) unless ($cracklib_rv eq 'ok');
+
+		my $cryptpass = unix_md5_crypt($cgi->param('pass'));
+		my %userdetails = (
+			Password => $cryptpass,
+			IsAdmin => undef,
+		);
+		(mkdir $user_path or die) unless (-d "$user_path");
+		write_simp_cfg("$user_path$user", %userdetails);
+	} else {
+		my $tmpl = gen_cds_p($reason);
+		print "Content-Type: text/html\n\n", $tmpl->output;
+		exit;
 	}
-	create_datastore_p($reason, $whinge) unless ($whinge eq 'ok');
 }
 
 sub find_admins
@@ -119,25 +111,24 @@ sub find_admins
 	return @admins;
 }
 
-sub verify_login
+sub login
 {
 	my ($cgi, $userdetout) = @_;
 	my $user = clean_username($cgi->param('user'));
 	my $pass = $cgi->param('pass');
 
-	return 'Login failed!' unless (-r "$config{Root}/users/$user");
+	whinge('Login failed!', load_template('login.html')) unless (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
-	return 'Login on account with no password set?' unless defined $userdetails{Password};
+	whinge('Login on account with no password set?', load_template('login.html')) unless defined $userdetails{Password};
 
 	my ($empty, $id, $salt, $encrypted) = split(/\$/, $userdetails{Password}, 4);
 
 	my $cryptpass = unix_md5_crypt($pass, $salt);
 
-	return 'Login failed!' unless ($cryptpass eq $userdetails{Password});
+	whinge('Login failed!', load_template('login.html')) unless ($cryptpass eq $userdetails{Password});
 
 	$userdetails{User} = $user;
 	%{$userdetout} = %userdetails;
-	return 'ok';
 }
 
 sub gen_login_nopw
@@ -157,12 +148,12 @@ sub gen_login_nopw
 	return $tmpl;
 }
 
-sub verify_login_nopw
+sub login_nopw
 {
 	my ($cgi, $userdetout) = @_;
 	my $user = clean_username($cgi->param('user'));
 
-	return 'Login failed!' unless (-r "$config{Root}/users/$user");
+	whinge('Login failed!', gen_login_nopw) unless (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
 	return 'No PW login on account with password set?' if defined $userdetails{Password};
 
@@ -180,25 +171,16 @@ sub get_new_session
 	$session->flush();
 
 	my %userdetails;
-	my $whinge = '';
 	my $tmpl;
 	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
-		$whinge = verify_login_nopw($cgi, \%userdetails);
-		if ($whinge eq 'No PW login on account with password set?') {
-			$tmpl = load_template('login.html');
-			$whinge = '';
-		} elsif ($whinge ne 'ok') {
-			$tmpl = gen_login_nopw;
-		}
+		$tmpl = load_template('login.html') if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
 	} elsif ($last_tmpl eq 'login') {
-		$whinge = verify_login($cgi, \%userdetails);
-		$tmpl = load_template('login.html') unless ($whinge eq 'ok');
+		login($cgi, \%userdetails);
 	} else {
 		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
 	}
 
 	if (defined $tmpl) {
-		$tmpl->param(WHINGE => format_whinge($whinge));
 		print "Content-Type: text/html\n\n", $tmpl->output;
 		exit;
 	}
@@ -294,30 +276,25 @@ sub despatch_admin
 		my $person = ($cgi->param('tmpl') eq 'add_acc' or ($edit and $edit_acct =~ m/\/users\/[^\/]+$/));
 
 		if (defined $cgi->param('save')) {
-			my $whinge = '';
+			my $fullname = clean_fullname($cgi->param('fullname'));
+			my $email = clean_email($cgi->param('email'));
 
+			whinge('Disallowed characters in short name', gen_add_edit_acc($edit, $person, $user, $session)) unless defined $user;
+			whinge('Short name too short', gen_add_edit_acc($edit, $person, $user, $session)) if length $user < 3;
+			whinge('Short name too long', gen_add_edit_acc($edit, $person, $user, $session)) if length $user > 10;
+			whinge('Disallowed characters in full name', gen_add_edit_acc($edit, $person, $user, $session)) unless defined $fullname;
+			whinge('Full name too short', gen_add_edit_acc($edit, $person, $user, $session)) if length $fullname < 1;
+			whinge('Full name too long', gen_add_edit_acc($edit, $person, $user, $session)) if length $fullname > 100;
 			if ($person) {
-				$whinge = 'Not an email address' unless defined clean_email($cgi->param('email'));
-			}
-			$whinge = 'Disallowed characters in full name' unless defined clean_fullname($cgi->param('fullname'));
-			$whinge = 'Full name too short' if length $cgi->param('fullname') < 1;
-			$whinge = 'Full name too long' if length $cgi->param('fullname') > 100;
-			$whinge = 'Disallowed characters in short name' unless defined $user;
-			$whinge = 'Short name too short' if length $user < 3;
-			$whinge = 'Short name too long' if length $user > 10;
-			if ($whinge ne '') {
-				my $tmpl = gen_add_edit_acc($edit, $person, $user, $session);
-				$tmpl->param(WHINGE => format_whinge($whinge));
-				print "Content-Type: text/html\n\n", $tmpl->output;
-				exit;
+				whinge('Not an email address', gen_add_edit_acc($edit, $person, $user, $session)) unless defined $email;
 			}
 
 			my $root = $config{Root};
 			my %userdetails;
 			%userdetails = read_simp_cfg($edit_acct) if ($edit);
-			$userdetails{Name} = clean_fullname($cgi->param('fullname'));
+			$userdetails{Name} = $fullname;
 			if ($person) {
-				$userdetails{email} = clean_email($cgi->param('email'));
+				$userdetails{email} = $email;
 				# FIXME: need to deal with, and validate, this field.  Somehow.
 				#$userdetails{Address} = $cgi->param('address');
 			} else {
@@ -604,12 +581,12 @@ die 'Can\'t find value for "LongName" key in ./boc_config' unless defined $confi
 
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
 
-cds_handler($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
+create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 
 my @admins = find_admins;
 
 if (scalar @admins == 0) {
-	cds_handler($cgi, 'No administrator account defined?');
+	create_datastore($cgi, 'No administrator account defined?');
 	@admins = find_admins;
 }
 
