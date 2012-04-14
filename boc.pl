@@ -457,22 +457,18 @@ sub gen_tg
 
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
-		my $options = "";
+		my @rowoptions;
 		foreach my $key (@{$tgdetails{Headings}}) {
 			next unless exists $acct_names{$key};
-			if ((defined $tgdetails{Creditor}[$row]) and $tgdetails{Creditor}[$row] eq $key) {
-				$options .= "<option value=\"$key\" selected=\"selected\">$acct_names{$key}</option>"
-			} else {
-				$options .= "<option value=\"$key\">$acct_names{$key}</option>"
-			}
+			my %options = ( O => $acct_names{$key}, V => $key, S => $tgdetails{Creditor}[$row] eq $key );
+			push(@rowoptions, \%options);
 		}
-
 		my @rowcontents;
 		foreach my $key (@{$tgdetails{Headings}}[1 .. $#{$tgdetails{Headings}}]) {
 			my %data = ( D => $tgdetails{$key}[$row], N => "${key}_$row" );
 			push(@rowcontents, \%data);
 		}
-		my %row = ( R => \@rowcontents, CRNAME => "Creditor_$row", CROPTIONS => $options );
+		my %row = ( R => \@rowcontents, CREDS => \@rowoptions, CRNAME => "Creditor_$row" );
 		push (@rows, \%row);
 	}
 	$tmpl->param(ROWS => \@rows);
