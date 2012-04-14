@@ -443,13 +443,14 @@ sub gen_tg
 
 	%tgdetails = merge_tg(%tgdetails, %rppl, %rvaccts);
 
-	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(RO => $view);
+	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
+	$tmpl->param(NOACCTS => scalar keys %acct_names);
 	my @headings;
 	foreach my $key (@{$tgdetails{Headings}}) {
-		my $h = (exists $acct_names{$key}) ? $acct_names{$key} : $key;
-		my %heading = ( H => $h );
+		next unless exists $acct_names{$key};
+		my %heading = ( H => $acct_names{$key} );
 		push(@headings, \%heading);
 	}
 	$tmpl->param(HEADINGS => \@headings);

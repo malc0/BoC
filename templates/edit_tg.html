@@ -15,6 +15,7 @@
 			<p><label>Date: <input type="text" value="<TMPL_VAR NAME=DATE>" <TMPL_IF NAME=RO>readonly="readonly"</TMPL_IF> name="tg_date"/></label></p>
 
 			<table border=1>
+				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Description</th></tr>
 				<tr><TMPL_LOOP NAME=HEADINGS><th><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
 				<TMPL_LOOP NAME=ROWS>
 				<tr><td><select name="<TMPL_VAR NAME=CRNAME>" <TMPL_IF NAME=RO>disabled="disabled"</TMPL_IF>><TMPL_VAR NAME=CROPTIONS></select></td><TMPL_LOOP NAME=R><td><input type="text" value="<TMPL_VAR NAME=D>" <TMPL_IF NAME=RO>readonly="readonly"</TMPL_IF> name="<TMPL_VAR NAME=N>"/></td></TMPL_LOOP></tr>
