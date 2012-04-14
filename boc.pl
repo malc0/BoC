@@ -27,24 +27,28 @@ sub set_status
 
 sub clean_username
 {
+	return undef unless defined $_[0];
 	$_[0] =~ /^([a-z0-9\-+_]*)$/;
 	return $1;
 }
 
 sub clean_fullname
 {
+	return undef unless defined $_[0];
 	$_[0] =~ /^([\w.\-+ ]*)$/;
 	return $1;
 }
 
 sub clean_email
 {
+	return undef unless defined $_[0];
 	$_[0] =~ /^\s*(.+\@.+)\s*$/;
 	return $1;
 }
 
 sub clean_text
 {
+	return undef unless defined $_[0];
 	my $escaped_text = encode_entities($_[0], '^A-Za-z0-9\$%^()\-_=+{}\[\];:@,.?\\');	# hash not included to avoid getting treated as comment in file!
 	$escaped_text =~ /^(.*)$/;
 	return $1;
@@ -279,8 +283,11 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
 		my $edit_acct_file = $session->param('EditingAcct');
-		$edit_acct_file =~ /\/([^\/]+)$/;
-		my $edit_acct = $1;
+		my $edit_acct;
+		if ($edit_acct_file) {
+			$edit_acct_file =~ /\/([^\/]+)$/;
+			$edit_acct = $1;
+		}
 		my $new_acct = clean_username($cgi->param('account'));
 		my $person = ($cgi->param('tmpl') eq 'add_acc' or ((defined $edit_acct_file) and $edit_acct_file =~ m/\/users\/[^\/]+$/));
 
@@ -460,8 +467,10 @@ sub gen_tg
 
 	%tgdetails = merge_tg(%tgdetails, %rppl, %rvaccts);
 
-	$tg_file =~ /\/([^\/]+)$/;
-	$tmpl->param(TG_ID => $1) if (!$edit_mode and $tg_file);
+	if ($tg_file) {
+		$tg_file =~ /\/([^\/]+)$/;
+		$tmpl->param(TG_ID => $1);
+	}
 	$tmpl->param(RO => (!$edit_mode and $tg_file));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
