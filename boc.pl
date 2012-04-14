@@ -60,7 +60,7 @@ sub emit_with_status
 {
 	my ($status, $tmpl) = @_;
 	set_status($tmpl, $status);
-	print "Content-Type: text/html\n\n", $_[0]->output;
+	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
 
