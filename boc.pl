@@ -233,18 +233,18 @@ sub gen_view_accs
 
 sub gen_add_edit_acc
 {
-	my ($edit, $person, $acct, $session) = @_;
+	my ($edit_acct, $person, $session) = @_;
 	my $tmpl;
 
-	unless ($edit) {
+	unless ($edit_acct) {
 		$tmpl = load_template($person ? 'new_account.html' : 'new_vaccount.html');
 	} else {
-		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html') or die;
+		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html');
 
-		$session->param('EditingAcct', $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct");
+		$session->param('EditingAcct', $person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
 		$session->flush();
 		my %acctdetails = read_simp_cfg($session->param('EditingAcct'));
-		$tmpl->param(ACC => $acct);
+		$tmpl->param(ACC => $edit_acct);
 		$tmpl->param(NAME => $acctdetails{Name});
 		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
 	}
@@ -269,28 +269,29 @@ sub despatch_admin
 		emit(gen_view_accs(0)) if (defined $cgi->param('view_accs'));
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
-		my $edit_acct = $session->param('EditingAcct');
-		my $user = clean_username($cgi->param('account'));
-		my $edit = (defined $edit_acct);
-		my $person = ($cgi->param('tmpl') eq 'add_acc' or ($edit and $edit_acct =~ m/\/users\/[^\/]+$/));
+		my $edit_acct_file = $session->param('EditingAcct');
+		$edit_acct_file =~ /\/([^\/]+)$/;
+		my $edit_acct = $1;
+		my $new_acct = clean_username($cgi->param('account'));
+		my $person = ($cgi->param('tmpl') eq 'add_acc' or ((defined $edit_acct_file) and $edit_acct_file =~ m/\/users\/[^\/]+$/));
 
 		if (defined $cgi->param('save')) {
 			my $fullname = clean_fullname($cgi->param('fullname'));
-			my $email = clean_email($cgi->param('email'));
+			my $email = $person ? clean_email($cgi->param('email')) : undef;
 
-			whinge('Disallowed characters in short name', gen_add_edit_acc($edit, $person, $user, $session)) unless defined $user;
-			whinge('Short name too short', gen_add_edit_acc($edit, $person, $user, $session)) if length $user < 3;
-			whinge('Short name too long', gen_add_edit_acc($edit, $person, $user, $session)) if length $user > 10;
-			whinge('Disallowed characters in full name', gen_add_edit_acc($edit, $person, $user, $session)) unless defined $fullname;
-			whinge('Full name too short', gen_add_edit_acc($edit, $person, $user, $session)) if length $fullname < 1;
-			whinge('Full name too long', gen_add_edit_acc($edit, $person, $user, $session)) if length $fullname > 100;
+			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $new_acct;
+			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $session)) if length $new_acct < 3;
+			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $session)) if length $new_acct > 10;
+			whinge('Disallowed characters in full name', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $fullname;
+			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $session)) if length $fullname < 1;
+			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $session)) if length $fullname > 100;
 			if ($person) {
-				whinge('Not an email address', gen_add_edit_acc($edit, $person, $user, $session)) unless defined $email;
+				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $email;
 			}
 
 			my $root = $config{Root};
 			my %userdetails;
-			%userdetails = read_simp_cfg($edit_acct) if ($edit);
+			%userdetails = read_simp_cfg($edit_acct_file) if ($edit_acct_file);
 			$userdetails{Name} = $fullname;
 			if ($person) {
 				$userdetails{email} = $email;
@@ -299,20 +300,17 @@ sub despatch_admin
 			} else {
 				(mkdir "$root/accounts" or die) unless (-d "$root/accounts");
 			}
-			write_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $user, %userdetails);
-			if ($edit) {
-				# support renaming...
-				$edit_acct =~ /\/([^\/]+)$/;
-				(unlink($edit_acct) or die) unless ($1 eq $user);
-			}	
+			write_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $new_acct, %userdetails);
+			# support renaming...
+			(unlink($edit_acct_file) or die) if ($edit_acct and $edit_acct ne $new_acct);
 		}
 
-		if ($edit) {
+		if ($edit_acct) {
 			$session->clear('EditingAcct');
 			$session->flush();
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$user\"" : "Edit account cancelled", gen_view_accs($person));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : "Edit account cancelled", gen_view_accs($person));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added account \"$user\"" : "Add account cancelled", gen_view_accs($person));
+			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : "Add account cancelled", gen_view_accs($person));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccs') {
@@ -320,7 +318,7 @@ sub despatch_admin
 			emit(load_template('treasurer_cp.html'));
 		} else {
 			my $acct;
-			my $edit = 1;
+			my $delete = 0;
 			my $person = $cgi->param('tmpl') eq 'view_ppl';
 
 			foreach my $p ($cgi->param) {
@@ -329,12 +327,12 @@ sub despatch_admin
 				last if defined $acct;
 				$p =~ /del_(.*)/;
 				$acct = $1;
-				$edit = 0 if defined $acct;
+				$delete = 1 if defined $acct;
 				last if defined $acct;
 			}
 
-			if ($edit) {
-				emit(gen_add_edit_acc((defined $cgi->param('edit_acc') or defined $cgi->param('edit_vacc')), $person, $acct, $session));
+			unless ($delete) {
+				emit(gen_add_edit_acc($acct, $person, $session));
 			} else {
 				unlink($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct") or die;
 				emit_with_status("Deleted account \"$acct\"", gen_view_accs($person));
