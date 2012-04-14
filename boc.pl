@@ -511,6 +511,7 @@ sub despatch_user
 			}
 
 			$tmpl = gen_tg(\%tgdetails, $view);
+			$tmpl->param(TG_ID => $view) if $view;
 		}
 		emit($tmpl);
 	}
@@ -540,10 +541,13 @@ sub despatch_user
 #				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$user\"" : "Add transaction group cancelled", gen_view_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
-#			$session->param('EditingTG', $config{Root}/transaction_groups/$UUID);
+			my $tg = "$config{Root}/transaction_groups/" . $cgi->param('tg_id');
+			emit(gen_view_tgs) unless (-r $tg);
+			my %tgdetails = read_tg($tg);
+			push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 4);
+			$tmpl = gen_tg(\%tgdetails, undef);
+			$session->param('EditingTG', "$config{Root}/transaction_groups/" . $cgi->param('tg_id'));
 			$session->flush();
-			# need a tgdetails for edit -- FIXME
-#			$tmpl = gen_tg(\%tgdetails, undef);
 		} elsif (defined $cgi->param('view_tgs')) {
 			$tmpl = gen_view_tgs;
 		}

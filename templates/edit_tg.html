@@ -6,6 +6,7 @@
 	<body>
 		<form action="boc.pl" method="post">
 			<input type="hidden" name="tmpl" value="edit_tg"/>
+			<TMPL_IF NAME=TG_ID><input type="hidden" name="tg_id" value="<TMPL_VAR NAME=TG_ID>"/></TMPL_IF>
 
 			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1>
 			<TMPL_ELSE>
