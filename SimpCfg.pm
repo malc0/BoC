@@ -17,7 +17,8 @@ sub read_simp_cfg
 	open(FH, "<$file") or die;
 	while (<FH>) {
 		chomp;			# no newline
-		s/#.*//;		# no comments
+		s/^#.*//;		# no leading comments
+		s/\s#.*//;		# no whitespace prefixed comments
 		s/^\s+//;		# no leading white
 		s/\s+$//;		# no trailing white
 		next unless length;	# anything left?

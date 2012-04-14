@@ -45,7 +45,7 @@ sub clean_email
 
 sub clean_text
 {
-	my $escaped_text = encode_entities($_[0], '^A-Za-z0-9\$%^()\-_=+{}\[\];:@#,.?\\');
+	my $escaped_text = encode_entities($_[0], '^A-Za-z0-9\$%^()\-_=+{}\[\];:@,.?\\');	# hash not included to avoid getting treated as comment in file!
 	return length $escaped_text ? $escaped_text : undef;
 }
 
