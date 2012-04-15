@@ -758,6 +758,7 @@ sub despatch_user
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
 		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
+			my $tgfile = "$config{Root}/transaction_groups/" . $cgi->param('tg_id');
 			my %tg;
 
 			if (defined $cgi->param('save')) {
@@ -767,32 +768,32 @@ sub despatch_user
 				my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
 				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
-				whinge('No transaction group name supplied', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless defined $tg{Name};
-				whinge('Unparsable date', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) if $pd_error;
+				whinge('No transaction group name supplied', gen_tg($tgfile, 1, $session, $etoken)) unless defined $tg{Name};
+				whinge('Unparsable date', gen_tg($tgfile, 1, $session, $etoken)) if $pd_error;
 
 				my $max_rows = -1;
 				$max_rows += 1 while ($max_rows < 10000 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
-				whinge('No transactions?', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless $max_rows >= 0;
+				whinge('No transactions?', gen_tg($tgfile, 1, $session, $etoken)) unless $max_rows >= 0;
 
 				my %acct_names = get_acct_name_map;
 				my @accts = grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
 				s/_0$// for @accts;
 				foreach my $acct (@accts) {
-					whinge("Non existant account \"$acct\"", gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless exists $acct_names{$acct};
+					whinge("Non existant account \"$acct\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$acct};
 				}
 
 				foreach my $row (0 .. $max_rows) {
 					my $cred = clean_username($cgi->param("Creditor_$row"));
 					my $amnt = clean_decimal($cgi->param("Amount_$row"));
 					my $desc = clean_text($cgi->param("Description_$row"));
-					whinge("Non existant account \"$cred\"", gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless exists $acct_names{$cred};
-					whinge('Non numerics in amount', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless defined $amnt;
+					whinge("Non existant account \"$cred\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$cred};
+					whinge('Non numerics in amount', gen_tg($tgfile, 1, $session, $etoken)) unless defined $amnt;
 					my $set = $amnt == 0 ? 0 : 10000;
 					$set += 10000 if defined $desc;
 					my @rowshares;
 					foreach my $acct (@accts) {
 						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
-						whinge('Non numerics in debt share', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless defined $rowshares[$#rowshares];
+						whinge('Non numerics in debt share', gen_tg($tgfile, 1, $session, $etoken)) unless defined $rowshares[$#rowshares];
 						$set += 1 unless $rowshares[$#rowshares] == 0;
 					}
 
@@ -804,7 +805,7 @@ sub despatch_user
 							push (@{$tg{$accts[$i]}}, $rowshares[$i]);
 						}
 					} elsif ($set > 0 or $cred ne $session->param('User')) {
-						whinge('Insufficient values set in row', gen_tg($session->param('EditingTG'), 1, $session, $etoken));
+						whinge('Insufficient values set in row', gen_tg($tgfile, 1, $session, $etoken));
 					}
 				}
 
@@ -816,8 +817,8 @@ sub despatch_user
 				}
 				@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
 
-				if (defined $session->param('EditingTG')) {
-					write_tg($session->param('EditingTG'), %tg);
+				if (defined $tgfile) {
+					write_tg($tgfile, %tg);
 				} else {
 					my $id;
 					my $tg_path = "$config{Root}/transaction_groups";
@@ -829,10 +830,8 @@ sub despatch_user
 				}
 			}
 
-			if (defined $session->param('EditingTG')) {
-				$tmpl = gen_tg($session->param('EditingTG'), 0, $session, undef);
-				$session->clear('EditingTG');
-				$session->flush();
+			if (defined $tgfile) {
+				$tmpl = gen_tg($tgfile, 0, $session, undef);
 				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" transaction group" : "Edit cancelled", $tmpl);
 			} else {
 				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\"" : "Add transaction group cancelled", gen_view_tgs);
@@ -843,8 +842,6 @@ sub despatch_user
 			emit(gen_view_tgs) unless (-r $tg);
 			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_view_tgs) unless try_lock($tg, $etoken);
 			$tmpl = gen_tg($tg, 1, $session, $etoken);
-			$session->param('EditingTG', "$config{Root}/transaction_groups/" . $cgi->param('tg_id'));
-			$session->flush();
 		} elsif (defined $cgi->param('view_tgs')) {
 			$tmpl = gen_view_tgs;
 		}
@@ -880,8 +877,6 @@ my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 
 $session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
 
-$session->clear('EditingTG') unless ($cgi->param('tmpl') eq 'edit_tg');
-$session->flush();
 $session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
 
 # the despatchers fall through if the requested action is unknown: make them log in again!
