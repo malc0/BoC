@@ -243,6 +243,12 @@ sub clean_decimal
 	return $1;
 }
 
+sub clean_tgid
+{
+	return undef unless -r "$config{Root}/transaction_groups/$_[0]";
+	return untaint($_[0]);
+}
+
 sub untaint
 {
 	$_[0] =~ /^(.*)$/;
@@ -478,16 +484,17 @@ sub despatch_admin
 		emit(gen_view_accs(0)) if (defined $cgi->param('view_accs'));
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
+		my $etoken = $cgi->param('etoken');
 		my $edit_acct = clean_username($cgi->param('eacct'));
 		my $new_acct = clean_username($cgi->param('account'));
 		my $person = ($cgi->param('tmpl') =~ /_acc$/);
+		my $root = $config{Root};
+		my $acct_path = $person ? "$root/users" : "$root/accounts";
 
 		if (defined $cgi->param('save')) {
-			my $etoken = $cgi->param('etoken');
 			my $fullname = clean_text($cgi->param('fullname'));
 			my $email = $person ? clean_email($cgi->param('email')) : undef;
 			my $address = $person ? clean_text($cgi->param('address')) : undef;
-			my $root = $config{Root};
 
 			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $new_acct;
 			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct < 3;
@@ -501,7 +508,6 @@ sub despatch_admin
 			}
 
 			my %userdetails;
-			my $acct_path = $person ? "$root/users" : "$root/accounts";
 			%userdetails = read_simp_cfg("$acct_path/$edit_acct") if ($edit_acct);
 			$userdetails{Name} = $fullname;
 			if ($person) {
@@ -537,6 +543,8 @@ sub despatch_admin
 
 				unlink("$acct_path/$edit_acct") or die;
 			}
+		} else {
+			$edit_acct ? try_unlock("$acct_path/$edit_acct", $etoken) : redeem_add_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
 		}
 
 		if ($edit_acct) {
@@ -763,12 +771,16 @@ sub despatch_user
 		emit($tmpl);
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
+		my $tgfile = (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) ? "$config{Root}/transaction_groups/" . clean_tgid($cgi->param('tg_id')) : undef;
+		my $etoken = $cgi->param('etoken');
+
+		if ($etoken and not defined $cgi->param('save')) {
+			$cgi->param('tg_id') ? try_unlock($tgfile, $etoken) : redeem_add_token($sessid, 'add_tg', $etoken);
+		}
 		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
-			my $tgfile = "$config{Root}/transaction_groups/" . $cgi->param('tg_id');
 			my %tg;
 
 			if (defined $cgi->param('save')) {
-				my $etoken = $cgi->param('etoken');
 				$tg{Name} = clean_text($cgi->param('tg_name'));
 				my $date = clean_text($cgi->param('tg_date'));
 				my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
@@ -823,7 +835,7 @@ sub despatch_user
 				}
 				@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
 
-				if (defined $tgfile) {
+				if ($cgi->param('tg_id')) {
 					whinge('Invalid edit token (double submission?)', gen_tg($tgfile, 0, $session, undef)) unless try_unlock($tgfile, $etoken);
 				} else {
 					my $id;
@@ -844,11 +856,10 @@ sub despatch_user
 				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\"" : "Add transaction group cancelled", gen_view_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
-			my $tg = "$config{Root}/transaction_groups/" . $cgi->param('tg_id');
-			emit(gen_view_tgs) unless (-r $tg);
-			my $etoken = create_UUID_as_string(UUID_V4);
-			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_view_tgs) unless try_lock($tg, $etoken);
-			$tmpl = gen_tg($tg, 1, $session, $etoken);
+			emit(gen_view_tgs) unless (-r $tgfile);
+			$etoken = create_UUID_as_string(UUID_V4);
+			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_view_tgs) unless try_lock($tgfile, $etoken);
+			$tmpl = gen_tg($tgfile, 1, $session, $etoken);
 		} elsif (defined $cgi->param('view_tgs')) {
 			$tmpl = gen_view_tgs;
 		}
