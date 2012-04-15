@@ -12,6 +12,7 @@ use Crypt::Cracklib;
 use Crypt::PasswdMD5;
 use HTML::Entities;
 use HTML::Template;
+use Time::ParseDate;
 use UUID::Tiny;
 
 use lib '.';
@@ -608,11 +609,12 @@ sub despatch_user
 
 			if (defined $cgi->param('save')) {
 				$tg{Name} = clean_text($cgi->param('tg_name'));
-				# FIXME want a real date helper
-				$tg{Date} = clean_text($cgi->param('tg_date'));
+				my $date = clean_text($cgi->param('tg_date'));
+				my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
+				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
 				whinge('No transaction group name supplied', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $tg{Name};
-				whinge('No transaction group date supplied', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $tg{Date};
+				whinge('Unparsable date', gen_tg($session->param('EditingTG'), 1, $session)) if $pd_error;
 
 				my $max_rows = -1;
 				$max_rows += 1 while ($max_rows < 10000 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
