@@ -15,10 +15,73 @@ use HTML::Template;
 use UUID::Tiny;
 
 use lib '.';
-use SimpCfg;
-use TG;
+use SimpCfg ();
+use TG ();
 
 our %config;
+
+sub encode_for_html
+{
+	my $escaped = encode_entities(decode_entities($_[0]), '^A-Za-z0-9!%^*()\-_=+{}\[\];:@#~,./?\\\ ');
+	$escaped =~ s/&#39;/&apos;/g;
+	return $escaped;
+}
+
+sub encode_for_file
+{
+	return encode_entities(decode_entities($_[0]), '^A-Za-z0-9¬`!"£\$%^&*()\-_=+{}\[\];:\'@~,.<>/?\\\| ');	# hash not included to avoid getting treated as comment in file!
+}
+
+sub read_simp_cfg
+{
+	my %config = SimpCfg::read_simp_cfg($_[0]);
+
+	foreach my $key (keys %config) {
+		next if $key eq 'Password';
+		$config{$key} = encode_for_html($config{$key});
+	}
+
+	return %config;
+}
+
+sub write_simp_cfg
+{
+	my ($file, %config) = @_;
+
+	foreach my $key (keys %config) {
+		$config{$key} = encode_for_file($config{$key});
+	}
+
+	SimpCfg::write_simp_cfg($file, %config);
+}
+
+sub read_tg
+{
+	my %content = TG::read_tg($_[0]);
+
+	foreach my $key (keys %content) {
+		$content{$key} = encode_for_html($content{$key}) unless ref($content{$key});
+	}
+	foreach my $row (0 .. $#{$content{Description}}) {
+		$content{Description}[$row] = encode_for_html($content{Description}[$row]);
+	}
+
+	return %content;
+}
+
+sub write_tg
+{
+	my ($file, %content) = @_;
+
+	foreach my $key (keys %content) {
+		$content{$key} = encode_for_file($content{$key}) unless ref($content{$key});
+	}
+	foreach my $row (0 .. $#{$content{Description}}) {
+		$content{Description}[$row] = encode_for_file($content{Description}[$row]);
+	}
+
+	TG::write_tg($file, %content);
+}
 
 sub set_status
 {
@@ -42,8 +105,7 @@ sub clean_email
 sub clean_text
 {
 	return undef unless defined $_[0];
-	my $escaped_text = encode_entities($_[0], '^A-Za-z0-9\$%^()\-_=+{}\[\];:@,.?\\ ');	# hash not included to avoid getting treated as comment in file!
-	$escaped_text =~ s/&#39;/&apos;/g;
+	my $escaped_text = encode_for_html($_[0]);
 	$escaped_text =~ /^(.+)$/;
 	return $1;
 }
