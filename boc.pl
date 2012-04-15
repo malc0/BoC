@@ -1,20 +1,21 @@
 #!/usr/bin/perl -T
 
-#FIXME probably want some sequence number to prevent back button errors
-
 use 5.012;
 use autodie;
 use warnings;
-use Fcntl qw(O_WRONLY O_EXCL O_CREAT);
+use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
 use CGI::Session '-ip-match';
 use Crypt::Cracklib;
 use Crypt::PasswdMD5;
+use File::Slurp;
 use HTML::Entities;
 use HTML::Template;
+use List::Util qw(first);
 use Time::ParseDate;
 use UUID::Tiny;
+use YAML::XS;
 
 use lib '.';
 use SimpCfg ();
@@ -22,39 +23,123 @@ use TG ();
 
 our %config;
 
-sub get_edit_token
+sub flock_and_read
 {
-	my ($session, $edit_obj_str) = @_;
+	my $filename = $_[0];
+
+	sysopen(my $fh, $filename, O_RDWR|O_CREAT) or die;
+	flock ($fh, LOCK_EX) or die;
+
+	my $data = read_file($fh);
+	my %datah = Load($data);
+
+	return ($fh, %datah);
+}
+
+sub write_and_close
+{
+	my ($fh, %datah) = @_;
+
+	my $data = Dump(%datah);
+	seek ($fh, 0, SEEK_SET);
+	truncate ($fh, 0);
+	write_file($fh, $data);	# write_file does close() for us
+}
+
+sub push_session_data
+{
+	my ($sessid, $key, $value) = @_;
+
+	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
+
+	my ($fh, %data) = flock_and_read($file);
+	if (defined $data{$key} and first { $data{$key}[$_] eq $value } 0 .. $#{$data{$key}}) {
+		close ($fh);
+		return;
+	}
+
+	push(@{$data{$key}}, $value);
+
+	write_and_close($fh, %data);
+}
+
+sub pop_session_data
+{
+	my ($sessid, $key, $value) = @_;
+
+	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
+
+	my ($fh, %data) = flock_and_read($file);
+	unless (defined $data{$key}) {
+		close ($fh);
+		return undef;
+	}
+
+	my $index = first { $data{$key}[$_] eq $value } 0 .. $#{$data{$key}};
+	unless (defined $index) {
+		close ($fh);
+		return undef;
+	}
+
+	splice(@{$data{$key}}, $index, 1);
+
+	write_and_close($fh, %data);
+
+	return $value;
+}
+
+sub get_add_token
+{
+	my ($sessid, $add_obj_str) = @_;
 
 	my $pass = create_UUID_as_string(UUID_V4);
-	$session->param($edit_obj_str, $pass);
+	push_session_data($sessid, $add_obj_str, $pass);
 
 	return $pass;
 }
 
-sub redeem_edit_token
+sub redeem_add_token
 {
-	my ($session, $edit_obj_str, $pass) = @_;
+	return pop_session_data(@_);
+}
+
+sub try_lock
+{
+	my ($file, $token) = @_;
+	my $lockfile = "$file.lock";
+	$lockfile =~ s/^(.*\/)([^\/]*)/$1.$2/;	# insert a . to hide file (especially from directory globbing)
+	my $lock;
+
+	no autodie qw(sysopen open);	# sysopen and open are intended to fail sometimes
+	unless (sysopen ($lock, $lockfile, O_WRONLY | O_EXCL | O_CREAT)) {	# we assume it's not on NFSv2
+		my $mtime = (stat($lockfile))[9];
+
+		return undef unless ((not defined $mtime) or (time() - $mtime) > 600);
+
+		return undef unless open ($lock, "+>$lockfile");
+		return undef unless flock ($lock, LOCK_EX | LOCK_NB);
+	}
+
+	print $lock $token;
+
+	close ($lock);
+
+	return $token;
+}
+
+sub try_unlock
+{
+	my ($file, $token) = @_;
+	my $lockfile = "$file.lock";
+	$lockfile =~ s/^(.*\/)([^\/]*)/$1.$2/;	# insert a . to hide file (especially from directory globbing)
 	my $win = 0;
 
-	no warnings 'once';	# quieten complaint about ::FileName use
-	my $lockfile = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_boclock", $session->id());
-	my $ms_remaining = 10000;
-	no autodie "sysopen";	# sysopen is intended to fail sometimes
-	while ($ms_remaining) {
-		last if sysopen(SESS_LOCK, $lockfile, O_WRONLY | O_EXCL | O_CREAT);	# we assume /tmp isn't on NFSv2
-		Time::HiRes::usleep(1000);
-		$ms_remaining -= 1;
-	}
-	return -1 unless $ms_remaining;
-	close (SESS_LOCK);
+	no autodie qw(open);	# file may not exist
+	return 0 unless open (my $lock, "$lockfile");
 
-	if (defined $session->param($edit_obj_str) and $pass eq $session->param($edit_obj_str)) {
-		$win = 1;
-		$session->clear($edit_obj_str);
-	}
+	$win = unlink ($lockfile) if $token eq <$lock>;
 
-	unlink ($lockfile);
+	close ($lock);
 
 	return $win;
 }
