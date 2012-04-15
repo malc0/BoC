@@ -38,7 +38,7 @@ sub read_simp_cfg
 
 	foreach my $key (keys %config) {
 		next if $key eq 'Password';
-		$config{$key} = encode_for_html($config{$key});
+		$config{$key} = encode_for_html($config{$key}) if $config{$key};
 	}
 
 	return %config;
@@ -49,7 +49,7 @@ sub write_simp_cfg
 	my ($file, %config) = @_;
 
 	foreach my $key (keys %config) {
-		$config{$key} = encode_for_file($config{$key});
+		$config{$key} = encode_for_file($config{$key}) if $config{$key};
 	}
 
 	SimpCfg::write_simp_cfg($file, %config);
@@ -60,7 +60,7 @@ sub read_tg
 	my %content = TG::read_tg($_[0]);
 
 	foreach my $key (keys %content) {
-		$content{$key} = encode_for_html($content{$key}) unless ref($content{$key});
+		$content{$key} = encode_for_html($content{$key}) unless (ref($content{$key}) or not $content{$key});
 	}
 	foreach my $row (0 .. $#{$content{Description}}) {
 		$content{Description}[$row] = encode_for_html($content{Description}[$row]);
@@ -74,7 +74,7 @@ sub write_tg
 	my ($file, %content) = @_;
 
 	foreach my $key (keys %content) {
-		$content{$key} = encode_for_file($content{$key}) unless ref($content{$key});
+		$content{$key} = encode_for_file($content{$key}) unless (ref($content{$key}) or not $content{$key});
 	}
 	foreach my $row (0 .. $#{$content{Description}}) {
 		$content{Description}[$row] = encode_for_file($content{Description}[$row]);
