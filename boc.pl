@@ -99,7 +99,8 @@ sub clean_email
 {
 	return undef unless defined $_[0];
 	$_[0] =~ /^\s*(.+\@.+)\s*$/;
-	return $1;
+	return undef unless $1;
+	return encode_for_html($1);
 }
 
 sub clean_text
