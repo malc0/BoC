@@ -430,6 +430,7 @@ sub despatch_admin
 			write_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $new_acct, %userdetails);
 			# support renaming...
 			if ($edit_acct and $edit_acct ne $new_acct) {
+				# FIXME: really needs a monster lock across even starting to edit TGs when this is done
 				my @tgs = glob("$config{Root}/transaction_groups/*");
 				foreach my $tg (@tgs) {
 					$tg = untaint($tg);
