@@ -448,9 +448,8 @@ sub gen_add_edit_acc
 	} else {
 		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html');
 
-		$session->param('EditingAcct', $person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
-		$session->flush();
-		my %acctdetails = read_simp_cfg($session->param('EditingAcct'));
+		$tmpl->param(EACCT => $edit_acct);
+		my %acctdetails = read_simp_cfg($person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
 		$tmpl->param(ACC => $edit_acct);
 		$tmpl->param(NAME => $acctdetails{Name});
 		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
@@ -479,14 +478,9 @@ sub despatch_admin
 		emit(gen_view_accs(0)) if (defined $cgi->param('view_accs'));
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
-		my $edit_acct_file = $session->param('EditingAcct');
-		my $edit_acct;
-		if ($edit_acct_file) {
-			$edit_acct_file =~ /\/([^\/]+)$/;
-			$edit_acct = $1;
-		}
+		my $edit_acct = clean_username($cgi->param('eacct'));
 		my $new_acct = clean_username($cgi->param('account'));
-		my $person = ($cgi->param('tmpl') eq 'add_acc' or ((defined $edit_acct_file) and $edit_acct_file =~ m/\/users\/[^\/]+$/));
+		my $person = ($cgi->param('tmpl') =~ /_acc$/);
 
 		if (defined $cgi->param('save')) {
 			my $etoken = $cgi->param('etoken');
@@ -495,27 +489,28 @@ sub despatch_admin
 			my $address = $person ? clean_text($cgi->param('address')) : undef;
 			my $root = $config{Root};
 
-			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $new_acct;
-			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if length $new_acct < 3;
-			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if length $new_acct > 10;
-			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if (-e ($person ? "$root/accounts/" : "$root/users/") . $new_acct);
-			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $fullname;
-			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if length $fullname > 100;
+			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $new_acct;
+			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct < 3;
+			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct > 10;
+			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $etoken)) if (-e ($person ? "$root/accounts/" : "$root/users/") . $new_acct);
+			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $fullname;
+			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $fullname > 100;
 			if ($person) {
-				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $email;
-				whinge('No real-world contact details given', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $address;
+				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $email;
+				whinge('No real-world contact details given', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $address;
 			}
 
 			my %userdetails;
-			%userdetails = read_simp_cfg($edit_acct_file) if ($edit_acct_file);
+			my $acct_path = $person ? "$root/users" : "$root/accounts";
+			%userdetails = read_simp_cfg("$acct_path/$edit_acct") if ($edit_acct);
 			$userdetails{Name} = $fullname;
 			if ($person) {
 				$userdetails{email} = $email;
 				$userdetails{Address} = $address;
 			} else {
-				(mkdir "$root/accounts" or die) unless (-d "$root/accounts");
+				(mkdir $acct_path or die) unless (-d $acct_path);
 			}
-			write_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $new_acct, %userdetails);
+			write_simp_cfg("$acct_path/$new_acct", %userdetails);
 			# support renaming...
 			if ($edit_acct and $edit_acct ne $new_acct) {
 				# FIXME: really needs a monster lock across even starting to edit TGs when this is done
@@ -534,13 +529,11 @@ sub despatch_admin
 					write_tg($tg, %tgdetails);
 				}
 
-				unlink($edit_acct_file) or die;
+				unlink("$acct_path/$edit_acct") or die;
 			}
 		}
 
 		if ($edit_acct) {
-			$session->clear('EditingAcct');
-			$session->flush();
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : "Edit account cancelled", gen_view_accs($person));
 		} else {
 			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : "Add account cancelled", gen_view_accs($person));
@@ -572,7 +565,7 @@ sub despatch_admin
 				} else {
 					$etoken = get_add_token($sessid, $person ? 'add_acct' : 'add_vacct');
 				}
-				emit(gen_add_edit_acc($acct, $person, $sessid, $etoken));
+				emit(gen_add_edit_acc($acct, $person, $etoken));
 			} else {
 				unlink($acct_file) or die;
 				emit_with_status("Deleted account \"$acct\"", gen_view_accs($person));
@@ -887,7 +880,6 @@ my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 
 $session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
 
-$session->clear('EditingAcct') unless ($cgi->param('tmpl') =~ m/^edit_v?acc$/);
 $session->clear('EditingTG') unless ($cgi->param('tmpl') eq 'edit_tg');
 $session->flush();
 $session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
