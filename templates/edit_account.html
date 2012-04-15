@@ -8,6 +8,7 @@
 
 		<form action="boc.pl" method="post">
 			<input type="hidden" name="tmpl" value="edit_acc"/>
+			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
 
 			<!-- JS "do you mean to rename?" -->
 			<p><label>Account (short) name: <input type="text" name="account" value="<TMPL_VAR NAME=ACC>"/></label></p>

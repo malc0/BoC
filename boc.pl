@@ -309,7 +309,7 @@ sub create_datastore
 			IsAdmin => undef,
 		);
 		(mkdir $user_path or die) unless (-d "$user_path");
-		write_simp_cfg("$user_path$user", %userdetails);
+		write_simp_cfg("$user_path$user", %userdetails);	# no session so not edit_token protected.  FIXME?
 	} else {
 		emit(gen_cds_p($reason));
 	}
@@ -440,7 +440,7 @@ sub gen_view_accs
 
 sub gen_add_edit_acc
 {
-	my ($edit_acct, $person, $session) = @_;
+	my ($edit_acct, $person, $etoken) = @_;
 	my $tmpl;
 
 	unless ($edit_acct) {
@@ -456,6 +456,7 @@ sub gen_add_edit_acc
 		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
 		$tmpl->param(ADDRESS => $acctdetails{Address}) if $person;
 	}
+	$tmpl->param(ETOKEN => $etoken);
 
 	return $tmpl;
 }
@@ -463,6 +464,7 @@ sub gen_add_edit_acc
 sub despatch_admin
 {
 	my $session = $_[0];
+	my $sessid = $session->id();
 	my $cgi = $session->query();
 
 	return if (defined $cgi->param('logout'));
@@ -487,20 +489,21 @@ sub despatch_admin
 		my $person = ($cgi->param('tmpl') eq 'add_acc' or ((defined $edit_acct_file) and $edit_acct_file =~ m/\/users\/[^\/]+$/));
 
 		if (defined $cgi->param('save')) {
+			my $etoken = $cgi->param('etoken');
 			my $fullname = clean_text($cgi->param('fullname'));
 			my $email = $person ? clean_email($cgi->param('email')) : undef;
 			my $address = $person ? clean_text($cgi->param('address')) : undef;
 			my $root = $config{Root};
 
-			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $new_acct;
-			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $session)) if length $new_acct < 3;
-			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $session)) if length $new_acct > 10;
-			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $session)) if (-e ($person ? "$root/accounts/" : "$root/users/") . $new_acct);
-			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $fullname;
-			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $session)) if length $fullname > 100;
+			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $new_acct;
+			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if length $new_acct < 3;
+			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if length $new_acct > 10;
+			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if (-e ($person ? "$root/accounts/" : "$root/users/") . $new_acct);
+			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $fullname;
+			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) if length $fullname > 100;
 			if ($person) {
-				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $email;
-				whinge('No real-world contact details given', gen_add_edit_acc($edit_acct, $person, $session)) unless defined $address;
+				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $email;
+				whinge('No real-world contact details given', gen_add_edit_acc($edit_acct, $person, $session, $etoken)) unless defined $address;
 			}
 
 			my %userdetails;
@@ -561,10 +564,17 @@ sub despatch_admin
 				last if defined $acct;
 			}
 
+			my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 			unless ($delete) {
-				emit(gen_add_edit_acc($acct, $person, $session));
+				my $etoken = create_UUID_as_string(UUID_V4);
+				if ($acct) {
+					whinge("Couldn't get edit lock for account \"$acct\"", gen_view_accs($person)) unless try_lock($acct_file, $etoken);
+				} else {
+					$etoken = get_add_token($sessid, $person ? 'add_acct' : 'add_vacct');
+				}
+				emit(gen_add_edit_acc($acct, $person, $sessid, $etoken));
 			} else {
-				unlink($person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct") or die;
+				unlink($acct_file) or die;
 				emit_with_status("Deleted account \"$acct\"", gen_view_accs($person));
 			}
 		}
@@ -659,7 +669,7 @@ sub sort_accts(\%\%)
 
 sub gen_tg
 {
-	my ($tg_file, $edit_mode, $session) = @_;
+	my ($tg_file, $edit_mode, $session, $etoken) = @_;
 	my %tgdetails;
 
 	if ($tg_file) {
@@ -720,12 +730,15 @@ sub gen_tg
 	}
 	$tmpl->param(ROWS => \@rows);
 
+	$tmpl->param(ETOKEN => $etoken);
+
 	return $tmpl;
 }
 
 sub despatch_user
 {
 	my $session = $_[0];
+	my $sessid = $session->id();
 	my $cgi = $session->query();
 	my $tmpl;
 
@@ -746,7 +759,7 @@ sub despatch_user
 				emit(gen_view_tgs) unless (-r $tg);
 			}
 
-			$tmpl = gen_tg($tg, 0, $session);
+			$tmpl = gen_tg($tg, 0, $session, $view ? undef : get_add_token($sessid, 'add_tg'));
 		}
 		emit($tmpl);
 	}
@@ -755,37 +768,38 @@ sub despatch_user
 			my %tg;
 
 			if (defined $cgi->param('save')) {
+				my $etoken = $cgi->param('etoken');
 				$tg{Name} = clean_text($cgi->param('tg_name'));
 				my $date = clean_text($cgi->param('tg_date'));
 				my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
 				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
-				whinge('No transaction group name supplied', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $tg{Name};
-				whinge('Unparsable date', gen_tg($session->param('EditingTG'), 1, $session)) if $pd_error;
+				whinge('No transaction group name supplied', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless defined $tg{Name};
+				whinge('Unparsable date', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) if $pd_error;
 
 				my $max_rows = -1;
 				$max_rows += 1 while ($max_rows < 10000 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
-				whinge('No transactions?', gen_tg($session->param('EditingTG'), 1, $session)) unless $max_rows >= 0;
+				whinge('No transactions?', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless $max_rows >= 0;
 
 				my %acct_names = get_acct_name_map;
 				my @accts = grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
 				s/_0$// for @accts;
 				foreach my $acct (@accts) {
-					whinge("Non existant account \"$acct\"", gen_tg($session->param('EditingTG'), 1, $session)) unless exists $acct_names{$acct};
+					whinge("Non existant account \"$acct\"", gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless exists $acct_names{$acct};
 				}
 
 				foreach my $row (0 .. $max_rows) {
 					my $cred = clean_username($cgi->param("Creditor_$row"));
 					my $amnt = clean_decimal($cgi->param("Amount_$row"));
 					my $desc = clean_text($cgi->param("Description_$row"));
-					whinge("Non existant account \"$cred\"", gen_tg($session->param('EditingTG'), 1, $session)) unless exists $acct_names{$cred};
-					whinge('Non numerics in amount', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $amnt;
+					whinge("Non existant account \"$cred\"", gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless exists $acct_names{$cred};
+					whinge('Non numerics in amount', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless defined $amnt;
 					my $set = $amnt == 0 ? 0 : 10000;
 					$set += 10000 if defined $desc;
 					my @rowshares;
 					foreach my $acct (@accts) {
 						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
-						whinge('Non numerics in debt share', gen_tg($session->param('EditingTG'), 1, $session)) unless defined $rowshares[$#rowshares];
+						whinge('Non numerics in debt share', gen_tg($session->param('EditingTG'), 1, $session, $etoken)) unless defined $rowshares[$#rowshares];
 						$set += 1 unless $rowshares[$#rowshares] == 0;
 					}
 
@@ -797,7 +811,7 @@ sub despatch_user
 							push (@{$tg{$accts[$i]}}, $rowshares[$i]);
 						}
 					} elsif ($set > 0 or $cred ne $session->param('User')) {
-						whinge('Insufficient values set in row', gen_tg($session->param('EditingTG'), 1, $session));
+						whinge('Insufficient values set in row', gen_tg($session->param('EditingTG'), 1, $session, $etoken));
 					}
 				}
 
@@ -823,7 +837,7 @@ sub despatch_user
 			}
 
 			if (defined $session->param('EditingTG')) {
-				$tmpl = gen_tg($session->param('EditingTG'), 0, $session);
+				$tmpl = gen_tg($session->param('EditingTG'), 0, $session, undef);
 				$session->clear('EditingTG');
 				$session->flush();
 				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" transaction group" : "Edit cancelled", $tmpl);
@@ -832,8 +846,10 @@ sub despatch_user
 			}
 		} elsif (defined $cgi->param('edit')) {
 			my $tg = "$config{Root}/transaction_groups/" . $cgi->param('tg_id');
+			my $etoken = create_UUID_as_string(UUID_V4);
 			emit(gen_view_tgs) unless (-r $tg);
-			$tmpl = gen_tg($tg, 1, $session);
+			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_view_tgs) unless try_lock($tg, $etoken);
+			$tmpl = gen_tg($tg, 1, $session, $etoken);
 			$session->param('EditingTG', "$config{Root}/transaction_groups/" . $cgi->param('tg_id'));
 			$session->flush();
 		} elsif (defined $cgi->param('view_tgs')) {
