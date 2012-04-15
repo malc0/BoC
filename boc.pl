@@ -120,6 +120,12 @@ sub clean_decimal
 	return $1;
 }
 
+sub untaint
+{
+	$_[0] =~ /^(.*)$/;
+	return $1;
+}
+
 sub load_template
 {
 	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1) or die;
@@ -385,7 +391,24 @@ sub despatch_admin
 			}
 			write_simp_cfg(($person ? "$root/users/" : "$root/accounts/") . $new_acct, %userdetails);
 			# support renaming...
-			(unlink($edit_acct_file) or die) if ($edit_acct and $edit_acct ne $new_acct);
+			if ($edit_acct and $edit_acct ne $new_acct) {
+				my @tgs = glob("$config{Root}/transaction_groups/*");
+				foreach my $tg (@tgs) {
+					$tg = untaint($tg);
+					my %tgdetails = read_tg($tg);
+
+					foreach my $acct (@{$tgdetails{Creditor}}) {
+						$acct = $new_acct if $acct eq $edit_acct;
+					}
+					foreach my $acct (@{$tgdetails{Headings}}) {
+						$acct = $new_acct if $acct eq $edit_acct;
+					}
+
+					write_tg($tg, %tgdetails);
+				}
+
+				unlink($edit_acct_file) or die;
+			}
 		}
 
 		if ($edit_acct) {
