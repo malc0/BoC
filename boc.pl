@@ -5,6 +5,7 @@
 use 5.012;
 use autodie;
 use warnings;
+use Fcntl qw(O_WRONLY O_EXCL O_CREAT);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
 use CGI::Session '-ip-match';
@@ -20,6 +21,43 @@ use SimpCfg ();
 use TG ();
 
 our %config;
+
+sub get_edit_token
+{
+	my ($session, $edit_obj_str) = @_;
+
+	my $pass = create_UUID_as_string(UUID_V4);
+	$session->param($edit_obj_str, $pass);
+
+	return $pass;
+}
+
+sub redeem_edit_token
+{
+	my ($session, $edit_obj_str, $pass) = @_;
+	my $win = 0;
+
+	no warnings 'once';	# quieten complaint about ::FileName use
+	my $lockfile = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_boclock", $session->id());
+	my $ms_remaining = 10000;
+	no autodie "sysopen";	# sysopen is intended to fail sometimes
+	while ($ms_remaining) {
+		last if sysopen(SESS_LOCK, $lockfile, O_WRONLY | O_EXCL | O_CREAT);	# we assume /tmp isn't on NFSv2
+		Time::HiRes::usleep(1000);
+		$ms_remaining -= 1;
+	}
+	return -1 unless $ms_remaining;
+	close (SESS_LOCK);
+
+	if (defined $session->param($edit_obj_str) and $pass eq $session->param($edit_obj_str)) {
+		$win = 1;
+		$session->clear($edit_obj_str);
+	}
+
+	unlink ($lockfile);
+
+	return $win;
+}
 
 sub encode_for_html
 {
