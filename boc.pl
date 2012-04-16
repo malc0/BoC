@@ -18,7 +18,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use HeadedTSV;
+use HeadedTSV ();
 use TG ();
 
 our %config;
@@ -158,7 +158,7 @@ sub encode_for_file
 
 sub read_simp_cfg
 {
-	my %config = read_htsv($_[0]);
+	my %config = HeadedTSV::read_htsv($_[0]);
 
 	foreach my $key (keys %config) {
 		next if $key eq 'Password';
@@ -176,7 +176,7 @@ sub write_simp_cfg
 		$config{$key} = encode_for_file($config{$key}) if $config{$key};
 	}
 
-	write_htsv($file, \%config);
+	HeadedTSV::write_htsv($file, \%config);
 }
 
 sub read_tg
