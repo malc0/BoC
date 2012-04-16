@@ -537,6 +537,7 @@ sub despatch_admin
 					foreach my $acct (@{$tgdetails{Headings}}) {
 						$acct = $new_acct if $acct eq $edit_acct;
 					}
+					$tgdetails{$new_acct} = delete $tgdetails{$edit_acct};
 
 					write_tg($tg, %tgdetails);
 				}
