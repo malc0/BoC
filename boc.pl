@@ -523,7 +523,7 @@ sub despatch_admin
 			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $new_acct;
 			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct < 3;
 			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct > 10;
-			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $etoken)) if (-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct");
+			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $etoken)) if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and (not defined $edit_acct or $edit_acct ne $new_acct));
 			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $fullname;
 			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $fullname > 100;
 			if ($person) {
