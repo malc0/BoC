@@ -19,7 +19,7 @@ sub read_tg
 	while (<FH>) {
 		chomp;			# no newline
 		s/#.*//;		# no comments
-		s/^\s+//;		# no leading white
+		s/^[ \r\n\v\f]+//;	# no leading white, except tab
 		s/\s+$//;		# no trailing white
 		next unless length;	# anything left?
 		($_) = (/^(.*)$/);	# forcably untaint file input.  if it's bad it shouldn't have got there.
