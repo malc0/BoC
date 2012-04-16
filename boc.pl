@@ -499,7 +499,7 @@ sub despatch_admin
 	return if (defined $cgi->param('logout'));
 
 	if ($cgi->param('tmpl') eq 'login') {
-		my $tmpl = HTML::Template->new(filename => 'templates/treasurer_cp.html') or die;
+		my $tmpl = load_template('templates/treasurer_cp.html');
 		print $tmpl->output;
 		exit;
 	}
@@ -777,9 +777,14 @@ sub despatch_user
 	return if (defined $cgi->param('logout'));
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
-		$tmpl = gen_manage_tgs;
+		$tmpl = load_template('templates/user_cp.html');
 		print $tmpl->output;
 		exit;
+	}
+	if ($cgi->param('tmpl') eq 'ucp') {
+		if (defined $cgi->param('manage_tgs')) {
+			emit(gen_manage_tgs);
+		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
@@ -792,6 +797,8 @@ sub despatch_user
 			}
 
 			$tmpl = gen_tg($tg, 0, $session, $view ? undef : get_add_token($sessid, 'add_tg'));
+		} elsif (defined $cgi->param('to_cp')) {
+			$tmpl = load_template('templates/user_cp.html');
 		}
 		emit($tmpl);
 	}
