@@ -782,12 +782,11 @@ sub despatch_user
 
 			if (defined $cgi->param('save')) {
 				$tg{Name} = clean_text($cgi->param('tg_name'));
+				whinge('No transaction group name supplied', gen_tg($tgfile, 1, $session, $etoken)) unless defined $tg{Name};
 				my $date = clean_text($cgi->param('tg_date'));
 				my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
-				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
-
-				whinge('No transaction group name supplied', gen_tg($tgfile, 1, $session, $etoken)) unless defined $tg{Name};
 				whinge('Unparsable date', gen_tg($tgfile, 1, $session, $etoken)) if $pd_error;
+				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
 				my $max_rows = -1;
 				$max_rows += 1 while ($max_rows < 10000 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
