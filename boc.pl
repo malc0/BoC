@@ -344,7 +344,7 @@ sub login
 
 	whinge('Login failed!', load_template('login.html')) unless (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
-	whinge('Login on account with no password set?', load_template('login.html')) unless defined $userdetails{Password};
+	whinge('Login failed!', load_template('login.html')) unless defined $userdetails{Password};
 
 	my ($empty, $id, $salt, $encrypted) = split(/\$/, $userdetails{Password}, 4);
 
