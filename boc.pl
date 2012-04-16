@@ -215,7 +215,7 @@ sub set_status
 sub clean_username
 {
 	return undef unless defined $_[0];
-	$_[0] =~ /^([a-z0-9\-+_]*)$/;
+	$_[0] =~ /^([a-z0-9\-+_]*)$/;	# these have to exist on a filesystem.  certainly do not permit dots (.), as could get trashed lock files
 	return $1;
 }
 
