@@ -614,6 +614,10 @@ sub despatch_admin
 				my $etoken = create_UUID_as_string(UUID_V4);
 				if ($acct) {
 					whinge("Couldn't get edit lock for account \"$acct\"", gen_view_accs($person)) unless try_lock($acct_file, $etoken, $sessid);
+					unless (-r $acct_file) {
+						try_unlock($acct_file, $etoken);
+						whinge("Couldn't edit account \"$acct\", file disappeared", gen_view_accs($person));
+					}
 				} else {
 					$etoken = get_add_token($sessid, $person ? 'add_acct' : 'add_vacct');
 				}
@@ -920,9 +924,12 @@ sub despatch_user
 				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\"" : "Add transaction group cancelled", gen_manage_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
-			emit(gen_manage_tgs) unless (-r $tgfile);
 			$etoken = create_UUID_as_string(UUID_V4);
 			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_manage_tgs) unless try_lock($tgfile, $etoken, $sessid);
+			unless (-r $tgfile) {
+				try_unlock($tgfile, $etoken);
+				whinge("Couldn't edit transaction group \"" . $cgi->param('tg_id') . "\", file disappeared", gen_manage_tgs);
+			}
 			$tmpl = gen_tg($tgfile, 1, $session, $etoken);
 		} elsif (defined $cgi->param('manage_tgs')) {
 			$tmpl = gen_manage_tgs;
