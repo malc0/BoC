@@ -105,7 +105,7 @@ sub redeem_add_token
 
 sub try_lock
 {
-	my ($file, $token) = @_;
+	my ($file, $token, $sessid) = @_;
 	my $lockfile = "$file.lock";
 	$lockfile =~ s/^(.*\/)([^\/]*)/$1.$2/;	# insert a . to hide file (especially from directory globbing)
 	my $lock;
@@ -120,7 +120,7 @@ sub try_lock
 		return undef unless flock ($lock, LOCK_EX | LOCK_NB);
 	}
 
-	print $lock $token;
+	print $lock "$token\n$sessid";
 
 	close ($lock);
 
@@ -137,7 +137,7 @@ sub try_unlock
 	no autodie qw(open);	# file may not exist
 	return 0 unless open (my $lock, "$lockfile");
 
-	$win = unlink ($lockfile) if $token eq <$lock>;
+	$win = unlink ($lockfile) if "$token\n" eq <$lock>;
 
 	close ($lock);
 
@@ -387,6 +387,23 @@ sub login_nopw
 	return 'ok';
 }
 
+sub clear_old_session_locks
+{
+	my $sessid = $_[0];
+	my @locks = glob("$config{Root}/*/.*.lock");
+
+	no autodie qw(open);	# file may not exist
+	foreach my $lockfile (@locks) {
+		$lockfile = untaint($lockfile);
+		next unless open (my $lock, "$lockfile");
+
+		<$lock>;
+		unlink ($lockfile) if $sessid eq <$lock>;
+
+		close ($lock);
+	}
+}
+
 sub get_new_session
 {
 	my ($session, $cgi) = @_;
@@ -399,6 +416,7 @@ sub get_new_session
 		$cgi->cookie(CGI::Session->name()) =~ /^([a-f0-9]*)$/;	# hex untaint
 		my $old_bocdata = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $1);
 		unlink $old_bocdata if -r $old_bocdata;
+		clear_old_session_locks($1);
 	}
 
 	my %userdetails;
@@ -582,7 +600,7 @@ sub despatch_admin
 			unless ($delete) {
 				my $etoken = create_UUID_as_string(UUID_V4);
 				if ($acct) {
-					whinge("Couldn't get edit lock for account \"$acct\"", gen_view_accs($person)) unless try_lock($acct_file, $etoken);
+					whinge("Couldn't get edit lock for account \"$acct\"", gen_view_accs($person)) unless try_lock($acct_file, $etoken, $sessid);
 				} else {
 					$etoken = get_add_token($sessid, $person ? 'add_acct' : 'add_vacct');
 				}
@@ -864,7 +882,7 @@ sub despatch_user
 		} elsif (defined $cgi->param('edit')) {
 			emit(gen_view_tgs) unless (-r $tgfile);
 			$etoken = create_UUID_as_string(UUID_V4);
-			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_view_tgs) unless try_lock($tgfile, $etoken);
+			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_view_tgs) unless try_lock($tgfile, $etoken, $sessid);
 			$tmpl = gen_tg($tgfile, 1, $session, $etoken);
 		} elsif (defined $cgi->param('view_tgs')) {
 			$tmpl = gen_view_tgs;
