@@ -209,7 +209,7 @@ sub write_tg
 
 sub set_status
 {
-	$_[0]->param(STATUS => "<p><b>Status: $_[1]</b></p>");
+	$_[0]->param(STATUS => "Status: $_[1]");
 }
 
 sub clean_username
@@ -280,7 +280,7 @@ sub emit_with_status
 sub whinge
 {
 	my ($whinge, $tmpl) = @_;
-	$tmpl->param(STATUS => "<p><b>$whinge</b></p>");
+	$tmpl->param(STATUS => $whinge);
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
