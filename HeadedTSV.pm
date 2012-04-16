@@ -1,5 +1,6 @@
 package HeadedTSV;
 
+use autodie;
 use strict;
 use warnings;
 
@@ -11,12 +12,17 @@ our @EXPORT = qw(read_htsv write_htsv);
 
 sub read_htsv
 {
-	my ($file, $hdg_key) = @_;
+	my ($file, $nexist_ok, $hdg_key) = @_;
 	$hdg_key = 'Headings' unless defined $hdg_key;
 	my %content;
 	my $in_header = 1;
 
-	open(FH, "<$file") or die;
+	if ($nexist_ok) {
+		no autodie qw(open);
+		open(FH, "<$file") or return %content;
+	} else {
+		open(FH, "<$file") or die;
+	}
 	while (<FH>) {
 		chomp;			# no newline
 		s/^#.*//;		# no leading comments

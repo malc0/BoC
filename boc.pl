@@ -158,7 +158,9 @@ sub encode_for_file
 
 sub read_simp_cfg
 {
-	my %config = HeadedTSV::read_htsv($_[0]);
+	my ($filename, $nexist_ok) = @_;
+
+	my %config = HeadedTSV::read_htsv($filename, $nexist_ok);
 
 	foreach my $key (keys %config) {
 		next if $key eq 'Password';
@@ -509,7 +511,7 @@ sub despatch_admin
 			my $cfg_file = "$config{Root}/config";
 			my $etoken = create_UUID_as_string(UUID_V4);
 			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $etoken, $sessid);
-			my %inst_cfg = read_simp_cfg("$config{Root}/config");
+			my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
 			my $tmpl = load_template('templates/edit_inst_cfg.html', $etoken);
 
 			foreach my $param ($tmpl->param()) {
@@ -939,7 +941,7 @@ die "The BoC root directory (set as $config{Root} in ./boc_config) must exist an
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
 $config{LongName} = "Set LongName in installation config!";
 $config{ShortName} = "Set ShortName in installation config!";
-my %inst_cfg = read_simp_cfg("$config{Root}/config");
+my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
 @config{keys %inst_cfg} = values %inst_cfg;	# merge installation settings
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
