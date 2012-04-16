@@ -946,10 +946,10 @@ die 'Can\'t find value for "Root" key in ./boc_config' unless defined $config{Ro
 die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $config{TemplateDir};
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
-$config{LongName} = "Set LongName in installation config!";
-$config{ShortName} = "Set ShortName in installation config!";
 my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
 @config{keys %inst_cfg} = values %inst_cfg;	# merge installation settings
+$config{LongName} = "Set LongName in installation config!" unless defined $config{LongName};
+$config{ShortName} = "Set ShortName in installation config!" unless defined $config{ShortName};
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;
