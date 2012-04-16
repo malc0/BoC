@@ -257,9 +257,10 @@ sub untaint
 
 sub load_template
 {
-	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1) or die;
+	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1, case_sensitive => 1) or die;
 	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
 	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
+	$tmpl->param(ETOKEN => $_[1]) if defined $_[1];
 	return $tmpl;
 }
 
@@ -472,9 +473,9 @@ sub gen_add_edit_acc
 	my $tmpl;
 
 	unless ($edit_acct) {
-		$tmpl = load_template($person ? 'new_account.html' : 'new_vaccount.html');
+		$tmpl = load_template($person ? 'new_account.html' : 'new_vaccount.html', $etoken);
 	} else {
-		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html');
+		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html', $etoken);
 
 		$tmpl->param(EACCT => $edit_acct);
 		my %acctdetails = read_simp_cfg($person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
@@ -483,7 +484,6 @@ sub gen_add_edit_acc
 		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
 		$tmpl->param(ADDRESS => $acctdetails{Address}) if $person;
 	}
-	$tmpl->param(ETOKEN => $etoken);
 
 	return $tmpl;
 }
@@ -493,6 +493,7 @@ sub despatch_admin
 	my $session = $_[0];
 	my $sessid = $session->id();
 	my $cgi = $session->query();
+	my $etoken = $cgi->param('etoken');
 
 	return if (defined $cgi->param('logout'));
 
@@ -504,9 +505,21 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'tcp') {
 		emit(gen_view_accs(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_view_accs(0)) if (defined $cgi->param('view_accs'));
+		if (defined $cgi->param('edit_inst_cfg')) {
+			my $cfg_file = "$config{Root}/config";
+			my $etoken = create_UUID_as_string(UUID_V4);
+			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $etoken, $sessid);
+			my %inst_cfg = read_simp_cfg("$config{Root}/config");
+			my $tmpl = load_template('templates/edit_inst_cfg.html', $etoken);
+
+			foreach my $param ($tmpl->param()) {
+				next if $tmpl->param($param);
+				$tmpl->param($param => $inst_cfg{$param});
+			}
+			emit($tmpl);
+		}
 	}
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
-		my $etoken = $cgi->param('etoken');
 		my $edit_acct = clean_username($cgi->param('eacct'));
 		my $new_acct = clean_username($cgi->param('account'));
 		my $person = ($cgi->param('tmpl') =~ /_acc$/);
@@ -608,6 +621,28 @@ sub despatch_admin
 				emit_with_status("Deleted account \"$acct\"", gen_view_accs($person));
 			}
 		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
+		my $cfg_file = "$config{Root}/config";
+		my $tmpl = load_template('templates/treasurer_cp.html');
+
+		if (defined $cgi->param('save')) {
+			my %inst_cfg;
+
+			foreach my $param ($cgi->param()) {
+				next if ($param eq 'tmpl' or $param eq 'etoken' or $param eq 'save');
+				$inst_cfg{$param} = clean_text($cgi->param($param));
+			}
+
+			whinge('Invalid edit token (double submission?)', $tmpl) unless try_unlock($cfg_file, $etoken);
+			write_simp_cfg($cfg_file, %inst_cfg);
+			@config{keys %inst_cfg} = values %inst_cfg;	# merge installation settings
+			$tmpl = load_template('templates/treasurer_cp.html');	# reload (possibly modified) template
+		} else {
+			try_unlock($cfg_file, $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", $tmpl);
 	}
 }
 
@@ -711,7 +746,7 @@ sub gen_tg
 		push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 9);
 	}
 
-	my $tmpl = load_template('edit_tg.html');
+	my $tmpl = load_template('edit_tg.html', $etoken);
 
 	my %ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
@@ -759,8 +794,6 @@ sub gen_tg
 		push (@rows, \%row);
 	}
 	$tmpl->param(ROWS => \@rows);
-
-	$tmpl->param(ETOKEN => $etoken);
 
 	return $tmpl;
 }
