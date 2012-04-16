@@ -34,7 +34,7 @@ sub read_tg
 			unless ($content{Headings}) {
 				$content{Headings} = [ split ];
 			} else {
-				my @line = split(' ', $_, scalar(@{$content{Headings}}));
+				my @line = split('	', $_, scalar(@{$content{Headings}}));
 				foreach my $i (0 .. $#{$content{Headings}}) {
 					push(@{$content{$content{Headings}[$i]}}, $line[$i]) if exists $line[$i];
 				}
