@@ -395,6 +395,12 @@ sub get_new_session
 	$session->delete();
 	$session->flush();
 
+	if (defined $cgi->cookie(CGI::Session->name())) {
+		$cgi->cookie(CGI::Session->name()) =~ /^([a-f0-9]*)$/;	# hex untaint
+		my $old_bocdata = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $1);
+		unlink $old_bocdata if -r $old_bocdata;
+	}
+
 	my %userdetails;
 	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
 		emit(load_template('login.html')) if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
