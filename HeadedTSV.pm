@@ -19,7 +19,8 @@ sub read_htsv
 	open(FH, "<$file") or die;
 	while (<FH>) {
 		chomp;			# no newline
-		s/#.*//;		# no comments
+		s/^#.*//;		# no leading comments
+		s/\s#.*//;		# no whitespace prefixed comments
 		s/^[ \r\n\v\f]+//;	# no leading white, except tab
 		s/\s+$//;		# no trailing white
 		next unless length;	# anything left?
