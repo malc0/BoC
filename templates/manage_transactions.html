@@ -7,12 +7,12 @@
 		<h1>Transaction groups</h1>
 
 		<form action="boc.pl" method="post">
-			<input type="hidden" name="tmpl" value="view_tgs"/>
+			<input type="hidden" name="tmpl" value="manage_tgs"/>
 
 			<table border=1>
 				<tr><th>Name</th><th>Date</th><th>Summary</th></tr>
 				<TMPL_LOOP NAME=TGS>
-				<tr><td><a href="boc.pl?tmpl=view_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=SUMMARY></td></tr>
+				<tr><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=SUMMARY></td></tr>
 				</TMPL_LOOP>
 			</table>
 			<p><input type="submit" name="add" value="Add new transaction group"/></p>

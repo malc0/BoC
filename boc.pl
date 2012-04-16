@@ -636,7 +636,7 @@ sub get_acct_name_map
 	return (%ppl, %vaccts);
 }
 
-sub gen_view_tgs
+sub gen_manage_tgs
 {
 	my $tmpl = load_template('manage_transactions.html');
 
@@ -777,18 +777,18 @@ sub despatch_user
 	return if (defined $cgi->param('logout'));
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
-		$tmpl = gen_view_tgs;
+		$tmpl = gen_manage_tgs;
 		print $tmpl->output;
 		exit;
 	}
-	if ($cgi->param('tmpl') eq 'view_tgs') {
+	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = $cgi->param('view');
 			my $tg;
 
 			if ($view) {
 				$tg = "$config{Root}/transaction_groups/" . $view;
-				emit(gen_view_tgs) unless (-r $tg);
+				emit(gen_manage_tgs) unless (-r $tg);
 			}
 
 			$tmpl = gen_tg($tg, 0, $session, $view ? undef : get_add_token($sessid, 'add_tg'));
@@ -869,7 +869,7 @@ sub despatch_user
 						$id = create_UUID_as_string(UUID_V4);
 					} while (-e "$tg_path/$id");
 					$tgfile = "$tg_path/$id";
-					whinge('Invalid add token (double submission?)', gen_view_tgs) unless redeem_add_token($sessid, 'add_tg', $etoken);
+					whinge('Invalid add token (double submission?)', gen_manage_tgs) unless redeem_add_token($sessid, 'add_tg', $etoken);
 				}
 				write_tg($tgfile, %tg);
 			}
@@ -877,15 +877,15 @@ sub despatch_user
 			if (defined $cgi->param('tg_id')) {
 				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 			} else {
-				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\"" : "Add transaction group cancelled", gen_view_tgs);
+				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\"" : "Add transaction group cancelled", gen_manage_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
-			emit(gen_view_tgs) unless (-r $tgfile);
+			emit(gen_manage_tgs) unless (-r $tgfile);
 			$etoken = create_UUID_as_string(UUID_V4);
-			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_view_tgs) unless try_lock($tgfile, $etoken, $sessid);
+			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_manage_tgs) unless try_lock($tgfile, $etoken, $sessid);
 			$tmpl = gen_tg($tgfile, 1, $session, $etoken);
-		} elsif (defined $cgi->param('view_tgs')) {
-			$tmpl = gen_view_tgs;
+		} elsif (defined $cgi->param('manage_tgs')) {
+			$tmpl = gen_manage_tgs;
 		}
 		emit($tmpl);
 	}
