@@ -321,19 +321,17 @@ sub create_datastore
 	}
 }
 
-sub find_admins
+sub validate_admins
 {
 	my @users = glob("$config{Root}/users/*");
-	my @admins;
 
+	my @valid_admins;
 	foreach my $user (@users) {
 		my %userdetails = read_simp_cfg($user);
-		push(@admins, $user) if (exists $userdetails{IsAdmin});
+		push(@valid_admins, $user) if (exists $userdetails{IsAdmin} and defined $userdetails{Password});
 	}
 
-	die 'Too many administrators defined (only one permitted)!' if (scalar @admins > 1);
-
-	return @admins;
+	return scalar @valid_admins;
 }
 
 sub login
@@ -911,19 +909,9 @@ die 'Can\'t find value for "LongName" key in ./boc_config' unless defined $confi
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
-
-my @admins = find_admins;
-
-if (scalar @admins == 0) {
-	create_datastore($cgi, 'No administrator account defined?');
-	@admins = find_admins;
-}
-
-my %userdetails = read_simp_cfg($admins[0]);
-die 'Admininstrator account with no password set?' unless defined $userdetails{Password};
+create_datastore($cgi, 'No useable administrator account') unless validate_admins;
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
-
 $session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
 
 $session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
