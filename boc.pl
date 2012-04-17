@@ -517,6 +517,7 @@ sub despatch_admin
 			foreach my $param ($tmpl->param()) {
 				next if $tmpl->param($param);
 				$tmpl->param($param => $inst_cfg{$param});
+				$tmpl->param($param => '" data-noop="') if exists $inst_cfg{$param} and not defined $inst_cfg{$param};
 			}
 			emit($tmpl);
 		}
