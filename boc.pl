@@ -447,10 +447,10 @@ sub get_new_session
 	return $session;
 }
 
-sub gen_view_accs
+sub gen_manage_accts
 {
 	my $people = $_[0];
-	my $tmpl = load_template($people ? 'view_people.html' : 'view_vaccounts.html');
+	my $tmpl = load_template('manage_accts.html');
 	my @accounts = $people ? glob("$config{Root}/users/*") : glob("$config{Root}/accounts/*");
 	my @acctlist;
 
@@ -460,19 +460,20 @@ sub gen_view_accs
 		$acct =~ /.*\/(.*)/;
 		if ($people) {
 			%outputdetails = (
-				ACC => $1,
+				ACCT => $1,
 				NAME => $acctdetails{Name},
 				EMAIL => $acctdetails{email},
 			);
 		} else {
 			%outputdetails = (
-				ACC => $1,
+				ACCT => $1,
 				NAME => $acctdetails{Name},
 			);
 		}
 		push(@acctlist, \%outputdetails);
 	}
-	$tmpl->param(ACCS => \@acctlist);
+	$tmpl->param(ACCTS => \@acctlist);
+	$tmpl->param(USER_ACCT => 1) if $people;
 
 	return $tmpl;
 }
@@ -510,8 +511,8 @@ sub despatch_admin
 		exit;
 	}
 	if ($cgi->param('tmpl') eq 'tcp') {
-		emit(gen_view_accs(1)) if (defined $cgi->param('view_ppl'));
-		emit(gen_view_accs(0)) if (defined $cgi->param('view_accs'));
+		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
+		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
 		if (defined $cgi->param('edit_inst_cfg')) {
 			my $cfg_file = "$config{Root}/config";
 			my $etoken = create_UUID_as_string(UUID_V4);
@@ -561,9 +562,9 @@ sub despatch_admin
 			}
 
 			if ($edit_acct) {
-				whinge('Invalid edit token (double submission?)', gen_view_accs($person)) unless try_unlock("$acct_path/$edit_acct", $etoken);
+				whinge('Invalid edit token (double submission?)', gen_manage_accts($person)) unless try_unlock("$acct_path/$edit_acct", $etoken);
 			} else {
-				whinge('Invalid add token (double submission?)', gen_view_accs($person)) unless redeem_add_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
+				whinge('Invalid add token (double submission?)', gen_manage_accts($person)) unless redeem_add_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
 			}
 			write_simp_cfg("$acct_path/$new_acct", %userdetails);
 			# support renaming...
@@ -592,12 +593,12 @@ sub despatch_admin
 		}
 
 		if ($edit_acct) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : "Edit account cancelled", gen_view_accs($person));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : "Edit account cancelled", gen_manage_accts($person));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : "Add account cancelled", gen_view_accs($person));
+			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : "Add account cancelled", gen_manage_accts($person));
 		}
 	}
-	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccs') {
+	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccts') {
 		if (defined $cgi->param('to_cp')) {
 			emit(load_template('treasurer_cp.html'));
 		} else {
@@ -619,10 +620,10 @@ sub despatch_admin
 			unless ($delete) {
 				my $etoken = create_UUID_as_string(UUID_V4);
 				if ($acct) {
-					whinge("Couldn't get edit lock for account \"$acct\"", gen_view_accs($person)) unless try_lock($acct_file, $etoken, $sessid);
+					whinge("Couldn't get edit lock for account \"$acct\"", gen_manage_accts($person)) unless try_lock($acct_file, $etoken, $sessid);
 					unless (-r $acct_file) {
 						try_unlock($acct_file, $etoken);
-						whinge("Couldn't edit account \"$acct\", file disappeared", gen_view_accs($person));
+						whinge("Couldn't edit account \"$acct\", file disappeared", gen_manage_accts($person));
 					}
 				} else {
 					$etoken = get_add_token($sessid, $person ? 'add_acct' : 'add_vacct');
@@ -630,7 +631,7 @@ sub despatch_admin
 				emit(gen_add_edit_acc($acct, $person, $etoken));
 			} else {
 				unlink($acct_file) or die;
-				emit_with_status("Deleted account \"$acct\"", gen_view_accs($person));
+				emit_with_status("Deleted account \"$acct\"", gen_manage_accts($person));
 			}
 		}
 	}

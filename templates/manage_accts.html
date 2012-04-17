@@ -1,0 +1,33 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> accounts</title>
+	</head>
+	<body>
+		<h1><TMPL_IF NAME=USER_ACCT>User<TMPL_ELSE>Virtual</TMPL_IF> accounts</h1>
+
+		<form action="boc.pl" method="post">
+			<input type="hidden" name="tmpl" value="view_<TMPL_IF NAME=USER_ACCT>ppl<TMPL_ELSE>vaccts</TMPL_IF>"/>
+
+			<table border=1>
+				<TMPL_IF NAME=USER_ACCT>
+				<tr><th>User name</th><th>Real name</th><th>email</th></tr>
+				<TMPL_LOOP NAME=ACCTS>
+				<!-- FIXME: JS delete confirm! -->
+				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=EMAIL></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete"/></td></tr>
+				</TMPL_LOOP>
+				<TMPL_ELSE>
+				<tr><th>Short name</th><th>Long name</th></tr>
+				<TMPL_LOOP NAME=ACCTS>
+				<!-- FIXME: JS delete confirm! -->
+				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete"/></td></tr>
+				</TMPL_LOOP>
+				</TMPL_IF>
+			</table>
+			<p><input type="submit" name="add" value="Add account"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</form>
+	</body>
+</html>
