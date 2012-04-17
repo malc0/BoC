@@ -925,10 +925,11 @@ sub despatch_user
 				write_tg($tgfile, %tg);
 			}
 
+			$tgfile =~ /.*\/([^\/]{7})[^\/]*$/;
 			if (defined $cgi->param('tg_id')) {
-				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
+				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 			} else {
-				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\"" : "Add transaction group cancelled", gen_manage_tgs);
+				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", gen_manage_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
 			$etoken = create_UUID_as_string(UUID_V4);
