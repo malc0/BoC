@@ -16,7 +16,7 @@
 				</TMPL_LOOP>
 			</table>
 			<p><input type="submit" name="add" value="Add new transaction group"/></p>
-			<p><b><TMPL_VAR NAME=STATUS></b></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 		</form>
