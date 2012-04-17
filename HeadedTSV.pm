@@ -63,8 +63,12 @@ sub write_htsv
 
 	open(FH, ">$file") or die;
 	foreach my $key (keys $content) {
-		say FH ((exists $content->{$key}) ? "$key	$content->{$key}" : "$key") unless ref($content->{$key});
-		$heading_only = 0 if ref($content->{$key});
+		unless (ref ($content->{$key})) {
+			# check if non-white exists (since trailing white killed on read anyway)
+			say FH ((defined $content->{$key} and $content->{$key} =~ /\S/) ? "$key	$content->{$key}" : "$key");
+		} else {
+			$heading_only = 0;
+		}
 	}
 
 	unless ($heading_only) {
