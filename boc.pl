@@ -480,13 +480,9 @@ sub gen_view_accs
 sub gen_add_edit_acc
 {
 	my ($edit_acct, $person, $etoken) = @_;
-	my $tmpl;
+	my $tmpl = load_template('edit_acct.html', $etoken);
 
-	unless ($edit_acct) {
-		$tmpl = load_template($person ? 'new_account.html' : 'new_vaccount.html', $etoken);
-	} else {
-		$tmpl = load_template($person ? 'edit_account.html' : 'edit_vaccount.html', $etoken);
-
+	if ($edit_acct) {
 		$tmpl->param(EACCT => $edit_acct);
 		my %acctdetails = read_simp_cfg($person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
 		$tmpl->param(ACC => $edit_acct);
@@ -494,6 +490,7 @@ sub gen_add_edit_acc
 		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
 		$tmpl->param(ADDRESS => $acctdetails{Address}) if $person;
 	}
+	$tmpl->param(USER_ACCT => 1) if $person;
 
 	return $tmpl;
 }
@@ -533,7 +530,7 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
 		my $edit_acct = clean_username($cgi->param('eacct'));
 		my $new_acct = clean_username($cgi->param('account'));
-		my $person = ($cgi->param('tmpl') =~ /_acc$/);
+		my $person = defined $cgi->param('email');
 		my $root = $config{Root};
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
 

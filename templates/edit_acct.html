@@ -1,25 +1,28 @@
 <!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 	<head>
-		<title>Edit <TMPL_VAR NAME=SN> user account</title>
+		<title><TMPL_IF NAME=EACCT>Edit<TMPL_ELSE>Add new</TMPL_IF> <TMPL_VAR NAME=SN> <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account</title>
 	</head>
 	<body>
-		<h1>Edit user account "<TMPL_VAR NAME=ACC>"</h1>
+		<h1><TMPL_IF NAME=EACCT>Edit <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account "<TMPL_VAR NAME=ACC>"<TMPL_ELSE>Add new <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account</TMPL_IF></h1>
 
+		<!-- FIXME: validate client side -->
 		<form action="boc.pl" method="post">
 			<input type="hidden" name="tmpl" value="edit_acc"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
-			<input type="hidden" name="eacct" value="<TMPL_VAR NAME=EACCT>"/>
+			<TMPL_IF NAME=EACCT><input type="hidden" name="eacct" value="<TMPL_VAR NAME=EACCT>"/></TMPL_IF>
 
-			<!-- JS "do you mean to rename?" -->
+			<p>Allowed account name characters are a-z, 0-9, -, +, and _.  Account names must be between 3 and 10 characters long.</p>
+			<!-- JS "do you mean to rename account?" -->
 			<p><label>Account (short) name: <input type="text" name="account" value="<TMPL_VAR NAME=ACC>"/></label></p>
 			<p><label>Full name: <input type="text" name="fullname" value="<TMPL_VAR NAME=NAME>"/></label></p>
+			<TMPL_IF NAME=USER_ACCT>
 			<p><label>e-mail: <input type="text" name="email" value="<TMPL_VAR NAME=EMAIL>"/></label></p>
 			<!-- FIXME: college drop-down -->
 			<p><label>Real-world address/contact details: <textarea name="address" cols=40 rows=5><TMPL_VAR NAME=ADDRESS></textarea></label></p>
+			</TMPL_IF>
 
-			<p><input type="submit" name="cancel" value="Cancel"/>
-			<input type="submit" name="save" value="Save changes"/></p>
+			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="<TMPL_IF NAME=EACCT>Save changes<TMPL_ELSE>Add account</TMPL_IF>"/></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 		</form>
