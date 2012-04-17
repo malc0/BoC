@@ -4,17 +4,17 @@
 		<title><TMPL_IF NAME=EACCT>Edit<TMPL_ELSE>Add new</TMPL_IF> <TMPL_VAR NAME=SN> <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account</title>
 	</head>
 	<body>
-		<h1><TMPL_IF NAME=EACCT>Edit <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account "<TMPL_VAR NAME=ACC>"<TMPL_ELSE>Add new <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account</TMPL_IF></h1>
+		<h1><TMPL_IF NAME=EACCT>Edit <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account "<TMPL_VAR NAME=ACCT>"<TMPL_ELSE>Add new <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account</TMPL_IF></h1>
 
 		<!-- FIXME: validate client side -->
 		<form action="boc.pl" method="post">
-			<input type="hidden" name="tmpl" value="edit_acc"/>
+			<input type="hidden" name="tmpl" value="edit_acct"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
 			<TMPL_IF NAME=EACCT><input type="hidden" name="eacct" value="<TMPL_VAR NAME=EACCT>"/></TMPL_IF>
 
 			<p>Allowed account name characters are a-z, 0-9, -, +, and _.  Account names must be between 3 and 10 characters long.</p>
 			<!-- JS "do you mean to rename account?" -->
-			<p><label>Account (short) name: <input type="text" name="account" value="<TMPL_VAR NAME=ACC>"/></label></p>
+			<p><label>Account (short) name: <input type="text" name="account" value="<TMPL_VAR NAME=ACCT>"/></label></p>
 			<p><label>Full name: <input type="text" name="fullname" value="<TMPL_VAR NAME=NAME>"/></label></p>
 			<TMPL_IF NAME=USER_ACCT>
 			<p><label>e-mail: <input type="text" name="email" value="<TMPL_VAR NAME=EMAIL>"/></label></p>

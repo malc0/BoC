@@ -485,10 +485,10 @@ sub gen_add_edit_acc
 	if ($edit_acct) {
 		$tmpl->param(EACCT => $edit_acct);
 		my %acctdetails = read_simp_cfg($person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
-		$tmpl->param(ACC => $edit_acct);
+		$tmpl->param(ACCT => $edit_acct);
 		$tmpl->param(NAME => $acctdetails{Name});
-		$tmpl->param(EMAIL => $acctdetails{email}) if $person;
-		$tmpl->param(ADDRESS => $acctdetails{Address}) if $person;
+		$tmpl->param(EMAIL => $acctdetails{email});
+		$tmpl->param(ADDRESS => $acctdetails{Address});
 	}
 	$tmpl->param(USER_ACCT => 1) if $person;
 
@@ -527,7 +527,7 @@ sub despatch_admin
 			emit($tmpl);
 		}
 	}
-	if ($cgi->param('tmpl') eq 'add_acc' or $cgi->param('tmpl') eq 'edit_acc' or $cgi->param('tmpl') eq 'add_vacc' or $cgi->param('tmpl') eq 'edit_vacc') {
+	if ($cgi->param('tmpl') eq 'edit_acct') {
 		my $edit_acct = clean_username($cgi->param('eacct'));
 		my $new_acct = clean_username($cgi->param('account'));
 		my $person = defined $cgi->param('email');
@@ -536,8 +536,8 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my $fullname = clean_text($cgi->param('fullname'));
-			my $email = $person ? clean_email($cgi->param('email')) : undef;
-			my $address = $person ? clean_text($cgi->param('address')) : undef;
+			my $email = clean_email($cgi->param('email'));
+			my $address = clean_text($cgi->param('address'));
 
 			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $new_acct;
 			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct < 3;
