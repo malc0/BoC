@@ -23,6 +23,14 @@ use TG ();
 
 our %config;
 
+sub update_global_config
+{
+	my (%append_cfg) = @_;
+	@config{keys %append_cfg} = values %append_cfg;	# merge settings
+	$config{LongName} = "Set LongName in installation config!" unless defined $config{LongName};
+	$config{ShortName} = "Set ShortName in installation config!" unless defined $config{ShortName};
+}
+
 sub flock_and_read
 {
 	my $filename = $_[0];
@@ -643,7 +651,7 @@ sub despatch_admin
 
 			whinge('Invalid edit token (double submission?)', $tmpl) unless try_unlock($cfg_file, $etoken);
 			write_simp_cfg($cfg_file, %inst_cfg);
-			@config{keys %inst_cfg} = values %inst_cfg;	# merge installation settings
+			update_global_config(%inst_cfg);
 			$tmpl = load_template('templates/treasurer_cp.html');	# reload (possibly modified) template
 		} else {
 			try_unlock($cfg_file, $etoken);
@@ -947,10 +955,7 @@ die 'Can\'t find value for "Root" key in ./boc_config' unless defined $config{Ro
 die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $config{TemplateDir};
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
-my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
-@config{keys %inst_cfg} = values %inst_cfg;	# merge installation settings
-$config{LongName} = "Set LongName in installation config!" unless defined $config{LongName};
-$config{ShortName} = "Set ShortName in installation config!" unless defined $config{ShortName};
+update_global_config(read_simp_cfg("$config{Root}/config", 1));
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;
