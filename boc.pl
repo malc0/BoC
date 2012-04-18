@@ -213,6 +213,32 @@ sub write_tg
 	TG::write_tg($file, %content);
 }
 
+sub read_htsv
+{
+	my ($filename, $nexist_ok) = @_;
+
+	my %content = HeadedTSV::read_htsv($filename, $nexist_ok);
+
+	foreach my $key (keys %content) {
+		$content{$key} = encode_for_html($content{$key}) unless (ref($content{$key}) or not $content{$key});
+		@{$content{$key}} = map (encode_for_html($_), @{$content{$key}}) if ref ($content{$key});
+	}
+
+	return %content;
+}
+
+sub write_htsv
+{
+	my ($file, $content, $ts) = @_;
+
+	foreach my $key (keys %$content) {
+		$content->{$key} = encode_for_file($content->{$key}) unless (ref($content->{$key}) or not $content->{$key});
+		@{$content->{$key}} = map (encode_for_file($_), @{$content->{$key}}) if ref ($content->{$key});
+	}
+
+	HeadedTSV::write_htsv($file, $content, $ts);
+}
+
 sub set_status
 {
 	$_[0]->param(STATUS => "Status: $_[1]");
