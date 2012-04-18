@@ -522,7 +522,7 @@ sub gen_edit_simp_trans
 {
 	my $tmpl = load_template('templates/edit_simp_trans.html', $_[0]);
 
-	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %rvaccts = reverse (%vaccts);
 	my @sorted_vaccts = map ($rvaccts{$_}, sort keys %rvaccts);
 
@@ -712,7 +712,7 @@ sub despatch_admin
 			$max_rows += 1 while ($max_rows < 100 and defined $cgi->param("DebitAcct_" . ($max_rows + 1)));
 			whinge('No transactions?', gen_edit_simp_trans($etoken)) unless $max_rows >= 0;
 
-			my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 
 			@{$cfg{Description}} = ();
 			@{$cfg{DebitAcct}} = ();
@@ -737,7 +737,7 @@ sub despatch_admin
 	}
 }
 
-sub query_all_accts_in_path
+sub query_all_htsv_in_path
 {
 	my ($path, $key) = @_;
 
@@ -745,7 +745,7 @@ sub query_all_accts_in_path
 	my %response;
 
 	foreach my $acct (@accts) {
-		my %acctdetails = read_simp_cfg($acct);
+		my %acctdetails = read_htsv($acct);
 		$acct =~ /.*\/(.*)/;
 		$response{$1} = $acctdetails{$key};
 	}
@@ -755,8 +755,8 @@ sub query_all_accts_in_path
 
 sub get_acct_name_map
 {
-	my %ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	return (%ppl, %vaccts);
 }
 
@@ -831,8 +831,8 @@ sub gen_tg
 
 	my $tmpl = load_template('edit_tg.html', $etoken);
 
-	my %ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %acct_names = (%ppl, %vaccts);
 	my @sorted_accts = sort_accts(%{{reverse %ppl}}, %{{reverse %vaccts}});
 
@@ -969,8 +969,8 @@ sub despatch_user
 					}
 				}
 
-				my %all_ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
-				my %all_vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+				my %all_ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+				my %all_vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 				my (%ppl, %vaccts);
 				foreach my $acct (@accts) {
 					((exists $all_ppl{$acct}) ? $ppl{$all_ppl{$acct}} : $vaccts{$all_vaccts{$acct}}) = $acct;
