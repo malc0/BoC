@@ -3,6 +3,7 @@ package HeadedTSV;
 use autodie;
 use strict;
 use warnings;
+use Carp;
 
 our $VERSION = '1.00';
 
@@ -21,7 +22,7 @@ sub read_htsv
 		no autodie qw(open);
 		open(FH, "<$file") or return %content;
 	} else {
-		open(FH, "<$file") or die;
+		open(FH, "<$file") or confess "$file: $!";
 	}
 	while (<FH>) {
 		chomp;			# no newline
@@ -61,7 +62,7 @@ sub write_htsv
 	$hdg_key = 'Headings' unless defined $hdg_key;
 	my $heading_only = 1;
 
-	open(FH, ">$file") or die;
+	open(FH, ">$file") or confess "$file: $!";
 	foreach my $key (keys $content) {
 		unless (ref ($content->{$key})) {
 			# check if non-white exists (since trailing white killed on read anyway)
