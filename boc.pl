@@ -518,6 +518,27 @@ sub gen_add_edit_acc
 	return $tmpl;
 }
 
+sub gen_edit_simp_trans
+{
+	my $tmpl = load_template('templates/edit_simp_trans.html', $_[0]);
+
+	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+	my %rvaccts = reverse (%vaccts);
+	my @sorted_vaccts = map ($rvaccts{$_}, sort keys %rvaccts);
+
+	my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
+	my $num_rows = ($#{$cfg{Description}} >= 0) ? scalar @{$cfg{Description}} + 5 : 10;
+	my @rows;
+	foreach my $row (0 .. ($num_rows - 1)) {
+		my @rowoptions = ({ O => 'Select account' });
+		push (@rowoptions, map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{DebitAcct}[$row]) ? $cfg{DebitAcct}[$row] eq $_ : undef}, @sorted_vaccts));
+		push (@rows, { ACCTS => \@rowoptions, D => $cfg{Description}[$row], R => $row });
+	}
+	$tmpl->param(ROWS => \@rows);
+
+	return $tmpl;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -548,6 +569,12 @@ sub despatch_admin
 				$tmpl->param($param => '" data-noop="') if exists $inst_cfg{$param} and not defined $inst_cfg{$param};
 			}
 			emit($tmpl);
+		}
+		if (defined $cgi->param('edit_simp_trans')) {
+			my $cfg_file = "$config{Root}/config_simp_trans";
+			my $etoken = create_UUID_as_string(UUID_V4);
+			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $etoken, $sessid);
+			emit(gen_edit_simp_trans($etoken));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_acct') {
@@ -674,6 +701,39 @@ sub despatch_admin
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", $tmpl);
+	}
+	if ($cgi->param('tmpl') eq 'edit_simp_trans') {
+		my $cfg_file = "$config{Root}/config_simp_trans";
+
+		if (defined $cgi->param('save')) {
+			my %cfg = ( Headings => [ 'DebitAcct', 'Description' ] );
+
+			my $max_rows = -1;
+			$max_rows += 1 while ($max_rows < 100 and defined $cgi->param("DebitAcct_" . ($max_rows + 1)));
+			whinge('No transactions?', gen_edit_simp_trans($etoken)) unless $max_rows >= 0;
+
+			my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
+
+			@{$cfg{Description}} = ();
+			@{$cfg{DebitAcct}} = ();
+			foreach my $row (0 .. $max_rows) {
+				my $desc = clean_text($cgi->param("Description_$row"));
+				my $acct = clean_username($cgi->param("DebitAcct_$row"));
+				next unless $desc or $acct;
+				whinge('Missing account', gen_edit_simp_trans($etoken)) unless $acct;
+				whinge('Missing description', gen_edit_simp_trans($etoken)) unless $desc;
+				whinge("Non-existent account \"$acct\"", gen_edit_simp_trans($etoken)) unless exists $vaccts{$acct};
+				push (@{$cfg{Description}}, $desc);
+				push (@{$cfg{DebitAcct}}, $acct);
+			}
+
+			whinge('Invalid edit token (double submission?)', load_template('templates/treasurer_cp.html')) unless try_unlock($cfg_file, $etoken);
+			write_htsv($cfg_file, \%cfg, 11);
+		} else {
+			try_unlock($cfg_file, $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", load_template('templates/treasurer_cp.html'));
 	}
 }
 
