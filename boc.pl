@@ -573,7 +573,7 @@ sub despatch_admin
 
 					@{$tgdetails{Creditor}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Creditor}});
 					@{$tgdetails{Headings}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Headings}});
-					$tgdetails{$new_acct} = delete $tgdetails{$edit_acct};
+					$tgdetails{$new_acct} = delete $tgdetails{$edit_acct} if exists $tgdetails{$edit_acct};
 
 					write_tg($tg, %tgdetails);
 				}
