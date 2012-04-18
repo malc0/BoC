@@ -196,9 +196,7 @@ sub read_tg
 	foreach my $key (keys %content) {
 		$content{$key} = encode_for_html($content{$key}) unless (ref($content{$key}) or not $content{$key});
 	}
-	foreach my $row (0 .. $#{$content{Description}}) {
-		$content{Description}[$row] = encode_for_html($content{Description}[$row]);
-	}
+	@{$content{Description}} = map (encode_for_html($_), @{$content{Description}});
 
 	return %content;
 }
@@ -210,9 +208,7 @@ sub write_tg
 	foreach my $key (keys %content) {
 		$content{$key} = encode_for_file($content{$key}) unless (ref($content{$key}) or not $content{$key});
 	}
-	foreach my $row (0 .. $#{$content{Description}}) {
-		$content{Description}[$row] = encode_for_file($content{Description}[$row]);
-	}
+	@{$content{Description}} = map (encode_for_file($_), @{$content{Description}});
 
 	TG::write_tg($file, %content);
 }
@@ -517,7 +513,7 @@ sub despatch_admin
 			my $cfg_file = "$config{Root}/config";
 			my $etoken = create_UUID_as_string(UUID_V4);
 			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $etoken, $sessid);
-			my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
+			my %inst_cfg = read_simp_cfg($cfg_file, 1);
 			my $tmpl = load_template('templates/edit_inst_cfg.html', $etoken);
 
 			foreach my $param ($tmpl->param()) {
@@ -575,12 +571,8 @@ sub despatch_admin
 					$tg = untaint($tg);
 					my %tgdetails = read_tg($tg);
 
-					foreach my $acct (@{$tgdetails{Creditor}}) {
-						$acct = $new_acct if $acct eq $edit_acct;
-					}
-					foreach my $acct (@{$tgdetails{Headings}}) {
-						$acct = $new_acct if $acct eq $edit_acct;
-					}
+					@{$tgdetails{Creditor}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Creditor}});
+					@{$tgdetails{Headings}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Headings}});
 					$tgdetails{$new_acct} = delete $tgdetails{$edit_acct};
 
 					write_tg($tg, %tgdetails);
@@ -731,15 +723,9 @@ sub sort_accts(\%\%)
 {
 	my ($ppl, $vaccts) = @_;
 
-	my @sort_ppl = sort(keys $ppl);
-	my @sort_vaccts = sort(keys $vaccts);
 	my @sorted = ( 'Creditor', 'Amount' );
-	foreach my $key (@sort_ppl) {
-		push (@sorted, $ppl->{$key});
-	}
-	foreach my $key (@sort_vaccts) {
-		push (@sorted, $vaccts->{$key});
-	}
+	push (@sorted, map ($ppl->{$_}, sort keys %$ppl));
+	push (@sorted, map ($vaccts->{$_}, sort keys %$vaccts));
 	push (@sorted, 'Description');
 
 	return @sorted;
@@ -752,11 +738,9 @@ sub gen_tg
 
 	if ($tg_file) {
 		%tgdetails = read_tg($tg_file);
-		if ($edit_mode) {
-			push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 4);
-		}
+		push (@{$tgdetails{Creditor}}, ($session->param('User')) x 5) if $edit_mode;
 	} else {
-		push(@{$tgdetails{Creditor}}, $session->param('User')) foreach (0 .. 9);
+		push (@{$tgdetails{Creditor}}, ($session->param('User')) x 10);
 	}
 
 	my $tmpl = load_template('edit_tg.html', $etoken);
@@ -764,9 +748,7 @@ sub gen_tg
 	my %ppl = query_all_accts_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_accts_in_path("$config{Root}/accounts", 'Name');
 	my %acct_names = (%ppl, %vaccts);
-	my %rppl = reverse(%ppl);
-	my %rvaccts = reverse(%vaccts);
-	my @sorted_accts = sort_accts(%rppl, %rvaccts);
+	my @sorted_accts = sort_accts(%{{reverse %ppl}}, %{{reverse %vaccts}});
 
 	foreach my $acct (@sorted_accts) {
 		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
@@ -803,8 +785,7 @@ sub gen_tg
 			my %data = ( D => $tgdetails{$key}[$row], N => "${key}_$row" );
 			push(@rowcontents, \%data);
 		}
-		my %row = ( R => \@rowcontents, CREDS => \@rowoptions, CRNAME => "Creditor_$row" );
-		push (@rows, \%row);
+		push (@rows, { R => \@rowcontents, CREDS => \@rowoptions, CRNAME => "Creditor_$row" });
 	}
 	$tmpl->param(ROWS => \@rows);
 
