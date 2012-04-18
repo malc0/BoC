@@ -12,7 +12,7 @@ use Crypt::PasswdMD5;
 use File::Slurp;
 use HTML::Entities;
 use HTML::Template;
-use List::Util qw(first);
+use List::Util qw(first min);
 use Time::ParseDate;
 use UUID::Tiny;
 use YAML::XS;
@@ -527,7 +527,7 @@ sub gen_edit_simp_trans
 	my @sorted_vaccts = map ($rvaccts{$_}, sort keys %rvaccts);
 
 	my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
-	my $num_rows = ($#{$cfg{Description}} >= 0) ? scalar @{$cfg{Description}} + 5 : 10;
+	my $num_rows = ($#{$cfg{Description}} >= 0) ? scalar @{$cfg{Description}} + min(5, 30 - scalar @{$cfg{Description}}) : 10;
 	my @rows;
 	foreach my $row (0 .. ($num_rows - 1)) {
 		my @rowoptions = ({ O => 'Select account' });
@@ -824,7 +824,7 @@ sub gen_tg
 
 	if ($tg_file) {
 		%tgdetails = read_tg($tg_file);
-		push (@{$tgdetails{Creditor}}, ($session->param('User')) x 5) if $edit_mode;
+		push (@{$tgdetails{Creditor}}, ($session->param('User')) x min(5, 100 - scalar @{$tgdetails{Creditor}})) if $edit_mode;
 	} else {
 		push (@{$tgdetails{Creditor}}, ($session->param('User')) x 10);
 	}
@@ -933,7 +933,7 @@ sub despatch_user
 				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
 				my $max_rows = -1;
-				$max_rows += 1 while ($max_rows < 10000 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
+				$max_rows += 1 while ($max_rows < 100 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
 				whinge('No transactions?', gen_tg($tgfile, 1, $session, $etoken)) unless $max_rows >= 0;
 
 				my %acct_names = get_acct_name_map;
