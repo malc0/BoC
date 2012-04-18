@@ -709,7 +709,7 @@ sub despatch_admin
 			my %cfg = ( Headings => [ 'DebitAcct', 'Description' ] );
 
 			my $max_rows = -1;
-			$max_rows += 1 while ($max_rows < 100 and defined $cgi->param("DebitAcct_" . ($max_rows + 1)));
+			$max_rows++ while ($max_rows < 100 and defined $cgi->param("DebitAcct_" . ($max_rows + 1)));
 			whinge('No transactions?', gen_edit_simp_trans($etoken)) unless $max_rows >= 0;
 
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
@@ -935,12 +935,11 @@ sub despatch_user
 				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
 				my $max_rows = -1;
-				$max_rows += 1 while ($max_rows < 100 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
+				$max_rows++ while ($max_rows < 100 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
 				whinge('No transactions?', gen_tg($tgfile, 1, $session, $etoken)) unless $max_rows >= 0;
 
 				my %acct_names = get_acct_name_map;
-				my @accts = grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
-				s/_0$// for @accts;
+				my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
 				foreach my $acct (@accts) {
 					whinge("Non-existent account \"$acct\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$acct};
 				}
@@ -956,16 +955,14 @@ sub despatch_user
 					foreach my $acct (@accts) {
 						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
 						whinge('Non-numerics in debt share', gen_tg($tgfile, 1, $session, $etoken)) unless defined $rowshares[$#rowshares];
-						$set += 1 unless $rowshares[$#rowshares] == 0;
+						$set++ unless $rowshares[$#rowshares] == 0;
 					}
 
 					if ($set > 10000) {
 						push (@{$tg{Creditor}}, $cred);
 						push (@{$tg{Amount}}, $amnt);
 						push (@{$tg{Description}}, $desc);
-						foreach my $i (0 .. $#accts) {
-							push (@{$tg{$accts[$i]}}, $rowshares[$i]);
-						}
+						push (@{$tg{$accts[$_]}}, $rowshares[$_]) foreach (0 .. $#accts);
 					} elsif ($set > 0 or $cred ne $session->param('User')) {
 						whinge('Insufficient values set in row', gen_tg($tgfile, 1, $session, $etoken));
 					}
@@ -974,9 +971,7 @@ sub despatch_user
 				my %all_ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 				my %all_vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 				my (%ppl, %vaccts);
-				foreach my $acct (@accts) {
-					((exists $all_ppl{$acct}) ? $ppl{$all_ppl{$acct}} : $vaccts{$all_vaccts{$acct}}) = $acct;
-				}
+				((exists $all_ppl{$_}) ? $ppl{$all_ppl{$_}} : $vaccts{$all_vaccts{$_}}) = $_ foreach (@accts);
 				@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
 
 				if ($cgi->param('tg_id')) {
