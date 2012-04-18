@@ -765,11 +765,14 @@ sub gen_manage_tgs
 	my $tmpl = load_template('manage_transactions.html');
 
 	my %acct_names = get_acct_name_map;
-	my @tgs = glob("$config{Root}/transaction_groups/*");
+	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date');
+	my %rtgds;
+	push (@{$rtgds{$tg_dates{$_}}}, $_) foreach keys %tg_dates;	# arrgh non-unique dates
+	my @sorted_tgs = map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf("%04d%02d%02d", (split '\.', $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
 	my @tglist;
 
-	foreach my $tg (@tgs) {
-		my %tgdetails = read_tg($tg);
+	foreach my $tg (@sorted_tgs) {
+		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 
 		my %summary;
 		my $sum_str = "";
@@ -791,9 +794,8 @@ sub gen_manage_tgs
 			$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  " unless (defined $acct_names{$acct});
 		}
 
-		$tg =~ /.*\/(.*)/;
 		my %outputdetails = (
-				ACC => $1,
+				ACC => $tg,
 				NAME => $tgdetails{Name},
 				DATE => $tgdetails{Date},
 				SUMMARY => substr($sum_str, 0, -2),
