@@ -950,7 +950,6 @@ sub despatch_user
 					whinge("Non-existent account \"$cred\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$cred};
 					whinge('Non-numerics in amount', gen_tg($tgfile, 1, $session, $etoken)) unless defined $amnt;
 					my $set = $amnt == 0 ? 0 : 10000;
-					$set += 10000 if defined $desc;
 					my @rowshares;
 					foreach my $acct (@accts) {
 						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
@@ -958,7 +957,7 @@ sub despatch_user
 						$set += 1 unless $rowshares[$#rowshares] == 0;
 					}
 
-					if ($set > 20000) {
+					if ($set > 10000) {
 						push (@{$tg{Creditor}}, $cred);
 						push (@{$tg{Amount}}, $amnt);
 						push (@{$tg{Description}}, $desc);
