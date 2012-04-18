@@ -751,8 +751,10 @@ sub gen_tg
 	my @sorted_accts = sort_accts(%{{reverse %ppl}}, %{{reverse %vaccts}});
 
 	foreach my $acct (@sorted_accts) {
+		next if $acct eq 'Description';
 		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
-		push (@{$tgdetails{$acct}}, ($acct eq 'Description') ? '' : 0) foreach ($lower .. $#{$tgdetails{Creditor}});
+		@{$tgdetails{$acct}} = map ($_ ? $_ : 0, @{$tgdetails{$acct}}) if $lower;
+		push (@{$tgdetails{$acct}}, (0) x (scalar @{$tgdetails{Creditor}} - $lower));
 	}
 	@{$tgdetails{Headings}} = @sorted_accts;
 
