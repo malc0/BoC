@@ -89,7 +89,7 @@ sub write_htsv
 
 		foreach my $row (0 .. ($max_rows - 1)) {
 			foreach my $key (@{$content->{$hdg_key}}) {
-				print FH "$content->{$key}[$row]	";
+				print FH $content->{$key}[$row] ? "$content->{$key}[$row]	" : '	';
 			}
 			print FH "\n";
 		}
