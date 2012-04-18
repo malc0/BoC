@@ -96,7 +96,7 @@ sub pop_session_data
 	return $value;
 }
 
-sub get_add_token
+sub get_edit_token
 {
 	my ($sessid, $add_obj_str) = @_;
 
@@ -106,14 +106,14 @@ sub get_add_token
 	return $pass;
 }
 
-sub redeem_add_token
+sub redeem_edit_token
 {
 	return pop_session_data(@_);
 }
 
 sub try_lock
 {
-	my ($file, $token, $sessid) = @_;
+	my ($file, $sessid) = @_;
 	my $lockfile = "$file.lock";
 	$lockfile =~ s/^(.*\/)([^\/]*)/$1.$2/;	# insert a . to hide file (especially from directory globbing)
 	my $lock;
@@ -128,28 +128,18 @@ sub try_lock
 		return undef unless flock ($lock, LOCK_EX | LOCK_NB);
 	}
 
-	print $lock "$token\n$sessid";
+	print $lock $sessid;
 
 	close ($lock);
 
-	return $token;
+	return $sessid;
 }
 
-sub try_unlock
+sub unlock
 {
-	my ($file, $token) = @_;
-	my $lockfile = "$file.lock";
+	my $lockfile = "$_[0].lock";
 	$lockfile =~ s/^(.*\/)([^\/]*)/$1.$2/;	# insert a . to hide file (especially from directory globbing)
-	my $win = 0;
-
-	no autodie qw(open);	# file may not exist
-	return 0 unless open (my $lock, "$lockfile");
-
-	$win = unlink ($lockfile) if "$token\n" eq <$lock>;
-
-	close ($lock);
-
-	return $win;
+	unlink $lockfile;
 }
 
 sub encode_for_html
@@ -428,7 +418,6 @@ sub clear_old_session_locks
 		$lockfile = untaint($lockfile);
 		next unless open (my $lock, "$lockfile");
 
-		<$lock>;
 		unlink ($lockfile) if $sessid eq <$lock>;
 
 		close ($lock);
@@ -558,10 +547,9 @@ sub despatch_admin
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
 		if (defined $cgi->param('edit_inst_cfg')) {
 			my $cfg_file = "$config{Root}/config";
-			my $etoken = create_UUID_as_string(UUID_V4);
-			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $etoken, $sessid);
+			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $sessid);
 			my %inst_cfg = read_simp_cfg($cfg_file, 1);
-			my $tmpl = load_template('templates/edit_inst_cfg.html', $etoken);
+			my $tmpl = load_template('templates/edit_inst_cfg.html', get_edit_token($sessid, 'edit_inst_cfg'));
 
 			foreach my $param ($tmpl->param()) {
 				next if $tmpl->param($param);
@@ -572,9 +560,8 @@ sub despatch_admin
 		}
 		if (defined $cgi->param('edit_simp_trans')) {
 			my $cfg_file = "$config{Root}/config_simp_trans";
-			my $etoken = create_UUID_as_string(UUID_V4);
-			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $etoken, $sessid);
-			emit(gen_edit_simp_trans($etoken));
+			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $sessid);
+			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_acct') {
@@ -610,12 +597,9 @@ sub despatch_admin
 				(mkdir $acct_path or die) unless (-d $acct_path);
 			}
 
-			if ($edit_acct) {
-				whinge('Invalid edit token (double submission?)', gen_manage_accts($person)) unless try_unlock("$acct_path/$edit_acct", $etoken);
-			} else {
-				whinge('Invalid add token (double submission?)', gen_manage_accts($person)) unless redeem_add_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
-			}
+			whinge('Invalid edit token (double submission?)', gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 			write_simp_cfg("$acct_path/$new_acct", %userdetails);
+			unlock("$acct_path/$edit_acct") if $edit_acct;
 			# support renaming...
 			if ($edit_acct and $edit_acct ne $new_acct) {
 				# FIXME: really needs a monster lock across even starting to edit TGs when this is done
@@ -634,7 +618,8 @@ sub despatch_admin
 				unlink("$acct_path/$edit_acct") or die;
 			}
 		} else {
-			$edit_acct ? try_unlock("$acct_path/$edit_acct", $etoken) : redeem_add_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
+			unlock("$acct_path/$edit_acct") if $edit_acct;
+			redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 		}
 
 		if ($edit_acct) {
@@ -663,16 +648,14 @@ sub despatch_admin
 
 			my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 			unless ($delete) {
-				my $etoken = create_UUID_as_string(UUID_V4);
 				if ($acct) {
-					whinge("Couldn't get edit lock for account \"$acct\"", gen_manage_accts($person)) unless try_lock($acct_file, $etoken, $sessid);
+					whinge("Couldn't get edit lock for account \"$acct\"", gen_manage_accts($person)) unless try_lock($acct_file, $sessid);
 					unless (-r $acct_file) {
-						try_unlock($acct_file, $etoken);
+						unlock($acct_file);
 						whinge("Couldn't edit account \"$acct\", file disappeared", gen_manage_accts($person));
 					}
-				} else {
-					$etoken = get_add_token($sessid, $person ? 'add_acct' : 'add_vacct');
 				}
+				my $etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
 				emit(gen_add_edit_acc($acct, $person, $etoken));
 			} else {
 				unlink($acct_file) or die;
@@ -692,12 +675,14 @@ sub despatch_admin
 				$inst_cfg{$param} = clean_text($cgi->param($param));
 			}
 
-			whinge('Invalid edit token (double submission?)', $tmpl) unless try_unlock($cfg_file, $etoken);
+			whinge('Invalid edit token (double submission?)', $tmpl) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 			write_simp_cfg($cfg_file, %inst_cfg);
+			unlock($cfg_file);
 			update_global_config(%inst_cfg);
 			$tmpl = load_template('templates/treasurer_cp.html');	# reload (possibly modified) template
 		} else {
-			try_unlock($cfg_file, $etoken);
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", $tmpl);
@@ -727,10 +712,12 @@ sub despatch_admin
 				push (@{$cfg{DebitAcct}}, $acct);
 			}
 
-			whinge('Invalid edit token (double submission?)', load_template('templates/treasurer_cp.html')) unless try_unlock($cfg_file, $etoken);
+			whinge('Invalid edit token (double submission?)', load_template('templates/treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 			write_htsv($cfg_file, \%cfg, 11);
+			unlock($cfg_file);
 		} else {
-			try_unlock($cfg_file, $etoken);
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", load_template('templates/treasurer_cp.html'));
@@ -910,7 +897,7 @@ sub despatch_user
 				emit(gen_manage_tgs) unless (-r $tg);
 			}
 
-			$tmpl = gen_tg($tg, 0, $session, $view ? undef : get_add_token($sessid, 'add_tg'));
+			$tmpl = gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
 		} elsif (defined $cgi->param('to_cp')) {
 			$tmpl = load_template('templates/user_cp.html');
 		}
@@ -918,12 +905,9 @@ sub despatch_user
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
 		my $tgfile = (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) ? "$config{Root}/transaction_groups/" . clean_tgid($cgi->param('tg_id')) : undef;
-		my $etoken = $cgi->param('etoken');
 
-		if ($etoken and not defined $cgi->param('save')) {
-			$cgi->param('tg_id') ? try_unlock($tgfile, $etoken) : redeem_add_token($sessid, 'add_tg', $etoken);
-		}
 		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
+			my $etoken = $cgi->param('etoken');
 			my %tg;
 
 			if (defined $cgi->param('save')) {
@@ -974,9 +958,7 @@ sub despatch_user
 				((exists $all_ppl{$_}) ? $ppl{$all_ppl{$_}} : $vaccts{$all_vaccts{$_}}) = $_ foreach (@accts);
 				@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
 
-				if ($cgi->param('tg_id')) {
-					whinge('Invalid edit token (double submission?)', gen_tg($tgfile, 0, $session, undef)) unless try_unlock($tgfile, $etoken);
-				} else {
+				unless ($tgfile) {
 					my $id;
 					my $tg_path = "$config{Root}/transaction_groups";
 					(mkdir "$tg_path" or die) unless (-d $tg_path);
@@ -984,25 +966,28 @@ sub despatch_user
 						$id = create_UUID_as_string(UUID_V4);
 					} while (-e "$tg_path/$id");
 					$tgfile = "$tg_path/$id";
-					whinge('Invalid add token (double submission?)', gen_manage_tgs) unless redeem_add_token($sessid, 'add_tg', $etoken);
 				}
+				whinge('Invalid edit token (double submission?)', gen_manage_tgs) unless redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
 				write_tg($tgfile, %tg);
+				unlock($tgfile) if $tgfile;
+			} else {
+				unlock($tgfile) if $tgfile;
+				redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
 			}
 
 			$tgfile =~ /.*\/([^\/]{7})[^\/]*$/;
-			if (defined $cgi->param('tg_id')) {
+			if (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) {
 				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 			} else {
 				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", gen_manage_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
-			$etoken = create_UUID_as_string(UUID_V4);
-			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_manage_tgs) unless try_lock($tgfile, $etoken, $sessid);
+			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_manage_tgs) unless try_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
-				try_unlock($tgfile, $etoken);
+				unlock($tgfile);
 				whinge("Couldn't edit transaction group \"" . $cgi->param('tg_id') . "\", file disappeared", gen_manage_tgs);
 			}
-			$tmpl = gen_tg($tgfile, 1, $session, $etoken);
+			$tmpl = gen_tg($tgfile, 1, $session, get_edit_token($sessid, 'edit_' . $cgi->param('tg_id')));
 		} elsif (defined $cgi->param('manage_tgs')) {
 			$tmpl = gen_manage_tgs;
 		}
@@ -1016,7 +1001,7 @@ my $cgi = CGI->new;
 
 die 'Can\'t find value for "Root" key in ./boc_config' unless defined $config{Root};
 die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $config{TemplateDir};
-die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} && -w $config{Root});
+die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} and -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
 
