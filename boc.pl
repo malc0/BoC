@@ -142,6 +142,16 @@ sub unlock
 	unlink $lockfile;
 }
 
+sub try_tg_lock
+{
+	my ($file, $sessid) = @_;
+
+	return undef unless try_lock("$config{Root}/transaction_groups/.TGLOCK", $sessid);
+	my $rv = try_lock($file, $sessid);
+	unlock("$config{Root}/transaction_groups/.TGLOCK");
+	return $rv;
+}
+
 sub encode_for_html
 {
 	my $escaped = encode_entities(decode_entities($_[0]), '^A-Za-z0-9!%^*()\-_=+{}\[\];:@#~,./?\\\ ');
@@ -597,12 +607,19 @@ sub despatch_admin
 				(mkdir $acct_path or die) unless (-d $acct_path);
 			}
 
+			if ($edit_acct and $edit_acct ne $new_acct) {
+				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_lock("$config{Root}/transaction_groups/.TGLOCK", $sessid);
+				my @locks = glob("$config{Root}/transaction_groups/.*.lock");
+				if (scalar @locks > 1) {	# others apart from the one we just took
+					unlock("$config{Root}/transaction_groups/.TGLOCK");
+					whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken));
+				}
+			}
 			whinge('Invalid edit token (double submission?)', gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 			write_simp_cfg("$acct_path/$new_acct", %userdetails);
 			unlock("$acct_path/$edit_acct") if $edit_acct;
 			# support renaming...
 			if ($edit_acct and $edit_acct ne $new_acct) {
-				# FIXME: really needs a monster lock across even starting to edit TGs when this is done
 				my @tgs = glob("$config{Root}/transaction_groups/*");
 				foreach my $tg (@tgs) {
 					$tg = untaint($tg);
@@ -614,6 +631,7 @@ sub despatch_admin
 
 					write_tg($tg, %tgdetails);
 				}
+				unlock("$config{Root}/transaction_groups/.TGLOCK");
 
 				unlink("$acct_path/$edit_acct") or die;
 			}
@@ -982,7 +1000,7 @@ sub despatch_user
 				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", gen_manage_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
-			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_manage_tgs) unless try_lock($tgfile, $sessid);
+			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				whinge("Couldn't edit transaction group \"" . $cgi->param('tg_id') . "\", file disappeared", gen_manage_tgs);
