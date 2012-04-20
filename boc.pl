@@ -156,13 +156,23 @@ sub try_lock_wait
 	return undef;
 }
 
+sub try_lock_ds
+{
+	return try_lock_wait("$config{Root}/DSLOCK", $_[0]);
+}
+
+sub unlock_ds
+{
+	unlink "$config{Root}/.DSLOCK.lock";
+}
+
 sub try_tg_lock
 {
 	my ($file, $sessid) = @_;
 
-	return undef unless try_lock_wait("$config{Root}/transaction_groups/.TGLOCK", $sessid);
+	return undef unless try_lock_ds($sessid);
 	my $rv = try_lock($file, $sessid);
-	unlock("$config{Root}/transaction_groups/.TGLOCK");
+	unlock_ds;
 	return $rv;
 }
 
@@ -436,6 +446,7 @@ sub clear_old_session_locks
 {
 	my $sessid = $_[0];
 	my @locks = glob("$config{Root}/*/.*.lock");
+	push (@locks, "$config{Root}/.DSLOCK.lock");
 
 	no autodie qw(open);	# file may not exist
 	foreach my $lockfile (@locks) {
@@ -622,10 +633,9 @@ sub despatch_admin
 			}
 
 			if ($edit_acct and $edit_acct ne $new_acct) {
-				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_lock_wait("$config{Root}/transaction_groups/.TGLOCK", $sessid);
-				my @locks = glob("$config{Root}/transaction_groups/.*.lock");
-				if (scalar @locks > 1) {	# others apart from the one we just took
-					unlock("$config{Root}/transaction_groups/.TGLOCK");
+				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_lock_ds($sessid);
+				if (glob("$config{Root}/transaction_groups/.*.lock")) {
+					unlock_ds;
 					whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken));
 				}
 			}
@@ -645,7 +655,7 @@ sub despatch_admin
 
 					write_tg($tg, %tgdetails);
 				}
-				unlock("$config{Root}/transaction_groups/.TGLOCK");
+				unlock_ds;
 
 				unlink("$acct_path/$edit_acct") or die;
 			}
