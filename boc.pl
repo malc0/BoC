@@ -13,6 +13,7 @@ use File::Slurp;
 use HTML::Entities;
 use HTML::Template;
 use List::Util qw(first min);
+use Time::HiRes qw(usleep);
 use Time::ParseDate;
 use UUID::Tiny;
 use YAML::XS;
@@ -142,11 +143,24 @@ sub unlock
 	unlink $lockfile;
 }
 
+sub try_lock_wait
+{
+	my ($file, $sessid) = @_;
+
+	my $ms_remaining = 1000;
+	while ($ms_remaining) {
+		return $sessid if (try_lock($file, $sessid) or $ms_remaining == 0);
+		usleep(1000);
+		$ms_remaining--;
+	}
+	return undef;
+}
+
 sub try_tg_lock
 {
 	my ($file, $sessid) = @_;
 
-	return undef unless try_lock("$config{Root}/transaction_groups/.TGLOCK", $sessid);
+	return undef unless try_lock_wait("$config{Root}/transaction_groups/.TGLOCK", $sessid);
 	my $rv = try_lock($file, $sessid);
 	unlock("$config{Root}/transaction_groups/.TGLOCK");
 	return $rv;
@@ -608,7 +622,7 @@ sub despatch_admin
 			}
 
 			if ($edit_acct and $edit_acct ne $new_acct) {
-				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_lock("$config{Root}/transaction_groups/.TGLOCK", $sessid);
+				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_lock_wait("$config{Root}/transaction_groups/.TGLOCK", $sessid);
 				my @locks = glob("$config{Root}/transaction_groups/.*.lock");
 				if (scalar @locks > 1) {	# others apart from the one we just took
 					unlock("$config{Root}/transaction_groups/.TGLOCK");
