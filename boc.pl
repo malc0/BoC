@@ -109,7 +109,8 @@ sub get_edit_token
 
 sub redeem_edit_token
 {
-	return pop_session_data(@_);
+	my $rv = eval { pop_session_data(@_) };
+	return ($@ or not $rv) ? undef : $rv;
 }
 
 sub try_lock
