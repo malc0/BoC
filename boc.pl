@@ -10,6 +10,7 @@ use CGI::Session '-ip-match';
 use Crypt::Cracklib;
 use Crypt::PasswdMD5;
 use File::Slurp;
+use Git::Wrapper;
 use HTML::Entities;
 use HTML::Template;
 use List::Util qw(first min);
@@ -23,6 +24,7 @@ use HeadedTSV ();
 use TG ();
 
 our %config;
+our $git;
 
 sub update_global_config
 {
@@ -264,12 +266,22 @@ sub write_htsv
 	HeadedTSV::write_htsv($file, $content, $ts);
 }
 
+sub add_commit
+{
+	my ($file, $message, $userdata) = @_;
+	my $user = ref $userdata ? $userdata->param('User') : $userdata;
+	my $name = ref $userdata ? $userdata->param('Name') : $userdata;
+	$git->add($file);
+	$git->commit({author => "$name <$user>", message => $message});
+}
+
 sub try_commit_and_unlock
 {
 	my ($sub, $extra_lock) = @_;
 
 	eval { $sub->() };
 	my $commit_fail = $@;
+	$git->reset({hard => 1}) if $commit_fail;	# die hard, leaving lock, if we can't clean up
 	un_commit_lock;
 	unlock($extra_lock) if $extra_lock;
 	die $commit_fail if $commit_fail;
@@ -326,6 +338,12 @@ sub clean_tgid
 sub untaint
 {
 	$_[0] =~ /^(.*)$/;
+	return $1;
+}
+
+sub unroot
+{
+	$_[0] =~ /$config{Root}\/(.*)/;
 	return $1;
 }
 
@@ -390,10 +408,12 @@ sub create_datastore
 			IsAdmin => undef,
 		);
 		(mkdir $user_path or die) unless (-d "$user_path");
+		$git->init();
 		whinge('Unable to get commit lock', gen_cds_p($reason)) unless try_commit_lock($cryptpass);
 		# no session so not edit_token protected.  FIXME?
 		try_commit_and_unlock(sub {
 			write_simp_cfg("$user_path/$user", %userdetails);
+			add_commit("$user_path/$user", 'CDS admin creation', $user);
 		});
 	} else {
 		emit(gen_cds_p($reason));
@@ -508,6 +528,7 @@ sub get_new_session
 	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
 	print $session->header();
 	$session->param('User', $userdetails{User});
+	$session->param('Name', exists $userdetails{Name} ? $userdetails{Name} : $userdetails{User});
 	$session->param('IsAdmin', (exists $userdetails{IsAdmin}));
 	$session->expire('+10m');
 	$session->flush();
@@ -677,10 +698,16 @@ sub despatch_admin
 						$tgdetails{$new_acct} = delete $tgdetails{$edit_acct} if exists $tgdetails{$edit_acct};
 
 						write_tg($tg, %tgdetails);
+						$git->add($tg);
 					}
+					$git->mv("$acct_path/$edit_acct", "$acct_path/$new_acct") if $rename;
 				}
 				write_simp_cfg("$acct_path/$new_acct", %userdetails);
-				unlink("$acct_path/$edit_acct") if $rename;
+				if ($rename) {
+					add_commit("$acct_path/$new_acct", 'Rename ' . unroot("$acct_path/$edit_acct") . ' to ' . unroot("$acct_path/$new_acct"), $session);
+				} else {
+					add_commit("$acct_path/$new_acct", unroot("$acct_path/$new_acct") . ': modified', $session);
+				}
 			}, $edit_acct ? "$acct_path/$edit_acct" : undef);
 		} else {
 			unlock("$acct_path/$edit_acct") if $edit_acct;
@@ -744,6 +771,7 @@ sub despatch_admin
 			bad_token_whinge($tmpl) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 			try_commit_and_unlock(sub {
 				write_simp_cfg($cfg_file, %inst_cfg);
+				add_commit($cfg_file, 'config: installation config modified', $session);
 			}, $cfg_file);
 			update_global_config(%inst_cfg);
 			$tmpl = load_template('templates/treasurer_cp.html');	# reload (possibly modified) template
@@ -783,6 +811,7 @@ sub despatch_admin
 			bad_token_whinge(load_template('templates/treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($cfg_file, \%cfg, 11);
+				add_commit($cfg_file, 'config_simp_trans: simple transaction types modified', $session);
 			}, $cfg_file);
 		} else {
 			unlock($cfg_file);
@@ -1040,6 +1069,7 @@ sub despatch_user
 				bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
 				try_commit_and_unlock(sub {
 					write_tg($tgfile, %tg);
+					add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" modified", $session);
 				}, $cgi->param('tg_id') ? $tgfile : undef);
 			} else {
 				unlock($tgfile) if $tgfile;
@@ -1074,6 +1104,8 @@ die 'Can\'t find value for "Root" key in ./boc_config' unless defined $config{Ro
 die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $config{TemplateDir};
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} and -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
+$ENV{PATH} = "/bin:/usr/bin";
+$git = Git::Wrapper->new($config{Root});
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
