@@ -157,12 +157,12 @@ sub try_lock_wait
 	return undef;
 }
 
-sub try_lock_ds
+sub try_commit_lock
 {
 	return try_lock_wait("$config{Root}/DSLOCK", $_[0]);
 }
 
-sub unlock_ds
+sub un_commit_lock
 {
 	unlink "$config{Root}/.DSLOCK.lock";
 }
@@ -171,9 +171,9 @@ sub try_tg_lock
 {
 	my ($file, $sessid) = @_;
 
-	return undef unless try_lock_ds($sessid);
+	return undef unless try_commit_lock($sessid);
 	my $rv = try_lock($file, $sessid);
-	unlock_ds;
+	un_commit_lock;
 	return $rv;
 }
 
@@ -262,6 +262,23 @@ sub write_htsv
 	}
 
 	HeadedTSV::write_htsv($file, $content, $ts);
+}
+
+sub try_commit_and_unlock
+{
+	my ($sub, $extra_lock) = @_;
+
+	eval { $sub->() };
+	my $commit_fail = $@;
+	un_commit_lock;
+	unlock($extra_lock) if $extra_lock;
+	die $commit_fail if $commit_fail;
+}
+
+sub bad_token_whinge
+{
+	un_commit_lock;
+	whinge('Invalid edit token (double submission?)', $_[0]);
 }
 
 sub set_status
@@ -373,7 +390,11 @@ sub create_datastore
 			IsAdmin => undef,
 		);
 		(mkdir $user_path or die) unless (-d "$user_path");
-		write_simp_cfg("$user_path/$user", %userdetails);	# no session so not edit_token protected.  FIXME?
+		whinge('Unable to get commit lock', gen_cds_p($reason)) unless try_commit_lock($cryptpass);
+		# no session so not edit_token protected.  FIXME?
+		try_commit_and_unlock(sub {
+			write_simp_cfg("$user_path/$user", %userdetails);
+		});
 	} else {
 		emit(gen_cds_p($reason));
 	}
@@ -615,11 +636,12 @@ sub despatch_admin
 			my $fullname = clean_text($cgi->param('fullname'));
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
+			my $rename = ($edit_acct and $edit_acct ne $new_acct);
 
 			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $new_acct;
 			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct < 3;
 			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct > 10;
-			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $etoken)) if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and (not defined $edit_acct or $edit_acct ne $new_acct));
+			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $etoken)) if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
 			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $fullname;
 			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $fullname > 100;
 			if ($person) {
@@ -637,33 +659,29 @@ sub despatch_admin
 				(mkdir $acct_path or die) unless (-d $acct_path);
 			}
 
-			if ($edit_acct and $edit_acct ne $new_acct) {
-				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_lock_ds($sessid);
-				if (glob("$config{Root}/transaction_groups/.*.lock")) {
-					unlock_ds;
-					whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken));
-				}
+			whinge('Unable to get commit lock', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_commit_lock($sessid);
+			if ($rename and glob("$config{Root}/transaction_groups/.*.lock")) {
+				un_commit_lock;
+				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken));
 			}
-			whinge('Invalid edit token (double submission?)', gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
-			write_simp_cfg("$acct_path/$new_acct", %userdetails);
-			unlock("$acct_path/$edit_acct") if $edit_acct;
-			# support renaming...
-			if ($edit_acct and $edit_acct ne $new_acct) {
-				my @tgs = glob("$config{Root}/transaction_groups/*");
-				foreach my $tg (@tgs) {
-					$tg = untaint($tg);
-					my %tgdetails = read_tg($tg);
+			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
+			try_commit_and_unlock(sub {
+				if ($rename) {
+					my @tgs = glob("$config{Root}/transaction_groups/*");
+					foreach my $tg (@tgs) {
+						$tg = untaint($tg);
+						my %tgdetails = read_tg($tg);
 
-					@{$tgdetails{Creditor}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Creditor}});
-					@{$tgdetails{Headings}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Headings}});
-					$tgdetails{$new_acct} = delete $tgdetails{$edit_acct} if exists $tgdetails{$edit_acct};
+						@{$tgdetails{Creditor}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Creditor}});
+						@{$tgdetails{Headings}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Headings}});
+						$tgdetails{$new_acct} = delete $tgdetails{$edit_acct} if exists $tgdetails{$edit_acct};
 
-					write_tg($tg, %tgdetails);
+						write_tg($tg, %tgdetails);
+					}
 				}
-				unlock_ds;
-
-				unlink("$acct_path/$edit_acct") or die;
-			}
+				write_simp_cfg("$acct_path/$new_acct", %userdetails);
+				unlink("$acct_path/$edit_acct") if $rename;
+			}, $edit_acct ? "$acct_path/$edit_acct" : undef);
 		} else {
 			unlock("$acct_path/$edit_acct") if $edit_acct;
 			redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
@@ -722,9 +740,11 @@ sub despatch_admin
 				$inst_cfg{$param} = clean_text($cgi->param($param));
 			}
 
-			whinge('Invalid edit token (double submission?)', $tmpl) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
-			write_simp_cfg($cfg_file, %inst_cfg);
-			unlock($cfg_file);
+			whinge('Unable to get commit lock', gen_edit_inst_cfg($etoken)) unless try_commit_lock($sessid);
+			bad_token_whinge($tmpl) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
+			try_commit_and_unlock(sub {
+				write_simp_cfg($cfg_file, %inst_cfg);
+			}, $cfg_file);
 			update_global_config(%inst_cfg);
 			$tmpl = load_template('templates/treasurer_cp.html');	# reload (possibly modified) template
 		} else {
@@ -759,9 +779,11 @@ sub despatch_admin
 				push (@{$cfg{DebitAcct}}, $acct);
 			}
 
-			whinge('Invalid edit token (double submission?)', load_template('templates/treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
-			write_htsv($cfg_file, \%cfg, 11);
-			unlock($cfg_file);
+			whinge('Unable to get commit lock', gen_edit_simp_trans($etoken)) unless try_commit_lock($sessid);
+			bad_token_whinge(load_template('templates/treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
+			try_commit_and_unlock(sub {
+				write_htsv($cfg_file, \%cfg, 11);
+			}, $cfg_file);
 		} else {
 			unlock($cfg_file);
 			redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
@@ -1014,9 +1036,11 @@ sub despatch_user
 					} while (-e "$tg_path/$id");
 					$tgfile = "$tg_path/$id";
 				}
-				whinge('Invalid edit token (double submission?)', gen_manage_tgs) unless redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
-				write_tg($tgfile, %tg);
-				unlock($tgfile) if $tgfile;
+				whinge('Unable to get commit lock', gen_tg($tgfile, 1, $session, $etoken)) unless try_commit_lock($sessid);
+				bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
+				try_commit_and_unlock(sub {
+					write_tg($tgfile, %tg);
+				}, $cgi->param('tg_id') ? $tgfile : undef);
 			} else {
 				unlock($tgfile) if $tgfile;
 				redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
