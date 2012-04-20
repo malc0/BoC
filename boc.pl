@@ -362,7 +362,7 @@ sub create_datastore
 			IsAdmin => undef,
 		);
 		(mkdir $user_path or die) unless (-d "$user_path");
-		write_simp_cfg("$user_path$user", %userdetails);	# no session so not edit_token protected.  FIXME?
+		write_simp_cfg("$user_path/$user", %userdetails);	# no session so not edit_token protected.  FIXME?
 	} else {
 		emit(gen_cds_p($reason));
 	}
