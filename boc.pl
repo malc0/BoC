@@ -215,7 +215,8 @@ sub write_simp_cfg
 		$config{$key} = encode_for_file($config{$key}) if $config{$key};
 	}
 
-	HeadedTSV::write_htsv($file, \%config);
+	HeadedTSV::write_htsv("$file.new", \%config);
+	rename ("$file.new", $file);
 }
 
 sub read_tg
@@ -239,7 +240,8 @@ sub write_tg
 	}
 	@{$content{Description}} = map (encode_for_file($_), @{$content{Description}});
 
-	TG::write_tg($file, %content);
+	TG::write_tg("$file.new", %content);
+	rename ("$file.new", $file);
 }
 
 sub read_htsv
@@ -265,7 +267,8 @@ sub write_htsv
 		@{$content->{$key}} = map (encode_for_file($_), @{$content->{$key}}) if ref ($content->{$key});
 	}
 
-	HeadedTSV::write_htsv($file, $content, $ts);
+	HeadedTSV::write_htsv("$file.new", $content, $ts);
+	rename ("$file.new", $file);
 }
 
 sub add_commit
