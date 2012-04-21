@@ -513,6 +513,7 @@ sub get_new_session
 	my ($session, $cgi) = @_;
 	my $last_tmpl = (defined $cgi->param('tmpl')) ? $cgi->param('tmpl') : '';
 
+	my $expired = $session->is_expired();
 	$session->delete();
 	$session->flush();
 
@@ -523,14 +524,16 @@ sub get_new_session
 		clear_old_session_locks($1);
 	}
 
+	my $tmpl;
 	my %userdetails;
 	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
-		emit(load_template('login.html')) if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
+		$tmpl = load_template('login.html') if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
 	} elsif ($last_tmpl eq 'login') {
 		login($cgi, \%userdetails);
 	} else {
-		emit((exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html'));
+		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
 	}
+	($expired ? whinge('Session expired', $tmpl) : emit($tmpl)) if $tmpl;
 
 	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
 	print $session->header();
