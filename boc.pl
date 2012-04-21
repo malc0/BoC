@@ -777,7 +777,6 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
-		my $tmpl = load_template('treasurer_cp.html');
 
 		if (defined $cgi->param('save')) {
 			my %inst_cfg;
@@ -788,19 +787,18 @@ sub despatch_admin
 			}
 
 			whinge('Unable to get commit lock', gen_edit_inst_cfg($etoken)) unless try_commit_lock($sessid);
-			bad_token_whinge($tmpl) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
+			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 			try_commit_and_unlock(sub {
 				write_simp_cfg($cfg_file, %inst_cfg);
 				add_commit($cfg_file, 'config: installation config modified', $session);
 			}, $cfg_file);
 			update_global_config(%inst_cfg);
-			$tmpl = load_template('treasurer_cp.html');	# reload (possibly modified) template
 		} else {
 			unlock($cfg_file);
 			redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", $tmpl);
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", load_template('treasurer_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'edit_simp_trans') {
 		my $cfg_file = "$config{Root}/config_simp_trans";
@@ -1023,12 +1021,11 @@ sub despatch_user
 	my $sessid = $session->id();
 	my $cgi = $session->query();
 	my $etoken = $cgi->param('etoken');
-	my $tmpl;
 
 	return if (defined $cgi->param('logout'));
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
-		$tmpl = load_template('user_cp.html');
+		my $tmpl = load_template('user_cp.html');
 		print $tmpl->output;
 		exit;
 	}
@@ -1041,8 +1038,6 @@ sub despatch_user
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_vacct_expense') {
-		$tmpl = load_template('user_cp.html');	# merge into emit?
-
 		if (defined $cgi->param('save')) {
 			my %tg;
 			my $whinge = sub { whinge($_[0], gen_add_vacct_expense($session, $etoken)) };
@@ -1076,7 +1071,7 @@ sub despatch_user
 			@{$tg{Headings}} = ('Creditor', 'Amount', $debtor, 'Description');
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge($tmpl) unless redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
+			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
 			try_commit_and_unlock(sub {
 				my $tgfile = new_tgfile;
 				write_tg($tgfile, %tg);
@@ -1086,7 +1081,7 @@ sub despatch_user
 			redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Expense saved" : "Add expense cancelled", $tmpl);
+		emit_with_status((defined $cgi->param('save')) ? "Expense saved" : "Add expense cancelled", load_template('user_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
@@ -1098,98 +1093,97 @@ sub despatch_user
 				emit(gen_manage_tgs) unless (-r $tg);
 			}
 
-			$tmpl = gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
+			emit(gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg')));
 		} elsif (defined $cgi->param('to_cp')) {
-			$tmpl = load_template('user_cp.html');
+			emit(load_template('user_cp.html'));
 		}
-		emit($tmpl);
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
 		my $edit_id = (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) ? clean_tgid($cgi->param('tg_id')) : undef;
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
-		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
-			my %tg;
-
-			if (defined $cgi->param('save')) {
-				my $whinge = sub { whinge($_[0], gen_tg($tgfile, 1, $session, $etoken)) };
-
-				$tg{Name} = clean_text($cgi->param('tg_name'));
-				$whinge->('No transaction group name supplied') unless defined $tg{Name};
-				my $date = clean_text($cgi->param('tg_date'));
-				my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
-				$whinge->('Unparsable date') if $pd_error;
-				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
-
-				my $max_rows = -1;
-				$max_rows++ while ($max_rows < 100 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
-				$whinge->('No transactions?') unless $max_rows >= 0;
-
-				my %acct_names = get_acct_name_map;
-				my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
-				foreach my $acct (@accts) {
-					$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
-				}
-
-				foreach my $row (0 .. $max_rows) {
-					my $cred = clean_username($cgi->param("Creditor_$row"));
-					my $amnt = clean_decimal($cgi->param("Amount_$row"));
-					my $desc = clean_text($cgi->param("Description_$row"));
-					$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
-					$whinge->('Non-numerics in amount') unless defined $amnt;
-					my $set = $amnt == 0 ? 0 : 10000;
-					my @rowshares;
-					foreach my $acct (@accts) {
-						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
-						$whinge->('Non-numerics in debt share') unless defined $rowshares[$#rowshares];
-						$set++ unless $rowshares[$#rowshares] == 0;
-					}
-
-					if ($set > 10000) {
-						push (@{$tg{Creditor}}, $cred);
-						push (@{$tg{Amount}}, $amnt);
-						push (@{$tg{Description}}, $desc);
-						push (@{$tg{$accts[$_]}}, $rowshares[$_]) foreach (0 .. $#accts);
-					} elsif ($set > 0 or $cred ne $session->param('User')) {
-						$whinge->('Insufficient values set in row');
-					}
-				}
-
-				my %all_ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-				my %all_vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-				my (%ppl, %vaccts);
-				((exists $all_ppl{$_}) ? $ppl{$all_ppl{$_}} : $vaccts{$all_vaccts{$_}}) = $_ foreach (@accts);
-				@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
-
-				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-				bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
-				try_commit_and_unlock(sub {
-					$tgfile = new_tgfile unless ($tgfile);
-					write_tg($tgfile, %tg);
-					add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
-				}, $edit_id ? $tgfile : undef);
-			} else {
-				unlock($tgfile) if $tgfile;
-				redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
-			}
-
-			$tgfile =~ /.*\/([^\/]{7})[^\/]*$/;
-			if ($edit_id) {
-				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
-			} else {
-				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", gen_manage_tgs);
-			}
+		if (defined $cgi->param('manage_tgs')) {
+			emit(gen_manage_tgs);
 		} elsif (defined $cgi->param('edit')) {
 			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs);
 			}
-			$tmpl = gen_tg($tgfile, 1, $session, get_edit_token($sessid, "edit_$edit_id"));
-		} elsif (defined $cgi->param('manage_tgs')) {
-			$tmpl = gen_manage_tgs;
+			emit(gen_tg($tgfile, 1, $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
-		emit($tmpl);
+
+		# only left with save and cancel now
+		my %tg;
+
+		if (defined $cgi->param('save')) {
+			my $whinge = sub { whinge($_[0], gen_tg($tgfile, 1, $session, $etoken)) };
+
+			$tg{Name} = clean_text($cgi->param('tg_name'));
+			$whinge->('No transaction group name supplied') unless defined $tg{Name};
+			my $date = clean_text($cgi->param('tg_date'));
+			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
+			$whinge->('Unparsable date') if $pd_error;
+			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
+
+			my $max_rows = -1;
+			$max_rows++ while ($max_rows < 100 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
+			$whinge->('No transactions?') unless $max_rows >= 0;
+
+			my %acct_names = get_acct_name_map;
+			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
+			foreach my $acct (@accts) {
+				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
+			}
+
+			foreach my $row (0 .. $max_rows) {
+				my $cred = clean_username($cgi->param("Creditor_$row"));
+				my $amnt = clean_decimal($cgi->param("Amount_$row"));
+				my $desc = clean_text($cgi->param("Description_$row"));
+				$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
+				$whinge->('Non-numerics in amount') unless defined $amnt;
+				my $set = $amnt == 0 ? 0 : 10000;
+				my @rowshares;
+				foreach my $acct (@accts) {
+					push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
+					$whinge->('Non-numerics in debt share') unless defined $rowshares[$#rowshares];
+					$set++ unless $rowshares[$#rowshares] == 0;
+				}
+
+				if ($set > 10000) {
+					push (@{$tg{Creditor}}, $cred);
+					push (@{$tg{Amount}}, $amnt);
+					push (@{$tg{Description}}, $desc);
+					push (@{$tg{$accts[$_]}}, $rowshares[$_]) foreach (0 .. $#accts);
+				} elsif ($set > 0 or $cred ne $session->param('User')) {
+					$whinge->('Insufficient values set in row');
+				}
+			}
+
+			my %all_ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %all_vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+			my (%ppl, %vaccts);
+			((exists $all_ppl{$_}) ? $ppl{$all_ppl{$_}} : $vaccts{$all_vaccts{$_}}) = $_ foreach (@accts);
+			@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
+			try_commit_and_unlock(sub {
+				$tgfile = new_tgfile unless ($tgfile);
+				write_tg($tgfile, %tg);
+				add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
+			}, $edit_id ? $tgfile : undef);
+		} else {
+			unlock($tgfile) if $tgfile;
+			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
+		}
+
+		$tgfile =~ /.*\/([^\/]{7})[^\/]*$/;
+		if ($edit_id) {
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
+		} else {
+			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", gen_manage_tgs);
+		}
 	}
 }
 
