@@ -621,7 +621,7 @@ sub gen_edit_simp_trans
 	my $num_rows = ($#{$cfg{Description}} >= 0) ? scalar @{$cfg{Description}} + min(5, 30 - scalar @{$cfg{Description}}) : 10;
 	my @rows;
 	foreach my $row (0 .. ($num_rows - 1)) {
-		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{DebitAcct}[$row]) ? $cfg{DebitAcct}[$row] eq $_ : undef}, @sorted_vaccts);
+		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{DebitAcct}[$row]) ? $cfg{DebitAcct}[$row] eq $_ : undef }, @sorted_vaccts);
 		push (@rows, { ACCTS => \@rowoptions, D => $cfg{Description}[$row], R => $row });
 	}
 	$tmpl->param(ROWS => \@rows);
@@ -841,6 +841,25 @@ sub despatch_admin
 	}
 }
 
+sub gen_add_vacct_expense
+{
+	my ($session, $etoken) = @_;
+	my $tmpl = load_template('add_vacct_expense.html', $etoken);
+
+	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %raccts = reverse (%accts);
+	my @sorted_accts = map ($raccts{$_}, sort keys %raccts);
+
+	my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
+
+	my @pploptions = map ({ O => $accts{$_}, V => $_, S => $session->param('User') eq $_ }, @sorted_accts);
+	my @typeoptions = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, 0 .. $#{$cfg{Description}});
+
+	$tmpl->param(PPL => \@pploptions, DEBTACCTS => \@typeoptions);
+
+	return $tmpl;
+}
+
 sub query_all_htsv_in_path
 {
 	my ($path, $key) = @_;
@@ -990,6 +1009,7 @@ sub despatch_user
 	my $session = $_[0];
 	my $sessid = $session->id();
 	my $cgi = $session->query();
+	my $etoken = $cgi->param('etoken');
 	my $tmpl;
 
 	return if (defined $cgi->param('logout'));
@@ -1000,9 +1020,23 @@ sub despatch_user
 		exit;
 	}
 	if ($cgi->param('tmpl') eq 'ucp') {
+		if (defined $cgi->param('add_vacct_expense')) {
+			emit(gen_add_vacct_expense($session, get_edit_token($sessid, 'add_vacct_expense')));
+		}
 		if (defined $cgi->param('manage_tgs')) {
 			emit(gen_manage_tgs);
 		}
+	}
+	if ($cgi->param('tmpl') eq 'add_vacct_expense') {
+		$tmpl = load_template('user_cp.html');	# merge into emit?
+
+		if (defined $cgi->param('save')) {
+			redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
+		} else {
+			redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? "Expense saved" : "Add expense cancelled", $tmpl);
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
@@ -1025,7 +1059,6 @@ sub despatch_user
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
-			my $etoken = $cgi->param('etoken');
 			my %tg;
 
 			if (defined $cgi->param('save')) {

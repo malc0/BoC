@@ -1,0 +1,41 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN>: Add communal expense</title>
+	</head>
+	<body>
+		<h1>Add an expense to be charged communally</h1>
+
+		<form action="boc.pl" method="post">
+			<input type="hidden" name="tmpl" value="add_vacct_expense"/>
+			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
+
+			<h2>Step 1: who's incurred the expense?</h2>
+			<select name="Creditor">
+				<TMPL_LOOP NAME=PPL><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+				</TMPL_LOOP>
+			</select>
+
+			<h2>Step 2: how much is it?</h2>
+			<!-- FIXME JS: verify negative input -->
+			<input type="text" value=0 name="Amount"/>
+
+			<h2>Step 3: when was it incurred (enter as dd/mm/yy or 'today', 'last Friday', etc.)?</h2>
+			<input type="text" name="tg_date"/>
+
+			<h2>Step 4: what was it for (if none is suitable, you'll have to use the &quot;FIXME&quot; page)?</h2>
+			<select name="Debtor">
+				<option value="">Select expense type</option>
+				<TMPL_LOOP NAME=DEBTACCTS><option value="<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></option>
+				</TMPL_LOOP>
+			</select>
+
+			<h2>Step 5: any other relevant details?</h2>
+			<input type="text" name="Description" size=50/>
+
+			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Done"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</form>
+	</body>
+</html>

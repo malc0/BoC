@@ -7,7 +7,9 @@
 		<form action="boc.pl" method="post">
 			<input type="hidden" name="tmpl" value="ucp"/>
 
+			<p><input type="submit" name="add_vacct_expense" value="Add communal expense"/></p>
 			<p><input type="submit" name="manage_tgs" value="Manage transaction groups"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 		</form>
 	</body>
