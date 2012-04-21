@@ -715,7 +715,7 @@ sub despatch_admin
 				if ($rename) {
 					add_commit("$acct_path/$new_acct", 'Rename ' . unroot("$acct_path/$edit_acct") . ' to ' . unroot("$acct_path/$new_acct"), $session);
 				} else {
-					add_commit("$acct_path/$new_acct", unroot("$acct_path/$new_acct") . ': modified', $session);
+					add_commit("$acct_path/$new_acct", unroot("$acct_path/$new_acct") . ': ' . ($edit_acct ? 'modified' : 'created'), $session);
 				}
 			}, $edit_acct ? "$acct_path/$edit_acct" : undef);
 		} else {
@@ -1013,7 +1013,8 @@ sub despatch_user
 		emit($tmpl);
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
-		my $tgfile = (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) ? "$config{Root}/transaction_groups/" . clean_tgid($cgi->param('tg_id')) : undef;
+		my $edit_id = (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) ? clean_tgid($cgi->param('tg_id')) : undef;
+		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('save') or defined $cgi->param('cancel')) {
 			my $etoken = $cgi->param('etoken');
@@ -1079,29 +1080,29 @@ sub despatch_user
 					$tgfile = "$tg_path/$id";
 				}
 				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-				bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
+				bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 				try_commit_and_unlock(sub {
 					write_tg($tgfile, %tg);
-					add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" modified", $session);
-				}, $cgi->param('tg_id') ? $tgfile : undef);
+					add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
+				}, $edit_id ? $tgfile : undef);
 			} else {
 				unlock($tgfile) if $tgfile;
-				redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
+				redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 			}
 
 			$tgfile =~ /.*\/([^\/]{7})[^\/]*$/;
-			if (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) {
+			if ($edit_id) {
 				emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 			} else {
 				emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", gen_manage_tgs);
 			}
 		} elsif (defined $cgi->param('edit')) {
-			whinge("Couldn't get edit lock for transaction group \"" . $cgi->param('tg_id') . "\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
+			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
-				whinge("Couldn't edit transaction group \"" . $cgi->param('tg_id') . "\", file disappeared", gen_manage_tgs);
+				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs);
 			}
-			$tmpl = gen_tg($tgfile, 1, $session, get_edit_token($sessid, 'edit_' . $cgi->param('tg_id')));
+			$tmpl = gen_tg($tgfile, 1, $session, get_edit_token($sessid, "edit_$edit_id"));
 		} elsif (defined $cgi->param('manage_tgs')) {
 			$tmpl = gen_manage_tgs;
 		}
