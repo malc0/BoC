@@ -281,7 +281,12 @@ sub try_commit_and_unlock
 
 	eval { $sub->() };
 	my $commit_fail = $@;
-	$git->reset({hard => 1}) if $commit_fail;	# die hard, leaving lock, if we can't clean up
+	if ($commit_fail) {
+		eval { $git->reset({hard => 1}) };
+		# die hard, leaving locks, if we can't clean up
+		open (my $fh, ">$config{Root}/RepoBroke") if ($@ and not -e "$config{Root}/RepoBroke");
+		die "Clean up failed: $@\nOriginally due to: $commit_fail" if $@;
+	}
 	un_commit_lock;
 	unlock($extra_lock) if $extra_lock;
 	die $commit_fail if $commit_fail;
