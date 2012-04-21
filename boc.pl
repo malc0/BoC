@@ -181,6 +181,7 @@ sub try_tg_lock
 
 sub encode_for_html
 {
+	return undef unless $_[0];
 	my $escaped = encode_entities(decode_entities($_[0]), '^A-Za-z0-9!%^*()\-_=+{}\[\];:@#~,./?\\\ ');
 	$escaped =~ s/&#39;/&apos;/g;
 	return $escaped;
@@ -188,6 +189,7 @@ sub encode_for_html
 
 sub encode_for_file
 {
+	return undef unless $_[0];
 	return encode_entities(decode_entities($_[0]), '^A-Za-z0-9¬`!"£\$%^&*()\-_=+{}\[\];:\'@~,.<>/?\\\| ');	# hash not included to avoid getting treated as comment in file!
 }
 
