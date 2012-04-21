@@ -543,6 +543,20 @@ sub gen_add_edit_acc
 	return $tmpl;
 }
 
+sub gen_edit_inst_cfg
+{
+	my $tmpl = load_template('templates/edit_inst_cfg.html', $_[0]);
+	my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
+
+	foreach my $param ($tmpl->param()) {
+		next if $tmpl->param($param);
+		$tmpl->param($param => $inst_cfg{$param});
+		$tmpl->param($param => '" data-noop="') if exists $inst_cfg{$param} and not defined $inst_cfg{$param};
+	}
+
+	return $tmpl;
+}
+
 sub gen_edit_simp_trans
 {
 	my $tmpl = load_template('templates/edit_simp_trans.html', $_[0]);
@@ -582,21 +596,11 @@ sub despatch_admin
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
 		if (defined $cgi->param('edit_inst_cfg')) {
-			my $cfg_file = "$config{Root}/config";
-			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $sessid);
-			my %inst_cfg = read_simp_cfg($cfg_file, 1);
-			my $tmpl = load_template('templates/edit_inst_cfg.html', get_edit_token($sessid, 'edit_inst_cfg'));
-
-			foreach my $param ($tmpl->param()) {
-				next if $tmpl->param($param);
-				$tmpl->param($param => $inst_cfg{$param});
-				$tmpl->param($param => '" data-noop="') if exists $inst_cfg{$param} and not defined $inst_cfg{$param};
-			}
-			emit($tmpl);
+			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock("$config{Root}/config", $sessid);
+			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
 		}
 		if (defined $cgi->param('edit_simp_trans')) {
-			my $cfg_file = "$config{Root}/config_simp_trans";
-			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock($cfg_file, $sessid);
+			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock("$config{Root}/config_simp_trans", $sessid);
 			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
 		}
 	}
