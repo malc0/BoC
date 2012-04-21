@@ -395,12 +395,13 @@ sub create_datastore
 	if (defined $cgi->param('tmpl') and $cgi->param('tmpl') eq 'create_ds_p') {
 		my $user_path = "$config{Root}/users";
 		my $user = clean_username($cgi->param('user'));
+		my $whinge = sub { whinge($_[0], gen_cds_p($reason)) };
 
-		whinge('Disallowed characters in username', gen_cds_p($reason)) unless defined $user;
-		whinge('Username too short', gen_cds_p($reason)) if length $user < 3;
-		whinge('Username too long', gen_cds_p($reason)) if length $user > 10;
+		$whinge->('Disallowed characters in username') unless defined $user;
+		$whinge->('Username too short') if length $user < 3;
+		$whinge->('Username too long') if length $user > 10;
 		my $cracklib_rv = fascist_check($cgi->param('pass'));
-		whinge("Problem with password: $cracklib_rv", gen_cds_p($reason)) unless ($cracklib_rv eq 'ok');
+		$whinge->("Problem with password: $cracklib_rv") unless ($cracklib_rv eq 'ok');
 
 		my $cryptpass = unix_md5_crypt($cgi->param('pass'));
 		my %userdetails = (
@@ -409,7 +410,7 @@ sub create_datastore
 		);
 		(mkdir $user_path or die) unless (-d "$user_path");
 		$git->init();
-		whinge('Unable to get commit lock', gen_cds_p($reason)) unless try_commit_lock($cryptpass);
+		$whinge->('Unable to get commit lock') unless try_commit_lock($cryptpass);
 		# no session so not edit_token protected.  FIXME?
 		try_commit_and_unlock(sub {
 			write_simp_cfg("$user_path/$user", %userdetails);
@@ -438,16 +439,17 @@ sub login
 	my ($cgi, $userdetout) = @_;
 	my $user = clean_username($cgi->param('user'));
 	my $pass = $cgi->param('pass');
+	my $whinge = sub { whinge('Login failed!', load_template('login.html')) };
 
-	whinge('Login failed!', load_template('login.html')) unless (-r "$config{Root}/users/$user");
+	$whinge->() unless (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
-	whinge('Login failed!', load_template('login.html')) unless defined $userdetails{Password};
+	$whinge->() unless defined $userdetails{Password};
 
 	my ($empty, $id, $salt, $encrypted) = split(/\$/, $userdetails{Password}, 4);
 
 	my $cryptpass = unix_md5_crypt($pass, $salt);
 
-	whinge('Login failed!', load_template('login.html')) unless ($cryptpass eq $userdetails{Password});
+	$whinge->() unless ($cryptpass eq $userdetails{Password});
 
 	$userdetails{User} = $user;
 	%{$userdetout} = %userdetails;
@@ -635,14 +637,15 @@ sub despatch_admin
 		exit;
 	}
 	if ($cgi->param('tmpl') eq 'tcp') {
+		my $whinge = sub { whinge('Couldn\'t get edit lock for configuration file', load_template('treasurer_cp.html')) };
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
 		if (defined $cgi->param('edit_inst_cfg')) {
-			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock("$config{Root}/config", $sessid);
+			$whinge->() unless try_lock("$config{Root}/config", $sessid);
 			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
 		}
 		if (defined $cgi->param('edit_simp_trans')) {
-			whinge("Couldn't get edit lock for configuration file", load_template('templates/treasurer_cp.html')) unless try_lock("$config{Root}/config_simp_trans", $sessid);
+			$whinge->() unless try_lock("$config{Root}/config_simp_trans", $sessid);
 			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
 		}
 	}
@@ -658,16 +661,17 @@ sub despatch_admin
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
 			my $rename = ($edit_acct and $edit_acct ne $new_acct);
+			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
 
-			whinge('Disallowed characters in short name', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $new_acct;
-			whinge('Short name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct < 3;
-			whinge('Short name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $new_acct > 10;
-			whinge('Short name is already taken', gen_add_edit_acc($edit_acct, $person, $etoken)) if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
-			whinge('Full name too short', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $fullname;
-			whinge('Full name too long', gen_add_edit_acc($edit_acct, $person, $etoken)) if length $fullname > 100;
+			$whinge->('Disallowed characters in short name') unless defined $new_acct;
+			$whinge->('Short name too short') if length $new_acct < 3;
+			$whinge->('Short name too long') if length $new_acct > 10;
+			$whinge->('Short name is already taken') if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
+			$whinge->('Full name too short') unless defined $fullname;
+			$whinge->('Full name too long') if length $fullname > 100;
 			if ($person) {
-				whinge('Not an email address', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $email;
-				whinge('No real-world contact details given', gen_add_edit_acc($edit_acct, $person, $etoken)) unless defined $address;
+				$whinge->('Not an email address') unless defined $email;
+				$whinge->('No real-world contact details given') unless defined $address;
 			}
 
 			my %userdetails;
@@ -680,10 +684,10 @@ sub despatch_admin
 				(mkdir $acct_path or die) unless (-d $acct_path);
 			}
 
-			whinge('Unable to get commit lock', gen_add_edit_acc($edit_acct, $person, $etoken)) unless try_commit_lock($sessid);
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if ($rename and glob("$config{Root}/transaction_groups/.*.lock")) {
 				un_commit_lock;
-				whinge('Cannot perform account rename at present: transaction groups busy', gen_add_edit_acc($edit_acct, $person, $etoken));
+				$whinge->('Cannot perform account rename at present: transaction groups busy');
 			}
 			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 			try_commit_and_unlock(sub {
@@ -740,11 +744,12 @@ sub despatch_admin
 
 			my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 			unless ($delete) {
+				my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
 				if ($acct) {
-					whinge("Couldn't get edit lock for account \"$acct\"", gen_manage_accts($person)) unless try_lock($acct_file, $sessid);
+					$whinge->("Couldn't get edit lock for account \"$acct\"") unless try_lock($acct_file, $sessid);
 					unless (-r $acct_file) {
 						unlock($acct_file);
-						whinge("Couldn't edit account \"$acct\", file disappeared", gen_manage_accts($person));
+						$whinge->("Couldn't edit account \"$acct\", file disappeared");
 					}
 				}
 				my $etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
@@ -787,10 +792,11 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my %cfg = ( Headings => [ 'DebitAcct', 'Description' ] );
+			my $whinge = sub { whinge($_[0], gen_edit_simp_trans($etoken)) };
 
 			my $max_rows = -1;
 			$max_rows++ while ($max_rows < 100 and defined $cgi->param("DebitAcct_" . ($max_rows + 1)));
-			whinge('No transactions?', gen_edit_simp_trans($etoken)) unless $max_rows >= 0;
+			$whinge->('No transactions?') unless $max_rows >= 0;
 
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 
@@ -800,14 +806,14 @@ sub despatch_admin
 				my $desc = clean_text($cgi->param("Description_$row"));
 				my $acct = clean_username($cgi->param("DebitAcct_$row"));
 				next unless $desc or $acct;
-				whinge('Missing account', gen_edit_simp_trans($etoken)) unless $acct;
-				whinge('Missing description', gen_edit_simp_trans($etoken)) unless $desc;
-				whinge("Non-existent account \"$acct\"", gen_edit_simp_trans($etoken)) unless exists $vaccts{$acct};
+				$whinge->('Missing account') unless $acct;
+				$whinge->('Missing description') unless $desc;
+				$whinge->("Non-existent account \"$acct\"") unless exists $vaccts{$acct};
 				push (@{$cfg{Description}}, $desc);
 				push (@{$cfg{DebitAcct}}, $acct);
 			}
 
-			whinge('Unable to get commit lock', gen_edit_simp_trans($etoken)) unless try_commit_lock($sessid);
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('templates/treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($cfg_file, \%cfg, 11);
@@ -1009,34 +1015,36 @@ sub despatch_user
 			my %tg;
 
 			if (defined $cgi->param('save')) {
+				my $whinge = sub { whinge($_[0], gen_tg($tgfile, 1, $session, $etoken)) };
+
 				$tg{Name} = clean_text($cgi->param('tg_name'));
-				whinge('No transaction group name supplied', gen_tg($tgfile, 1, $session, $etoken)) unless defined $tg{Name};
+				$whinge->('No transaction group name supplied') unless defined $tg{Name};
 				my $date = clean_text($cgi->param('tg_date'));
 				my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
-				whinge('Unparsable date', gen_tg($tgfile, 1, $session, $etoken)) if $pd_error;
+				$whinge->('Unparsable date') if $pd_error;
 				$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
 				my $max_rows = -1;
 				$max_rows++ while ($max_rows < 100 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
-				whinge('No transactions?', gen_tg($tgfile, 1, $session, $etoken)) unless $max_rows >= 0;
+				$whinge->('No transactions?') unless $max_rows >= 0;
 
 				my %acct_names = get_acct_name_map;
 				my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
 				foreach my $acct (@accts) {
-					whinge("Non-existent account \"$acct\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$acct};
+					$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
 				}
 
 				foreach my $row (0 .. $max_rows) {
 					my $cred = clean_username($cgi->param("Creditor_$row"));
 					my $amnt = clean_decimal($cgi->param("Amount_$row"));
 					my $desc = clean_text($cgi->param("Description_$row"));
-					whinge("Non-existent account \"$cred\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$cred};
-					whinge('Non-numerics in amount', gen_tg($tgfile, 1, $session, $etoken)) unless defined $amnt;
+					$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
+					$whinge->('Non-numerics in amount') unless defined $amnt;
 					my $set = $amnt == 0 ? 0 : 10000;
 					my @rowshares;
 					foreach my $acct (@accts) {
 						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
-						whinge('Non-numerics in debt share', gen_tg($tgfile, 1, $session, $etoken)) unless defined $rowshares[$#rowshares];
+						$whinge->('Non-numerics in debt share') unless defined $rowshares[$#rowshares];
 						$set++ unless $rowshares[$#rowshares] == 0;
 					}
 
@@ -1046,7 +1054,7 @@ sub despatch_user
 						push (@{$tg{Description}}, $desc);
 						push (@{$tg{$accts[$_]}}, $rowshares[$_]) foreach (0 .. $#accts);
 					} elsif ($set > 0 or $cred ne $session->param('User')) {
-						whinge('Insufficient values set in row', gen_tg($tgfile, 1, $session, $etoken));
+						$whinge->('Insufficient values set in row');
 					}
 				}
 
@@ -1065,7 +1073,7 @@ sub despatch_user
 					} while (-e "$tg_path/$id");
 					$tgfile = "$tg_path/$id";
 				}
-				whinge('Unable to get commit lock', gen_tg($tgfile, 1, $session, $etoken)) unless try_commit_lock($sessid);
+				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 				bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $tgfile ? 'edit_' . $cgi->param('tg_id') : 'add_tg', $etoken);
 				try_commit_and_unlock(sub {
 					write_tg($tgfile, %tg);
