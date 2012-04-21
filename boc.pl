@@ -589,7 +589,7 @@ sub gen_add_edit_acc
 
 sub gen_edit_inst_cfg
 {
-	my $tmpl = load_template('templates/edit_inst_cfg.html', $_[0]);
+	my $tmpl = load_template('edit_inst_cfg.html', $_[0]);
 	my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
 
 	foreach my $param ($tmpl->param()) {
@@ -603,7 +603,7 @@ sub gen_edit_inst_cfg
 
 sub gen_edit_simp_trans
 {
-	my $tmpl = load_template('templates/edit_simp_trans.html', $_[0]);
+	my $tmpl = load_template('edit_simp_trans.html', $_[0]);
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %rvaccts = reverse (%vaccts);
@@ -632,7 +632,7 @@ sub despatch_admin
 	return if (defined $cgi->param('logout'));
 
 	if ($cgi->param('tmpl') eq 'login') {
-		my $tmpl = load_template('templates/treasurer_cp.html');
+		my $tmpl = load_template('treasurer_cp.html');
 		print $tmpl->output;
 		exit;
 	}
@@ -762,7 +762,7 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
-		my $tmpl = load_template('templates/treasurer_cp.html');
+		my $tmpl = load_template('treasurer_cp.html');
 
 		if (defined $cgi->param('save')) {
 			my %inst_cfg;
@@ -779,7 +779,7 @@ sub despatch_admin
 				add_commit($cfg_file, 'config: installation config modified', $session);
 			}, $cfg_file);
 			update_global_config(%inst_cfg);
-			$tmpl = load_template('templates/treasurer_cp.html');	# reload (possibly modified) template
+			$tmpl = load_template('treasurer_cp.html');	# reload (possibly modified) template
 		} else {
 			unlock($cfg_file);
 			redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
@@ -814,7 +814,7 @@ sub despatch_admin
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('templates/treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
+			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($cfg_file, \%cfg, 11);
 				add_commit($cfg_file, 'config_simp_trans: simple transaction types modified', $session);
@@ -824,7 +824,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", load_template('templates/treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", load_template('treasurer_cp.html'));
 	}
 }
 
@@ -982,7 +982,7 @@ sub despatch_user
 	return if (defined $cgi->param('logout'));
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
-		$tmpl = load_template('templates/user_cp.html');
+		$tmpl = load_template('user_cp.html');
 		print $tmpl->output;
 		exit;
 	}
@@ -1003,7 +1003,7 @@ sub despatch_user
 
 			$tmpl = gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
 		} elsif (defined $cgi->param('to_cp')) {
-			$tmpl = load_template('templates/user_cp.html');
+			$tmpl = load_template('user_cp.html');
 		}
 		emit($tmpl);
 	}
