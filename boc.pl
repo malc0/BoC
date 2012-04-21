@@ -1006,6 +1006,17 @@ sub gen_tg
 	return $tmpl;
 }
 
+sub new_tgfile
+{
+	my $id;
+	my $tg_path = "$config{Root}/transaction_groups";
+	(mkdir "$tg_path" or die) unless (-d $tg_path);
+	do {
+		$id = create_UUID_as_string(UUID_V4);
+	} while (-e "$tg_path/$id");
+	return "$tg_path/$id";
+}
+
 sub despatch_user
 {
 	my $session = $_[0];
@@ -1033,7 +1044,44 @@ sub despatch_user
 		$tmpl = load_template('user_cp.html');	# merge into emit?
 
 		if (defined $cgi->param('save')) {
-			redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
+			my %tg;
+			my $whinge = sub { whinge($_[0], gen_add_vacct_expense($session, $etoken)) };
+
+			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my $cred = clean_username($cgi->param('Creditor'));
+			$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
+			push (@{$tg{Creditor}}, $cred);
+
+			my $amnt = clean_decimal($cgi->param('Amount'));
+			$whinge->('Non-numerics in amount') unless defined $amnt;
+			$whinge->('Missing amount') if $amnt == 0;
+			push (@{$tg{Amount}}, $amnt);
+
+			my $date = clean_text($cgi->param('tg_date'));
+			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
+			$whinge->('Unparsable date') if $pd_error;
+			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
+
+			my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+			my $type = clean_text($cgi->param('Debtor'));
+			$whinge->('Broken expense type') unless defined $type;
+			my ($debtor, $type) = split('!', $type, 2);
+			$whinge->("Non-existent account \"$debtor\"") unless exists $vacct_names{$debtor};
+			push (@{$tg{$debtor}}, 1);
+			$whinge->('Broken expense type') unless defined $type;
+			$tg{Name} = "Expense: $type";
+
+			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
+
+			@{$tg{Headings}} = ('Creditor', 'Amount', $debtor, 'Description');
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge($tmpl) unless redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
+			try_commit_and_unlock(sub {
+				my $tgfile = new_tgfile;
+				write_tg($tgfile, %tg);
+				add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" created", $session);
+			});
 		} else {
 			redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
 		}
@@ -1113,18 +1161,10 @@ sub despatch_user
 				((exists $all_ppl{$_}) ? $ppl{$all_ppl{$_}} : $vaccts{$all_vaccts{$_}}) = $_ foreach (@accts);
 				@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
 
-				unless ($tgfile) {
-					my $id;
-					my $tg_path = "$config{Root}/transaction_groups";
-					(mkdir "$tg_path" or die) unless (-d $tg_path);
-					do {
-						$id = create_UUID_as_string(UUID_V4);
-					} while (-e "$tg_path/$id");
-					$tgfile = "$tg_path/$id";
-				}
 				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 				bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 				try_commit_and_unlock(sub {
+					$tgfile = new_tgfile unless ($tgfile);
 					write_tg($tgfile, %tg);
 					add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
 				}, $edit_id ? $tgfile : undef);
