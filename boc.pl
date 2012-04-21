@@ -621,8 +621,7 @@ sub gen_edit_simp_trans
 	my $num_rows = ($#{$cfg{Description}} >= 0) ? scalar @{$cfg{Description}} + min(5, 30 - scalar @{$cfg{Description}}) : 10;
 	my @rows;
 	foreach my $row (0 .. ($num_rows - 1)) {
-		my @rowoptions = ({ O => 'Select account' });
-		push (@rowoptions, map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{DebitAcct}[$row]) ? $cfg{DebitAcct}[$row] eq $_ : undef}, @sorted_vaccts));
+		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{DebitAcct}[$row]) ? $cfg{DebitAcct}[$row] eq $_ : undef}, @sorted_vaccts);
 		push (@rows, { ACCTS => \@rowoptions, D => $cfg{Description}[$row], R => $row });
 	}
 	$tmpl->param(ROWS => \@rows);

@@ -17,6 +17,7 @@
 					<td><input type="text" value="<TMPL_VAR NAME=D>" name="Description_<TMPL_VAR NAME=R>"/></td>
 					<td>
 						<select name="DebitAcct_<TMPL_VAR NAME=R>">
+							<option value="">Select account</option>
 							<TMPL_LOOP NAME=ACCTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 							</TMPL_LOOP>
 						</select>
