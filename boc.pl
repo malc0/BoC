@@ -668,6 +668,7 @@ sub despatch_admin
 			my $rename = ($edit_acct and $edit_acct ne $new_acct);
 			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
 
+			whinge('Account to be edited not found (resubmission after rename?)', gen_manage_accts($person)) if $edit_acct and not -r ("$acct_path/$edit_acct");
 			$whinge->('Disallowed characters in short name') unless defined $new_acct;
 			$whinge->('Short name too short') if length $new_acct < 3;
 			$whinge->('Short name too long') if length $new_acct > 10;
@@ -724,7 +725,7 @@ sub despatch_admin
 				}
 			}, $edit_acct ? "$acct_path/$edit_acct" : undef);
 		} else {
-			unlock("$acct_path/$edit_acct") if $edit_acct;
+			unlock("$acct_path/$edit_acct") if ($edit_acct and -r "$acct_path/$edit_acct");
 			redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 		}
 
