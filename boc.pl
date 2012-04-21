@@ -690,6 +690,11 @@ sub despatch_admin
 				$whinge->('Cannot perform account rename at present: transaction groups busy');
 			}
 			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
+			if (defined $edit_acct and $edit_acct eq $session->param('User')) {
+				$session->param('User', $new_acct);
+				$session->param('Name', $userdetails{Name});
+				$session->flush();
+			}
 			try_commit_and_unlock(sub {
 				if ($rename) {
 					my @tgs = glob("$config{Root}/transaction_groups/*");
