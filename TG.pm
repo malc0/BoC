@@ -21,7 +21,14 @@ sub read_tg
 	foreach my $col (@{$content{Headings}}) {
 		next if $col eq 'Creditor';
 		next if $col eq 'Description';
-		@{$content{$col}} = map ($_ ? $_ : 0, @{$content{$col}});
+		next if $col eq 'TrnsfrPot';
+		if ($col eq 'Amount') {
+			foreach my $i (0 .. $#{$content{Amount}}) {
+				$content{Amount}[$i] = ($content{Creditor}[$i] =~ /^TrnsfrPot\d$/ ? '*' : 0) unless $content{Amount}[$i];
+			}
+		} else {
+			@{$content{$col}} = map ($_ ? $_ : 0, @{$content{$col}});
+		}
 	}
 
 	return %content;
