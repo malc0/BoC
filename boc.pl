@@ -311,7 +311,7 @@ sub set_status
 sub clean_username
 {
 	return undef unless defined $_[0];
-	# don't allow upper case to give special TG columns (Creditor, THIS etc.) their own namespace
+	# don't allow upper case to give special TG columns (Creditor, TrnsfrPot etc.) their own namespace
 	$_[0] =~ /^([a-z0-9\-+_]*)$/;	# these have to exist on a filesystem.  certainly do not permit dots (.), as could get trashed lock files
 	return $1;
 }
@@ -925,7 +925,7 @@ sub gen_manage_tgs
 		foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
 			my $acct = $tgdetails{Creditor}[$i];
 			unless (defined $acct_names{$acct}) {
-				next if $acct eq 'THIS';
+				next if $acct =~ /^TrnsfrPot\d$/;
 				$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  ";
 				last;
 			}
@@ -938,7 +938,7 @@ sub gen_manage_tgs
 			$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
 		}
 		foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)]) {
-			next if $acct eq 'THIS';
+			next if $acct eq 'TrnsfrPot';
 			$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  " unless (defined $acct_names{$acct});
 		}
 
@@ -1157,14 +1157,14 @@ sub despatch_user
 			$whinge->('No creditors?') unless scalar keys %creds > 0;
 
 			if (scalar keys %creds > 1) {
-				push (@{$tg{Creditor}}, 'THIS');
-				push (@{$tg{Amount}}, 1);
-				push (@{$tg{THIS}}, undef);
+				push (@{$tg{Creditor}}, 'TrnsfrPot1');
+				push (@{$tg{Amount}}, '*');
+				push (@{$tg{TrnsfrPot}}, undef);
 			}
 			foreach my $cred (keys %creds) {
 				push (@{$tg{Creditor}}, $cred);
 				push (@{$tg{Amount}}, $creds{$cred});
-				push (@{$tg{THIS}}, 1) if scalar keys %creds > 1;
+				push (@{$tg{TrnsfrPot}}, 1) if scalar keys %creds > 1;
 			}
 
 			my @debt_accts = map { s/^Debt_//; $_ } grep (/^Debt_.*$/, $cgi->param);
@@ -1182,7 +1182,7 @@ sub despatch_user
 			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
 
 			@{$tg{Headings}} = ('Creditor', 'Amount' );
-			push (@{$tg{Headings}}, 'THIS') if scalar keys %creds > 1;
+			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
 			my %rdebts = reverse %debts;
 			push (@{$tg{Headings}}, $_) foreach map ($rdebts{$_}, sort keys %rdebts);
 			push (@{$tg{Headings}}, 'Description');
