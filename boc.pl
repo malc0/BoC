@@ -1257,7 +1257,7 @@ sub despatch_user
 			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
 			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 100 and defined clean_username($cgi->param("Creditor_" . ($max_rows + 1))));
+			$max_rows++ while ($max_rows < 100 and defined $cgi->param("Creditor_" . ($max_rows + 1)));
 			$whinge->('No transactions?') unless $max_rows >= 0;
 
 			my %acct_names = get_acct_name_map;
@@ -1267,26 +1267,33 @@ sub despatch_user
 			}
 
 			foreach my $row (0 .. $max_rows) {
-				my $cred = clean_username($cgi->param("Creditor_$row"));
-				my $amnt = clean_decimal($cgi->param("Amount_$row"));
-				my $desc = clean_text($cgi->param("Description_$row"));
-				$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
-				$whinge->('Non-numerics in amount') unless defined $amnt;
-				my $set = $amnt == 0 ? 0 : 10000;
+				my ($cred, $amnt);
+				my $set = 0;
+				if ($cred = clean_username($cgi->param("Creditor_$row"))) {
+					$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
+					$amnt = clean_decimal($cgi->param("Amount_$row"));
+					$whinge->('Non-numerics in amount') unless defined $amnt;
+					$set = 10000 if $amnt != 0;
+				} else {
+					$whinge->("Invalid account");
+				}
+
 				my @rowshares;
 				foreach my $acct (@accts) {
-					push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
+					push (@rowshares, clean_decimal($cgi->param("${acct}_$row")));
 					$whinge->('Non-numerics in debt share') unless defined $rowshares[$#rowshares];
 					$set++ unless $rowshares[$#rowshares] == 0;
 				}
 
+				my $desc = clean_text($cgi->param("Description_$row"));
+
 				if ($set > 10000) {
 					push (@{$tg{Creditor}}, $cred);
 					push (@{$tg{Amount}}, $amnt);
-					push (@{$tg{Description}}, $desc);
 					push (@{$tg{$accts[$_]}}, $rowshares[$_]) foreach (0 .. $#accts);
+					push (@{$tg{Description}}, $desc);
 				} elsif ($set > 0 or $cred ne $session->param('User')) {
-					$whinge->('Insufficient values set in row');
+					$whinge->("Insufficient values set in row $row");
 				}
 			}
 
