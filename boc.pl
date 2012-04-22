@@ -985,17 +985,28 @@ sub gen_tg
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %unknown;
+	my @tps_in_use;
 	foreach my $acct (@{$tgdetails{Headings}}[2..($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
-		$unknown{$acct} = $acct unless exists $ppl{$acct} or exists $vaccts{$acct};
+		$unknown{$acct} = $acct unless $acct =~ /^TrnsfrPot\d?$/ or exists $ppl{$acct} or exists $vaccts{$acct};
+		$tps_in_use[$1] = 1 if ($acct =~ /^TrnsfrPot(\d)$/);
 	}
-	my %acct_names = (%unknown, %ppl, %vaccts);
+	my %tps;
+	my $tps_to_add = 3;
+	foreach my $i (1 .. 9) {
+		unless (defined $tps_in_use[$i] or $tps_to_add == 0) {
+			$tps_in_use[$i] = 1;
+			$tps_to_add--;
+		}
+		$tps{"TrnsfrPot$i"} = "Transfer Pot $i" if $tps_in_use[$i];
+	}
+	my %acct_names = (%unknown, %ppl, %vaccts, %tps);
 	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
 
 	foreach my $acct ('Amount', @sorted_accts) {
 		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
 		push (@{$tgdetails{$acct}}, (0) x (scalar @{$tgdetails{Creditor}} - $lower));
 	}
-	@{$tgdetails{Headings}} = ('Creditor', 'Amount', @sorted_accts, 'Description');
+	@{$tgdetails{Headings}} = ('Creditor', 'Amount', @sorted_accts, 'TrnsfrPot', 'Description');
 
 	if ($tg_file) {
 		$tg_file =~ /\/([^\/]+)$/;
@@ -1004,7 +1015,7 @@ sub gen_tg
 	$tmpl->param(RO => (!$edit_mode and $tg_file));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
-	$tmpl->param(NOACCTS => scalar keys %acct_names);
+	$tmpl->param(NOACCTS => scalar @sorted_accts);
 	my @headings;
 	foreach my $key (@{$tgdetails{Headings}}) {
 		next unless exists $acct_names{$key};
@@ -1016,9 +1027,9 @@ sub gen_tg
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
 		my @rowoptions;
-		foreach my $key (@{$tgdetails{Headings}}) {
+		foreach my $key (@{$tgdetails{Headings}}, sort_AoH(\%tps)) {
 			next unless exists $acct_names{$key};
-			my %options = ( O => $acct_names{$key}, V => $key, S => $tgdetails{Creditor}[$row] eq $key );
+			my %options = ( O => $acct_names{$key}, V => $key, S => $tgdetails{Creditor}[$row] eq $key, TP => exists $tps{$key} );
 			push (@rowoptions, \%options);
 		}
 		my @rowcontents;
