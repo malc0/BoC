@@ -45,7 +45,7 @@ sub read_htsv
 			} else {
 				my @line = split('	', $_, scalar(@{$content{$hdg_key}}));
 				foreach my $i (0 .. $#{$content{$hdg_key}}) {
-					push(@{$content{$content{$hdg_key}[$i]}}, $line[$i]) if exists $line[$i];
+					push (@{$content{$content{$hdg_key}[$i]}}, $line[$i]);
 				}
 			}
 		}
