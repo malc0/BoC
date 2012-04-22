@@ -1068,6 +1068,7 @@ sub despatch_user
 	}
 	if ($cgi->param('tmpl') eq 'add_swap' or $cgi->param('tmpl') eq 'add_vacct_expense') {
 		my $swap = ($cgi->param('tmpl') eq 'add_swap');
+		my $tgfile;
 
 		if (defined $cgi->param('save')) {
 			my %tg;
@@ -1113,7 +1114,7 @@ sub despatch_user
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
 			try_commit_and_unlock(sub {
-				my $tgfile = new_tgfile;
+				$tgfile = new_tgfile;
 				write_tg($tgfile, %tg);
 				my @split_tgf = split('-', unroot($tgfile));
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
@@ -1122,13 +1123,16 @@ sub despatch_user
 			redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
 		}
 
+		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
 		if ($swap) {
-			emit_with_status((defined $cgi->param('save')) ? "Swap saved" : "Add swap cancelled", load_template('user_cp.html'));
+			emit_with_status((defined $cgi->param('save')) ? "Swap saved ($1)" : "Add swap cancelled", load_template('user_cp.html'));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Expense saved" : "Add expense cancelled", load_template('user_cp.html'));
+			emit_with_status((defined $cgi->param('save')) ? "Expense saved ($1)" : "Add expense cancelled", load_template('user_cp.html'));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_split') {
+		my $tgfile;
+
 		if (defined $cgi->param('save')) {
 			my %tg;
 			my $whinge = sub { whinge($_[0], gen_add_split($session, $etoken)) };
@@ -1186,7 +1190,7 @@ sub despatch_user
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, 'add_split', $etoken);
 			try_commit_and_unlock(sub {
-				my $tgfile = new_tgfile;
+				$tgfile = new_tgfile;
 				write_tg($tgfile, %tg);
 				my @split_tgf = split('-', unroot($tgfile));
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
@@ -1195,7 +1199,8 @@ sub despatch_user
 			redeem_edit_token($sessid, 'add_split', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Split saved" : "Add split cancelled", load_template('user_cp.html'));
+		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
+		emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : "Add split cancelled", load_template('user_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
@@ -1293,7 +1298,7 @@ sub despatch_user
 			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 		}
 
-		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/;
+		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
 		if ($edit_id) {
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 		} else {
