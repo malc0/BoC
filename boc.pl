@@ -1261,7 +1261,7 @@ sub despatch_user
 			$whinge->('No transactions?') unless $max_rows >= 0;
 
 			my %acct_names = get_acct_name_map;
-			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
+			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
 			foreach my $acct (@accts) {
 				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
 			}
@@ -1274,6 +1274,11 @@ sub despatch_user
 					$amnt = clean_decimal($cgi->param("Amount_$row"));
 					$whinge->('Non-numerics in amount') unless defined $amnt;
 					$set = 10000 if $amnt != 0;
+				} elsif ($cgi->param("Creditor_$row") =~ /^(TrnsfrPot[1-9])$/ ) {
+					$cred = $1;
+					$whinge->('Amount must be empty or \'*\' when transfer pot creditor set in same row') unless $cgi->param("Amount_$row") =~ /^\s*([\*]?)\s*$/;
+					$amnt = '*';
+					$set = 10000;
 				} else {
 					$whinge->("Invalid account");
 				}
@@ -1285,23 +1290,41 @@ sub despatch_user
 					$set++ unless $rowshares[$#rowshares] == 0;
 				}
 
+				$whinge->('Invalid transfer pot') unless defined $cgi->param("TrnsfrPot_$row");
+				$whinge->('Invalid transfer pot') unless $cgi->param("TrnsfrPot_$row") =~ /^\s*([1-9]?)\s*$/;
+				my $tp = $1;
+				if ($tp ne '') {
+					$whinge->('Cannot have a transfer pot creditor and debtor set in same row') unless clean_username($cred);
+					$set++;
+				}
+
 				my $desc = clean_text($cgi->param("Description_$row"));
 
 				if ($set > 10000) {
 					push (@{$tg{Creditor}}, $cred);
 					push (@{$tg{Amount}}, $amnt);
 					push (@{$tg{$accts[$_]}}, $rowshares[$_]) foreach (0 .. $#accts);
+					push (@{$tg{TrnsfrPot}}, $tp);
 					push (@{$tg{Description}}, $desc);
 				} elsif ($set > 0 or $cred ne $session->param('User')) {
 					$whinge->("Insufficient values set in row $row");
 				}
 			}
 
+			foreach my $cred (@{$tg{Creditor}}) {
+				next unless $cred =~ /^TrnsfrPot(\d)$/;
+				$whinge->("Missing creditor for transfer pot $1") unless grep (/^$1$/, @{$tg{TrnsfrPot}});
+			}
+			foreach my $pot (@{$tg{TrnsfrPot}}) {
+				next unless $pot =~ /^(\d)$/;
+				$whinge->("Missing debtors for transfer pot $1") unless grep (/^TrnsfrPot$1$/, @{$tg{Creditor}});
+			}
+
 			my %all_ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my %all_vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 			my (%ppl, %vaccts);
 			((exists $all_ppl{$_}) ? ($ppl{$_} = $all_ppl{$_}) : ($vaccts{$_} = $all_vaccts{$_})) foreach (@accts);
-			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', \%ppl, \%vaccts, 'Description');
+			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', 'TrnsfrPot', \%ppl, \%vaccts, 'Description');
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
