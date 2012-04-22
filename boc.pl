@@ -880,21 +880,21 @@ sub despatch_user
 				my @accts = grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Description'), $cgi->param);
 				s/_0$// for @accts;
 				foreach my $acct (@accts) {
-					whinge("Non existant account \"$acct\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$acct};
+					whinge("Non-existent account \"$acct\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$acct};
 				}
 
 				foreach my $row (0 .. $max_rows) {
 					my $cred = clean_username($cgi->param("Creditor_$row"));
 					my $amnt = clean_decimal($cgi->param("Amount_$row"));
 					my $desc = clean_text($cgi->param("Description_$row"));
-					whinge("Non existant account \"$cred\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$cred};
-					whinge('Non numerics in amount', gen_tg($tgfile, 1, $session, $etoken)) unless defined $amnt;
+					whinge("Non-existent account \"$cred\"", gen_tg($tgfile, 1, $session, $etoken)) unless exists $acct_names{$cred};
+					whinge('Non-numerics in amount', gen_tg($tgfile, 1, $session, $etoken)) unless defined $amnt;
 					my $set = $amnt == 0 ? 0 : 10000;
 					$set += 10000 if defined $desc;
 					my @rowshares;
 					foreach my $acct (@accts) {
 						push(@rowshares, clean_decimal($cgi->param("${acct}_$row")));
-						whinge('Non numerics in debt share', gen_tg($tgfile, 1, $session, $etoken)) unless defined $rowshares[$#rowshares];
+						whinge('Non-numerics in debt share', gen_tg($tgfile, 1, $session, $etoken)) unless defined $rowshares[$#rowshares];
 						$set += 1 unless $rowshares[$#rowshares] == 0;
 					}
 
