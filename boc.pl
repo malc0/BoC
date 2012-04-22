@@ -326,6 +326,7 @@ sub clean_email
 sub clean_text
 {
 	return undef unless defined $_[0];
+	return undef if $_[0] eq '';
 	my $escaped_text = encode_for_html($_[0]);
 	$escaped_text =~ /^(.+)$/;
 	return $1;
