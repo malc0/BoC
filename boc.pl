@@ -311,6 +311,7 @@ sub set_status
 sub clean_username
 {
 	return undef unless defined $_[0];
+	# don't allow upper case to give special TG columns (Creditor, THIS etc.) their own namespace
 	$_[0] =~ /^([a-z0-9\-+_]*)$/;	# these have to exist on a filesystem.  certainly do not permit dots (.), as could get trashed lock files
 	return $1;
 }
@@ -924,6 +925,7 @@ sub gen_manage_tgs
 		foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
 			my $acct = $tgdetails{Creditor}[$i];
 			unless (defined $acct_names{$acct}) {
+				next if $acct eq 'THIS';
 				$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  ";
 				last;
 			}
@@ -936,6 +938,7 @@ sub gen_manage_tgs
 			$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
 		}
 		foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)]) {
+			next if $acct eq 'THIS';
 			$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  " unless (defined $acct_names{$acct});
 		}
 
