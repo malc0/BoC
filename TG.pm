@@ -38,7 +38,7 @@ sub write_tg
 	foreach my $col (@{$content{Headings}}) {
 		next if $col eq 'Creditor';
 		next if $col eq 'Description';
-		@{$content{$col}} = map (($_ == 0) ? undef : $_, @{$content{$col}});
+		@{$content{$col}} = map (((not defined $_) or ($_ =~ /^-?\d*\.?\d*$/ and ($_ eq '' or $_ == 0))) ? undef : $_, @{$content{$col}});
 	}
 
 	write_htsv($file, \%content, 11);
