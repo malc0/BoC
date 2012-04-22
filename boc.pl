@@ -867,6 +867,20 @@ sub gen_add_swap
 	return $tmpl;
 }
 
+sub gen_add_split
+{
+	my ($session, $etoken) = @_;
+	my $tmpl = load_template('add_split.html', $etoken);
+
+	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %raccts = reverse (%accts);
+	my @pploptions = map ({ NAME => $accts{$_}, A => $_ }, map ($raccts{$_}, sort keys %raccts));
+
+	$tmpl->param(PPL => \@pploptions);
+
+	return $tmpl;
+}
+
 sub query_all_htsv_in_path
 {
 	my ($path, $key) = @_;
@@ -1041,6 +1055,9 @@ sub despatch_user
 			my $swap = defined $cgi->param('add_swap');
 			emit(gen_add_swap($swap, $session, get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense')));
 		}
+		if (defined $cgi->param('add_split')) {
+			emit(gen_add_split($session, get_edit_token($sessid, 'add_split')));
+		}
 		if (defined $cgi->param('manage_tgs')) {
 			emit(gen_manage_tgs);
 		}
@@ -1106,6 +1123,75 @@ sub despatch_user
 		} else {
 			emit_with_status((defined $cgi->param('save')) ? "Expense saved" : "Add expense cancelled", load_template('user_cp.html'));
 		}
+	}
+	if ($cgi->param('tmpl') eq 'add_split') {
+		if (defined $cgi->param('save')) {
+			my %tg;
+			my $whinge = sub { whinge($_[0], gen_add_split($session, $etoken)) };
+
+			$tg{Name} = clean_text($cgi->param('tg_name'));
+			$whinge->('No transaction group name supplied') unless defined $tg{Name};
+
+			my $date = clean_text($cgi->param('tg_date'));
+			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
+			$whinge->('Unparsable date') if $pd_error;
+			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
+
+			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my @cred_accts = map { s/^Cred_//; $_ } grep (/^Cred_.*$/, $cgi->param);
+			my %creds;
+			foreach my $acct (@cred_accts) {
+				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
+				my $amnt = clean_decimal($cgi->param("Cred_$acct"));
+				$whinge->('Non-numerics in creditor amount') unless defined $amnt;
+				$creds{$acct} = $amnt unless $amnt == 0;
+			}
+			$whinge->('No creditors?') unless scalar keys %creds > 0;
+
+			if (scalar keys %creds > 1) {
+				push (@{$tg{Creditor}}, 'THIS');
+				push (@{$tg{Amount}}, 1);
+				push (@{$tg{THIS}}, undef);
+			}
+			foreach my $cred (keys %creds) {
+				push (@{$tg{Creditor}}, $cred);
+				push (@{$tg{Amount}}, $creds{$cred});
+				push (@{$tg{THIS}}, 1) if scalar keys %creds > 1;
+			}
+
+			my @debt_accts = map { s/^Debt_//; $_ } grep (/^Debt_.*$/, $cgi->param);
+			my %debts;
+			foreach my $acct (@debt_accts) {
+				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
+				my $amnt = clean_decimal($cgi->param("Debt_$acct"));
+				$whinge->('Non-numerics in debtor amount') unless defined $amnt;
+				$debts{$acct} = $amnt unless $amnt == 0;
+			}
+			$whinge->('No debtors?') unless scalar keys %debts > 0;
+
+			push (@{$tg{$_}}, $debts{$_}) foreach (keys %debts);
+
+			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
+
+			@{$tg{Headings}} = ('Creditor', 'Amount' );
+			push (@{$tg{Headings}}, 'THIS') if scalar keys %creds > 1;
+			my %rdebts = reverse %debts;
+			push (@{$tg{Headings}}, $_) foreach map ($rdebts{$_}, sort keys %rdebts);
+			push (@{$tg{Headings}}, 'Description');
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, 'add_split', $etoken);
+			try_commit_and_unlock(sub {
+				my $tgfile = new_tgfile;
+				write_tg($tgfile, %tg);
+				my @split_tgf = split('-', unroot($tgfile));
+				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
+			});
+		} else {
+			redeem_edit_token($sessid, 'add_split', $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? "Split saved" : "Add split cancelled", load_template('user_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
