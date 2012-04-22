@@ -1094,7 +1094,8 @@ sub despatch_user
 			try_commit_and_unlock(sub {
 				my $tgfile = new_tgfile;
 				write_tg($tgfile, %tg);
-				add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" created", $session);
+				my @split_tgf = split('-', unroot($tgfile));
+				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
 			});
 		} else {
 			redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
@@ -1194,14 +1195,15 @@ sub despatch_user
 			try_commit_and_unlock(sub {
 				$tgfile = new_tgfile unless ($tgfile);
 				write_tg($tgfile, %tg);
-				add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
+				my @split_tgf = split('-', unroot($tgfile));
+				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
 			}, $edit_id ? $tgfile : undef);
 		} else {
 			unlock($tgfile) if $tgfile;
 			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 		}
 
-		$tgfile =~ /.*\/([^\/]{7})[^\/]*$/;
+		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/;
 		if ($edit_id) {
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 		} else {
