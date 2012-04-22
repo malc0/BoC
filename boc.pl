@@ -1233,7 +1233,7 @@ sub despatch_user
 			$tg{Name} = clean_text($cgi->param('tg_name'));
 			$whinge->('No transaction group name supplied') unless defined $tg{Name};
 			my $date = clean_text($cgi->param('tg_date'));
-			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, NO_RELATIVE => 1));
+			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
 			$whinge->('Unparsable date') if $pd_error;
 			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
