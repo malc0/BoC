@@ -621,8 +621,7 @@ sub gen_edit_simp_trans
 	my $tmpl = load_template('edit_simp_trans.html', $_[0]);
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	my %rvaccts = reverse (%vaccts);
-	my @sorted_vaccts = map ($rvaccts{$_}, sort keys %rvaccts);
+	my @sorted_vaccts = sort_AoH(\%vaccts);
 
 	my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
 	my $num_rows = ($#{$cfg{Description}} >= 0) ? scalar @{$cfg{Description}} + min(5, 30 - scalar @{$cfg{Description}}) : 10;
@@ -852,8 +851,7 @@ sub gen_add_swap
 	my $tmpl = load_template('add_swap.html', $etoken);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %raccts = reverse (%accts);
-	my @sorted_accts = map ($raccts{$_}, sort keys %raccts);
+	my @sorted_accts = sort_AoH(\%accts);
 	my @pploptions = map ({ O => $accts{$_}, V => $_, S => $session->param('User') eq $_ }, @sorted_accts);
 
 	my @debtaccts;
@@ -875,8 +873,7 @@ sub gen_add_split
 	my $tmpl = load_template('add_split.html', $etoken);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %raccts = reverse (%accts);
-	my @pploptions = map ({ NAME => $accts{$_}, A => $_ }, map ($raccts{$_}, sort keys %raccts));
+	my @pploptions = map ({ NAME => $accts{$_}, A => $_ }, sort_AoH(\%accts));
 
 	$tmpl->param(PPL => \@pploptions);
 
@@ -955,14 +952,18 @@ sub gen_manage_tgs
 	return $tmpl;
 }
 
-sub sort_accts(\%\%)
+sub sort_AoH
 {
-	my ($ppl, $vaccts) = @_;
+	my @sorted;
 
-	my @sorted = ( 'Creditor', 'Amount' );
-	push (@sorted, map ($ppl->{$_}, sort keys %$ppl));
-	push (@sorted, map ($vaccts->{$_}, sort keys %$vaccts));
-	push (@sorted, 'Description');
+	while (my $sortme = shift) {
+		if (ref $sortme) {
+			my %rev = reverse %$sortme;
+			push (@sorted, map ($rev{$_}, sort keys %rev));
+		} else {
+			push (@sorted, $sortme) unless ref $sortme;
+		}
+	}
 
 	return @sorted;
 }
@@ -984,14 +985,13 @@ sub gen_tg
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %acct_names = (%ppl, %vaccts);
-	my @sorted_accts = sort_accts(%{{reverse %ppl}}, %{{reverse %vaccts}});
+	my @sorted_accts = sort_AoH(\%ppl, \%vaccts);
 
-	foreach my $acct (@sorted_accts) {
-		next if $acct eq 'Description';
+	foreach my $acct ('Amount', @sorted_accts) {
 		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
 		push (@{$tgdetails{$acct}}, (0) x (scalar @{$tgdetails{Creditor}} - $lower));
 	}
-	@{$tgdetails{Headings}} = @sorted_accts;
+	@{$tgdetails{Headings}} = ('Creditor', 'Amount', @sorted_accts, 'Description');
 
 	if ($tg_file) {
 		$tg_file =~ /\/([^\/]+)$/;
@@ -1183,9 +1183,7 @@ sub despatch_user
 
 			@{$tg{Headings}} = ('Creditor', 'Amount' );
 			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
-			my %rdebts = reverse %debts;
-			push (@{$tg{Headings}}, $_) foreach map ($rdebts{$_}, sort keys %rdebts);
-			push (@{$tg{Headings}}, 'Description');
+			push (@{$tg{Headings}}, $_) foreach sort_AoH(\%debts, 'Description');
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, 'add_split', $etoken);
@@ -1282,8 +1280,8 @@ sub despatch_user
 			my %all_ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my %all_vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 			my (%ppl, %vaccts);
-			((exists $all_ppl{$_}) ? $ppl{$all_ppl{$_}} : $vaccts{$all_vaccts{$_}}) = $_ foreach (@accts);
-			@{$tg{Headings}} = sort_accts(%ppl, %vaccts);
+			((exists $all_ppl{$_}) ? ($ppl{$_} = $all_ppl{$_}) : ($vaccts{$_} = $all_vaccts{$_})) foreach (@accts);
+			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', \%ppl, \%vaccts, 'Description');
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
