@@ -15,9 +15,9 @@
 
 			<table border=1>
 				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Description</th></tr>
-				<tr><TMPL_LOOP NAME=HEADINGS><th><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
+				<tr><TMPL_LOOP NAME=HEADINGS><th <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
 
-				<TMPL_LOOP NAME=ROWS><tr>
+				<TMPL_LOOP NAME=ROWS><tr <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>>
 					<td><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><TMPL_VAR NAME=O></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="<TMPL_VAR NAME=CRNAME>">
 							<TMPL_LOOP NAME=CREDS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
@@ -25,7 +25,7 @@
 						</select>
 					</TMPL_IF></td>
 					<!-- FIXME: JS confirm if no line description -->
-					<TMPL_LOOP NAME=R><td><TMPL_IF NAME=RO><TMPL_VAR NAME=D><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=D>" name="<TMPL_VAR NAME=N>"/></TMPL_IF></td>
+					<TMPL_LOOP NAME=R><td <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>><TMPL_IF NAME=RO><TMPL_VAR NAME=D><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=D>" name="<TMPL_VAR NAME=N>"/></TMPL_IF></td>
 					</TMPL_LOOP>
 				</tr>
 				</TMPL_LOOP>

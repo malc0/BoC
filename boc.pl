@@ -984,8 +984,12 @@ sub gen_tg
 
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	my %acct_names = (%ppl, %vaccts);
-	my @sorted_accts = sort_AoH(\%ppl, \%vaccts);
+	my %unknown;
+	foreach my $acct (@{$tgdetails{Headings}}[2..($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
+		$unknown{$acct} = $acct unless exists $ppl{$acct} or exists $vaccts{$acct};
+	}
+	my %acct_names = (%unknown, %ppl, %vaccts);
+	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
 
 	foreach my $acct ('Amount', @sorted_accts) {
 		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
@@ -1004,7 +1008,7 @@ sub gen_tg
 	my @headings;
 	foreach my $key (@{$tgdetails{Headings}}) {
 		next unless exists $acct_names{$key};
-		my %heading = ( H => $acct_names{$key} );
+		my %heading = ( H => $acct_names{$key}, U => exists $unknown{$key} );
 		push(@headings, \%heading);
 	}
 	$tmpl->param(HEADINGS => \@headings);
@@ -1015,14 +1019,14 @@ sub gen_tg
 		foreach my $key (@{$tgdetails{Headings}}) {
 			next unless exists $acct_names{$key};
 			my %options = ( O => $acct_names{$key}, V => $key, S => $tgdetails{Creditor}[$row] eq $key );
-			push(@rowoptions, \%options);
+			push (@rowoptions, \%options);
 		}
 		my @rowcontents;
 		foreach my $key (@{$tgdetails{Headings}}[1 .. $#{$tgdetails{Headings}}]) {
-			my %data = ( D => $tgdetails{$key}[$row], N => "${key}_$row" );
-			push(@rowcontents, \%data);
+			my %data = ( D => $tgdetails{$key}[$row], N => "${key}_$row", U => exists $unknown{$key} );
+			push (@rowcontents, \%data);
 		}
-		push (@rows, { R => \@rowcontents, CREDS => \@rowoptions, CRNAME => "Creditor_$row" });
+		push (@rows, { R => \@rowcontents, CREDS => \@rowoptions, CRNAME => "Creditor_$row", U => exists $unknown{@{$tgdetails{Creditor}}[$row]} });
 	}
 	$tmpl->param(ROWS => \@rows);
 
