@@ -312,15 +312,14 @@ sub clean_username
 {
 	return undef unless defined $_[0];
 	# don't allow upper case to give special TG columns (Creditor, TrnsfrPot etc.) their own namespace
-	$_[0] =~ /^([a-z0-9\-+_]*)$/;	# these have to exist on a filesystem.  certainly do not permit dots (.), as could get trashed lock files
+	return undef unless $_[0] =~ /^([a-z0-9\-+_]*)$/;	# these have to exist on a filesystem.  certainly do not permit dots (.), as could get trashed lock files
 	return $1;
 }
 
 sub clean_email
 {
 	return undef unless defined $_[0];
-	$_[0] =~ /^\s*(.+\@.+)\s*$/;
-	return undef unless $1;
+	return undef unless $_[0] =~ /^\s*(.+\@.+)\s*$/;
 	return encode_for_html($1);
 }
 
@@ -329,7 +328,7 @@ sub clean_text
 	return undef unless defined $_[0];
 	return undef if $_[0] eq '';
 	my $escaped_text = encode_for_html($_[0]);
-	$escaped_text =~ /^(.+)$/;
+	return undef unless $escaped_text =~ /^(.+)$/;
 	return $1;
 }
 
@@ -337,7 +336,7 @@ sub clean_decimal
 {
 	return 0 unless defined $_[0];
 	return 0 if ($_[0] =~ /^\s*$/);
-	$_[0] =~ /^\s*(-?\d*\.?\d*)\s*$/;
+	return undef unless $_[0] =~ /^\s*(-?\d*\.?\d*)\s*$/;
 	return $1;
 }
 
@@ -349,6 +348,7 @@ sub clean_tgid
 
 sub untaint
 {
+	return undef unless defined $_[0];
 	$_[0] =~ /^(.*)$/;
 	return $1;
 }
@@ -524,8 +524,7 @@ sub get_new_session
 	$session->delete();
 	$session->flush();
 
-	if (defined $cgi->cookie(CGI::Session->name())) {
-		$cgi->cookie(CGI::Session->name()) =~ /^([a-f0-9]*)$/;	# hex untaint
+	if (defined $cgi->cookie(CGI::Session->name()) and $cgi->cookie(CGI::Session->name()) =~ /^([a-f0-9]*)$/) {	# hex untaint
 		my $old_bocdata = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $1);
 		unlink $old_bocdata if -r $old_bocdata;
 		clear_old_session_locks($1);
@@ -752,13 +751,15 @@ sub despatch_admin
 			my $person = $cgi->param('tmpl') eq 'view_ppl';
 
 			foreach my $p ($cgi->param) {
-				$p =~ /edit_(.*)/;
-				$acct = $1;
-				last if defined $acct;
-				$p =~ /del_(.*)/;
-				$acct = $1;
-				$delete = 1 if defined $acct;
-				last if defined $acct;
+				if ($p =~ /^edit_(.*)$/) {
+					$acct = $1;
+					last;
+				}
+				if ($p =~ /^del_(.*)$/) {
+					$acct = $1;
+					$delete = 1;
+					last;
+				}
 			}
 
 			my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
@@ -1008,10 +1009,7 @@ sub gen_tg
 	}
 	@{$tgdetails{Headings}} = ('Creditor', 'Amount', @sorted_accts, 'TrnsfrPot', 'Description');
 
-	if ($tg_file) {
-		$tg_file =~ /\/([^\/]+)$/;
-		$tmpl->param(TG_ID => $1);
-	}
+	$tmpl->param(TG_ID => $1) if ($tg_file and $tg_file =~ /\/([^\/]+)$/);
 	$tmpl->param(RO => (!$edit_mode and $tg_file));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
