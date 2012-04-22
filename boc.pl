@@ -844,21 +844,25 @@ sub despatch_admin
 	}
 }
 
-sub gen_add_vacct_expense
+sub gen_add_swap
 {
-	my ($session, $etoken) = @_;
-	my $tmpl = load_template('add_vacct_expense.html', $etoken);
+	my ($swap, $session, $etoken) = @_;
+	my $tmpl = load_template('add_swap.html', $etoken);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %raccts = reverse (%accts);
 	my @sorted_accts = map ($raccts{$_}, sort keys %raccts);
-
-	my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
-
 	my @pploptions = map ({ O => $accts{$_}, V => $_, S => $session->param('User') eq $_ }, @sorted_accts);
-	my @typeoptions = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, 0 .. $#{$cfg{Description}});
 
-	$tmpl->param(PPL => \@pploptions, DEBTACCTS => \@typeoptions);
+	my @debtaccts;
+	if ($swap) {
+		@debtaccts = map ({ O => $accts{$_}, V => $_ }, @sorted_accts);
+	} else {
+		my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
+		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, 0 .. $#{$cfg{Description}});
+	}
+
+	$tmpl->param(SWAP => $swap, PPL => \@pploptions, DEBTACCTS => \@debtaccts);
 
 	return $tmpl;
 }
@@ -1033,17 +1037,20 @@ sub despatch_user
 		exit;
 	}
 	if ($cgi->param('tmpl') eq 'ucp') {
-		if (defined $cgi->param('add_vacct_expense')) {
-			emit(gen_add_vacct_expense($session, get_edit_token($sessid, 'add_vacct_expense')));
+		if (defined $cgi->param('add_swap') or defined $cgi->param('add_vacct_expense')) {
+			my $swap = defined $cgi->param('add_swap');
+			emit(gen_add_swap($swap, $session, get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense')));
 		}
 		if (defined $cgi->param('manage_tgs')) {
 			emit(gen_manage_tgs);
 		}
 	}
-	if ($cgi->param('tmpl') eq 'add_vacct_expense') {
+	if ($cgi->param('tmpl') eq 'add_swap' or $cgi->param('tmpl') eq 'add_vacct_expense') {
+		my $swap = ($cgi->param('tmpl') eq 'add_swap');
+
 		if (defined $cgi->param('save')) {
 			my %tg;
-			my $whinge = sub { whinge($_[0], gen_add_vacct_expense($session, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session, $etoken)) };
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my $cred = clean_username($cgi->param('Creditor'));
@@ -1060,31 +1067,44 @@ sub despatch_user
 			$whinge->('Unparsable date') if $pd_error;
 			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
-			my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-			my $type = clean_text($cgi->param('Debtor'));
-			$whinge->('Broken expense type') unless defined $type;
-			my ($debtor, $type) = split('!', $type, 2);
-			$whinge->("Non-existent account \"$debtor\"") unless exists $vacct_names{$debtor};
-			push (@{$tg{$debtor}}, 1);
-			$whinge->('Broken expense type') unless defined $type;
-			$tg{Name} = "Expense: $type";
-
 			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
+
+			my $debtor;
+			if ($swap) {
+				$whinge->('Missing description') unless defined @{$tg{Description}}[0];
+				$debtor = clean_username($cgi->param('Debtor'));
+				$whinge->("Non-existent account \"$debtor\"") unless exists $acct_names{$debtor};
+				my @split_desc = split (' ', @{$tg{Description}}[0]);
+				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{$cred} for $split_desc[0]...";
+			} else {
+				my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+				my $type = clean_text($cgi->param('Debtor'));
+				$whinge->('Broken expense type') unless defined $type;
+				($debtor, $type) = split('!', $type, 2);
+				$whinge->("Non-existent account \"$debtor\"") unless exists $vacct_names{$debtor};
+				$whinge->('Broken expense type') unless defined $type;
+				$tg{Name} = "Expense: $type";
+			}
+			push (@{$tg{$debtor}}, 1);
 
 			@{$tg{Headings}} = ('Creditor', 'Amount', $debtor, 'Description');
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
+			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
 			try_commit_and_unlock(sub {
 				my $tgfile = new_tgfile;
 				write_tg($tgfile, %tg);
 				add_commit($tgfile, unroot($tgfile) . ": TG \"$tg{Name}\" created", $session);
 			});
 		} else {
-			redeem_edit_token($sessid, 'add_vacct_expense', $etoken);
+			redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Expense saved" : "Add expense cancelled", load_template('user_cp.html'));
+		if ($swap) {
+			emit_with_status((defined $cgi->param('save')) ? "Swap saved" : "Add swap cancelled", load_template('user_cp.html'));
+		} else {
+			emit_with_status((defined $cgi->param('save')) ? "Expense saved" : "Add expense cancelled", load_template('user_cp.html'));
+		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
