@@ -519,7 +519,7 @@ sub get_new_session
 	my ($session, $cgi) = @_;
 	my $last_tmpl = (defined $cgi->param('tmpl')) ? $cgi->param('tmpl') : '';
 
-	my $expired = $session->is_expired();
+	my $expired = ($session->is_expired() and not defined $cgi->param('logout'));
 	$session->delete();
 	$session->flush();
 
