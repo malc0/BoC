@@ -7,6 +7,7 @@
 		<h1><TMPL_IF NAME=USER_ACCT>User<TMPL_ELSE>Virtual</TMPL_IF> accounts</h1>
 
 		<form action="boc.pl" method="post">
+		<div>
 			<input type="hidden" name="tmpl" value="view_<TMPL_IF NAME=USER_ACCT>ppl<TMPL_ELSE>vaccts</TMPL_IF>"/>
 
 			<table border=1>
@@ -28,6 +29,7 @@
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
 		</form>
 	</body>
 </html>

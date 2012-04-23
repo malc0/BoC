@@ -7,6 +7,7 @@
 		<h1>Transaction groups</h1>
 
 		<form action="boc.pl" method="post">
+		<div>
 			<input type="hidden" name="tmpl" value="manage_tgs"/>
 
 			<table border=1>
@@ -19,6 +20,7 @@
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
 		</form>
 	</body>
 </html>
