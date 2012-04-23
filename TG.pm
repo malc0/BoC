@@ -4,14 +4,17 @@ use 5.012;
 use strict;
 use warnings;
 
-use CleanData qw(clean_date clean_text clean_username validate_acct validate_acctname validate_decimal);
+use Carp;
+use List::Util qw(sum);
+
+use CleanData qw(clean_date clean_decimal clean_text clean_username validate_acct validate_acctname validate_decimal);
 use HeadedTSV;
 
 our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(read_tg write_tg validate_tg);
+our @EXPORT = qw(read_tg write_tg validate_tg compute_tg);
 
 sub read_tg
 {
@@ -122,4 +125,76 @@ sub validate_tg
 	}
 
 	return @compact_creds;
+}
+
+sub stround
+{
+	my ($n, $places) = @_;
+	my $sign = ($n < 0) ? '-' : '';
+	my $abs = abs $n;
+	$sign . substr ($abs + ('0.' . '0' x $places . '5'), 0, $places + length (int ($abs)) + 1);
+}
+
+sub compute_tg
+{
+	my %tg = %{$_[0]};
+	my $die = sub { confess $_[0] };
+
+	my @cred_accts = validate_tg(\%tg, $die);
+
+	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
+	my %relevant_accts;
+
+	foreach my $row (0 .. $#cred_accts) {
+		next unless defined $cred_accts[$row];
+		foreach my $head (@all_head_accts) {
+			$relevant_accts{$head} = 0 if clean_decimal($tg{$head}[$row]) != 0;
+		}
+	}
+	my @head_accts = keys %relevant_accts;
+	foreach my $row (0 .. $#cred_accts) {
+		next unless defined $cred_accts[$row];
+		next if $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
+		$relevant_accts{$tg{Creditor}[$row]} = 0;
+	}
+
+	my @tp_net = (0) x 10;
+	my @tp_shares = ([(0) x scalar @head_accts]) x 10;
+	foreach my $row (0 .. $#cred_accts) {
+		next unless defined $cred_accts[$row];
+		$relevant_accts{$tg{Creditor}[$row]} += $tg{Amount}[$row] unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
+		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (exists $tg{TrnsfrPot} and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
+			$tp_net[$1] += $tg{Amount}[$row] if exists $tg{TrnsfrPot} and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/;
+			$tp_shares[$1][$_] += $tg{$head_accts[$_]}[$row] foreach (0 .. $#head_accts);
+		} else {
+			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
+			my $share_sum = sum @shares;
+			$relevant_accts{$head_accts[$_]} -= $tg{Amount}[$row] * $shares[$_] / $share_sum foreach (0 .. $#head_accts);
+		}
+	}
+	foreach my $tp (1 .. 9) {
+		next if $tp_net[$tp] == 0;
+		my $share_sum = sum @{$tp_shares[$tp]};
+		$relevant_accts{$head_accts[$_]} -= $tp_net[$tp] * $tp_shares[$tp][$_] / $share_sum foreach (0 .. $#head_accts);
+	}
+
+	my (%pennies, %resid);
+	@pennies{keys %relevant_accts} = map (stround($_, 2), values %relevant_accts);
+	for (my $loops = scalar keys %pennies; abs (sum values %pennies) > .0001 and $loops; $loops--) {
+		@resid{keys %relevant_accts} = map ($relevant_accts{$_} - $pennies{$_}, keys %relevant_accts);
+
+		my $maxkey;
+		my $max = 0;
+		foreach (keys %resid) {
+			if (abs $resid{$_} > $max) {
+				$max = abs $resid{$_};
+				$maxkey = $_;
+			}
+		}
+		$pennies{$maxkey} += $resid{$maxkey} < 0 ? -.01 : .01;
+		$relevant_accts{$maxkey} = $pennies{$maxkey};
+	}
+	die 'Couldn\'t balance TG' if abs (sum values %pennies) > .0001;
+
+	return %pennies;
 }
