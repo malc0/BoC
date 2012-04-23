@@ -336,8 +336,10 @@ sub clean_decimal
 {
 	return 0 unless defined $_[0];
 	return 0 if ($_[0] =~ /^\s*$/);
-	return undef unless $_[0] =~ /^\s*(-?\d*\.?\d*)\s*$/;
-	return $1;
+	return undef unless $_[0] =~ /^\s*(-?\d*[\.,·]?\d*)\s*$/;
+	my $num_str = $1;
+	$num_str =~ tr/,·/../;
+	return $num_str;
 }
 
 sub clean_tgid
