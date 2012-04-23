@@ -1200,7 +1200,8 @@ sub despatch_user
 			foreach my $acct (@debt_accts) {
 				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
 				my $amnt = clean_decimal($cgi->param("Debt_$acct"));
-				$whinge->('Non-numerics in debtor amount') unless defined $amnt;
+				$whinge->('Non-numerics in debtor value') unless defined $amnt;
+				$whinge->('Debt share cannot be negative') if $amnt =~ /-/;
 				$debts{$acct} = $amnt unless $amnt == 0;
 			}
 			$whinge->('No debtors?') unless scalar keys %debts > 0;
@@ -1304,6 +1305,7 @@ sub despatch_user
 				foreach my $acct (@accts) {
 					push (@rowshares, clean_decimal($cgi->param("${acct}_$row")));
 					$whinge->('Non-numerics in debt share') unless defined $rowshares[$#rowshares];
+					$whinge->('Debt share cannot be negative') if $rowshares[$#rowshares] =~ /-/;
 					$set++ unless $rowshares[$#rowshares] == 0;
 				}
 
