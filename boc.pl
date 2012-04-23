@@ -3,9 +3,14 @@
 use 5.012;
 use autodie;
 use warnings;
+
 use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
+use List::Util qw(first min);
+use Time::HiRes qw(usleep);
+
+# non core
 use CGI::Session '-ip-match';
 use Crypt::Cracklib;
 use Crypt::PasswdMD5;
@@ -13,8 +18,6 @@ use File::Slurp;
 use Git::Wrapper;
 use HTML::Entities;
 use HTML::Template;
-use List::Util qw(first min);
-use Time::HiRes qw(usleep);
 use Time::ParseDate;
 use UUID::Tiny;
 use YAML::XS;
