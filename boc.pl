@@ -16,13 +16,13 @@ use Crypt::Cracklib;
 use Crypt::PasswdMD5;
 use File::Slurp;
 use Git::Wrapper;
-use HTML::Entities;
 use HTML::Template;
 use Time::ParseDate;
 use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
+use CleanData qw(untaint encode_for_file encode_for_html clean_decimal clean_email clean_text clean_username);
 use HeadedTSV ();
 use TG ();
 
@@ -182,20 +182,6 @@ sub try_tg_lock
 	return $rv;
 }
 
-sub encode_for_html
-{
-	return undef unless $_[0];
-	my $escaped = encode_entities(decode_entities($_[0]), '^A-Za-z0-9!%^*()\-_=+{}\[\];:@#~,./?\\\ ');
-	$escaped =~ s/&#39;/&apos;/g;
-	return $escaped;
-}
-
-sub encode_for_file
-{
-	return undef unless $_[0];
-	return encode_entities(decode_entities($_[0]), '^A-Za-z0-9¬`!"£\$%^&*()\-_=+{}\[\];:\'@~,.<>/?\\\| ');	# hash not included to avoid getting treated as comment in file!
-}
-
 sub read_simp_cfg
 {
 	my ($filename, $nexist_ok) = @_;
@@ -317,51 +303,11 @@ sub set_status
 	$_[0]->param(STATUS => "Status: $_[1]");
 }
 
-sub clean_username
-{
-	return undef unless defined $_[0];
-	# don't allow upper case to give special TG columns (Creditor, TrnsfrPot etc.) their own namespace
-	return undef unless $_[0] =~ /^([a-z0-9\-+_]*)$/;	# these have to exist on a filesystem.  certainly do not permit dots (.), as could get trashed lock files
-	return $1;
-}
-
-sub clean_email
-{
-	return undef unless defined $_[0];
-	return undef unless $_[0] =~ /^\s*(.+\@.+)\s*$/;
-	return encode_for_html($1);
-}
-
-sub clean_text
-{
-	return undef unless defined $_[0];
-	return undef if $_[0] eq '';
-	my $escaped_text = encode_for_html($_[0]);
-	return undef unless $escaped_text =~ /^(.+)$/;
-	return $1;
-}
-
-sub clean_decimal
-{
-	return 0 unless defined $_[0];
-	return 0 if ($_[0] =~ /^\s*$/);
-	return undef unless $_[0] =~ /^\s*(-?\d*[\.,·]?\d*)\s*$/;
-	my $num_str = $1;
-	$num_str =~ tr/,·/../;
-	return $num_str;
-}
-
 sub clean_tgid
 {
+	return undef unless defined $_[0];
 	return undef unless -r "$config{Root}/transaction_groups/$_[0]";
 	return untaint($_[0]);
-}
-
-sub untaint
-{
-	return undef unless defined $_[0];
-	$_[0] =~ /^(.*)$/;
-	return $1;
 }
 
 sub unroot
@@ -1247,7 +1193,7 @@ sub despatch_user
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
-		my $edit_id = (defined $cgi->param('tg_id') and clean_tgid($cgi->param('tg_id'))) ? clean_tgid($cgi->param('tg_id')) : undef;
+		my $edit_id = clean_tgid($cgi->param('tg_id'));
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('manage_tgs')) {
