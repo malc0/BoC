@@ -274,13 +274,19 @@ sub write_htsv
 	rename ("$file.new", $file);
 }
 
+sub commit
+{
+	my ($message, $userdata) = @_;
+	my $user = ref $userdata ? $userdata->param('User') : $userdata;
+	my $name = ref $userdata ? $userdata->param('Name') : $userdata;
+	$git->commit({author => "$name <$user>", message => $message});
+}
+
 sub add_commit
 {
 	my ($file, $message, $userdata) = @_;
-	my $user = ref $userdata ? $userdata->param('User') : $userdata;
-	my $name = ref $userdata ? $userdata->param('Name') : $userdata;
 	$git->add($file);
-	$git->commit({author => "$name <$user>", message => $message});
+	commit($message, $userdata);
 }
 
 sub try_commit_and_unlock
@@ -754,6 +760,7 @@ sub despatch_admin
 			my $acct;
 			my $delete = 0;
 			my $person = $cgi->param('tmpl') eq 'view_ppl';
+			my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
 
 			foreach my $p ($cgi->param) {
 				if ($p =~ /^edit_(.*)$/) {
@@ -769,7 +776,6 @@ sub despatch_admin
 
 			my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 			unless ($delete) {
-				my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
 				if ($acct) {
 					$whinge->("Couldn't get edit lock for account \"$acct\"") unless try_lock($acct_file, $sessid);
 					unless (-r $acct_file) {
@@ -780,7 +786,11 @@ sub despatch_admin
 				my $etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
 				emit(gen_add_edit_acc($acct, $person, $etoken));
 			} else {
-				unlink($acct_file) or die;
+				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+				try_commit_and_unlock(sub {
+					$git->rm($acct_file);
+					commit(unroot($acct_file) . ': deleted', $session);
+				});
 				emit_with_status("Deleted account \"$acct\"", gen_manage_accts($person));
 			}
 		}
