@@ -23,7 +23,7 @@
 			<h2>Step 3: when was it incurred (enter as dd/mm/yy or 'today', 'last Friday', etc.)?</h2>
 			<input type="text" name="tg_date"/>
 
-			<h2>Step 4: <TMPL_IF NAME=SWAP>who's got to pay<TMPL_ELSE>what was it for (if none is suitable, you'll have to use the &quot;FIXME&quot; page)</TMPL_IF>?</h2>
+			<h2>Step 4: <TMPL_IF NAME=SWAP>who's got to pay<TMPL_ELSE>what was it for (if none is suitable, you'll have to <a href="boc.pl?tmpl=manage_tgs&add=1&ucp_ret=1">add a Transaction Group</a>)</TMPL_IF>?</h2>
 			<select name="Debtor">
 				<option value="">Select <TMPL_IF NAME=SWAP>debtor<TMPL_ELSE>expense type</TMPL_IF></option>
 				<TMPL_LOOP NAME=DEBTACCTS><option value="<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></option>

@@ -1223,7 +1223,9 @@ sub despatch_user
 				emit(gen_manage_tgs) unless (-r $tg);
 			}
 
-			emit(gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg')));
+			my $tmpl = gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
+			$tmpl->param(DONE_TMPL => 'ucp') if $cgi->param('ucp_ret');
+			emit($tmpl);
 		} elsif (defined $cgi->param('to_cp')) {
 			emit(load_template('user_cp.html'));
 		}
@@ -1343,7 +1345,7 @@ sub despatch_user
 		if ($edit_id) {
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", gen_manage_tgs);
+			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", $cgi->param('done_tmpl') ? load_template('user_cp.html') : gen_manage_tgs);
 		}
 	}
 }
