@@ -24,7 +24,7 @@ use YAML::XS;
 use lib '.';
 use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_text clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal);
 use HeadedTSV ();
-use TG ();
+use TG qw(validate_tg);
 
 our %config;
 our $git;
@@ -1008,6 +1008,27 @@ sub new_tgfile
 	return "$tg_path/$id";
 }
 
+sub clean_tg
+{
+	my ($tg, $compact_creds) = @_;
+	my %newtg;
+
+	$newtg{Name} = $tg->{Name};
+	$newtg{Date} = $tg->{Date};
+
+	foreach my $row (0 .. $#$compact_creds) {
+		next unless $$compact_creds[$row];
+		foreach my $head (@{$tg->{Headings}}) {
+			$tg->{Amount}[$row] = '*' if $head eq 'Amount' and $$compact_creds[$row] =~ /^TrnsfrPot[1-9]$/;
+			push (@{$newtg{$head}}, $tg->{$head}[$row]);
+		}
+	}
+
+	$newtg{Headings} = $tg->{Headings};
+
+	return %newtg;
+}
+
 sub despatch_user
 {
 	my $session = $_[0];
@@ -1043,14 +1064,10 @@ sub despatch_user
 			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session, $etoken)) };
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
-			push (@{$tg{Creditor}}, validate_acct($cgi->param('Creditor'), \%acct_names, $whinge));
-
-			my $amnt = validate_decimal($cgi->param('Amount'), 'Amount', undef, $whinge);
-			$whinge->('Missing amount') if $amnt == 0;
-			push (@{$tg{Amount}}, $amnt);
 
 			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
-
+			push (@{$tg{Creditor}}, validate_acct($cgi->param('Creditor'), \%acct_names, $whinge));
+			push (@{$tg{Amount}}, clean_word($cgi->param('Amount')));
 			push (@{$tg{Description}}, clean_words($cgi->param('Description')));
 
 			my $debtor;
@@ -1071,6 +1088,8 @@ sub despatch_user
 			push (@{$tg{$debtor}}, 1);
 
 			@{$tg{Headings}} = ('Creditor', 'Amount', $debtor, 'Description');
+
+			validate_tg(\%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
@@ -1099,7 +1118,6 @@ sub despatch_user
 			my $whinge = sub { whinge($_[0], gen_add_split($session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
-			$whinge->('No transaction group name supplied') unless defined $tg{Name};
 			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
@@ -1128,8 +1146,6 @@ sub despatch_user
 				my $amnt = validate_decimal($cgi->param("Debt_$acct"), 'Debt share', 1, $whinge);
 				$debts{$acct} = $amnt unless $amnt == 0;
 			}
-			$whinge->('No debtors?') unless scalar keys %debts > 0;
-
 			push (@{$tg{$_}}, $debts{$_}) foreach (keys %debts);
 
 			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
@@ -1137,6 +1153,8 @@ sub despatch_user
 			@{$tg{Headings}} = ('Creditor', 'Amount' );
 			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
 			push (@{$tg{Headings}}, $_) foreach sort_AoH(\%debts, 'Description');
+
+			validate_tg(\%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, 'add_split', $etoken);
@@ -1192,7 +1210,6 @@ sub despatch_user
 			my $whinge = sub { whinge($_[0], gen_tg($tgfile, 1, $session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
-			$whinge->('No transaction group name supplied') unless defined $tg{Name};
 			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
 
 			my $max_rows = -1;
@@ -1208,56 +1225,18 @@ sub despatch_user
 			}
 
 			foreach my $row (0 .. $max_rows) {
-				my ($cred, $amnt);
-				my $set = 0;
-				if ($cgi->param("Creditor_$row") =~ /^(TrnsfrPot[1-9])$/ ) {
-					$cred = $1;
-					$whinge->('Amount must be empty or \'*\' when transfer pot creditor set in same row') unless $cgi->param("Amount_$row") =~ /^\s*([\*]?)\s*$/;
-					$amnt = '*';
-					$set = 10000;
-				} else {
-					$cred = validate_acct($cgi->param("Creditor_$row"), \%acct_names, $whinge);
-					$amnt = validate_decimal($cgi->param("Amount_$row"), 'Amount', undef, $whinge);
-					$set = 10000 if $amnt != 0;
-				}
-
-				my @rowshares;
-				foreach my $acct (@accts) {
-					push (@rowshares, validate_decimal($cgi->param("${acct}_$row"), 'Debt share', 1, $whinge));
-					$set++ unless $rowshares[$#rowshares] == 0;
-				}
-
-				$whinge->('Invalid transfer pot') unless defined $cgi->param("TrnsfrPot_$row");
-				$whinge->('Invalid transfer pot') unless $cgi->param("TrnsfrPot_$row") =~ /^\s*([1-9]?)\s*$/;
-				my $tp = $1;
-				if ($tp ne '') {
-					$whinge->('Cannot have a transfer pot creditor and debtor set in same row') unless clean_username($cred);
-					$set++;
-				}
-
-				my $desc = clean_words($cgi->param("Description_$row"));
-
-				if ($set > 10000) {
-					push (@{$tg{Creditor}}, $cred);
-					push (@{$tg{Amount}}, $amnt);
-					push (@{$tg{$accts[$_]}}, $rowshares[$_]) foreach (0 .. $#accts);
-					push (@{$tg{TrnsfrPot}}, $tp);
-					push (@{$tg{Description}}, $desc);
-				} elsif ($set > 0 or $cred ne $session->param('User')) {
-					$whinge->("Insufficient values set in row $row");
-				}
+				push (@{$tg{Creditor}}, clean_word($cgi->param("Creditor_$row")));
+				push (@{$tg{Amount}}, clean_word($cgi->param("Amount_$row")));
+				push (@{$tg{$_}}, clean_word($cgi->param("${_}_$row"))) foreach (@accts);
+				push (@{$tg{TrnsfrPot}}, clean_word($cgi->param("TrnsfrPot_$row")));
+				push (@{$tg{Description}}, clean_words($cgi->param("Description_$row")));
 			}
-
-			foreach my $cred (@{$tg{Creditor}}) {
-				next unless $cred =~ /^TrnsfrPot(\d)$/;
-				$whinge->("Missing creditor for transfer pot $1") unless grep (/^$1$/, @{$tg{TrnsfrPot}});
-			}
-			foreach my $pot (@{$tg{TrnsfrPot}}) {
-				next unless $pot =~ /^(\d)$/;
-				$whinge->("Missing debtors for transfer pot $1") unless grep (/^TrnsfrPot$1$/, @{$tg{Creditor}});
-			}
-
 			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', 'TrnsfrPot', \%ppl, \%vaccts, 'Description');
+
+			my @cred_accts = validate_tg(\%tg, $whinge, \%acct_names, $session->param('User'));
+
+			%tg = clean_tg(\%tg, \@cred_accts);
+			$whinge->('No transactions?') unless exists $tg{Creditor};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
