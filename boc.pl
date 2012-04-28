@@ -22,7 +22,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_html clean_decimal clean_email clean_text clean_username clean_word clean_words);
+use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_text clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal);
 use HeadedTSV ();
 use TG ();
 
@@ -362,13 +362,10 @@ sub create_datastore
 	my ($cgi, $reason) = @_;
 
 	if (defined $cgi->param('tmpl') and $cgi->param('tmpl') eq 'create_ds_p') {
-		my $user_path = "$config{Root}/users";
-		my $user = clean_username($cgi->param('user'));
 		my $whinge = sub { whinge($_[0], gen_cds_p($reason)) };
+		my $user_path = "$config{Root}/users";
+		my $user = validate_acctname($cgi->param('user'), $whinge);
 
-		$whinge->('Disallowed characters in username') unless defined $user;
-		$whinge->('Username too short') if length $user < 3;
-		$whinge->('Username too long') if length $user > 10;
 		my $cracklib_rv = fascist_check($cgi->param('pass'));
 		$whinge->("Problem with password: $cracklib_rv") unless ($cracklib_rv eq 'ok');
 
@@ -620,8 +617,9 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'edit_acct') {
 		my $edit_acct = clean_username($cgi->param('eacct'));
-		my $new_acct = clean_username($cgi->param('account'));
 		my $person = defined $cgi->param('email');
+		my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
+		my $new_acct = validate_acctname($cgi->param('account'), $whinge);
 		my $root = $config{Root};
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
 
@@ -630,12 +628,8 @@ sub despatch_admin
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
 			my $rename = ($edit_acct and $edit_acct ne $new_acct);
-			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
 
 			whinge('Account to be edited not found (resubmission after rename?)', gen_manage_accts($person)) if $edit_acct and not -r ("$acct_path/$edit_acct");
-			$whinge->('Disallowed characters in short name') unless defined $new_acct;
-			$whinge->('Short name too short') if length $new_acct < 3;
-			$whinge->('Short name too long') if length $new_acct > 10;
 			$whinge->('Short name is already taken') if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
 			$whinge->('Full name too short') unless defined $fullname;
 			$whinge->('Full name too long') if length $fullname > 100;
@@ -787,7 +781,7 @@ sub despatch_admin
 				next unless $desc or $acct;
 				$whinge->('Missing account') unless $acct;
 				$whinge->('Missing description') unless $desc;
-				$whinge->("Non-existent account \"$acct\"") unless exists $vaccts{$acct};
+				validate_acct($acct, \%vaccts, $whinge);
 				push (@{$cfg{Description}}, $desc);
 				push (@{$cfg{DebitAcct}}, $acct);
 			}
@@ -1049,35 +1043,28 @@ sub despatch_user
 			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session, $etoken)) };
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
-			my $cred = clean_username($cgi->param('Creditor'));
-			$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
-			push (@{$tg{Creditor}}, $cred);
+			push (@{$tg{Creditor}}, validate_acct($cgi->param('Creditor'), \%acct_names, $whinge));
 
-			my $amnt = clean_decimal($cgi->param('Amount'));
-			$whinge->('Non-numerics in amount') unless defined $amnt;
+			my $amnt = validate_decimal($cgi->param('Amount'), 'Amount', undef, $whinge);
 			$whinge->('Missing amount') if $amnt == 0;
 			push (@{$tg{Amount}}, $amnt);
 
-			my $date = clean_words($cgi->param('tg_date'));
-			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
-			$whinge->('Unparsable date') if $pd_error;
-			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
+			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
 
 			push (@{$tg{Description}}, clean_words($cgi->param('Description')));
 
 			my $debtor;
 			if ($swap) {
 				$whinge->('Missing description') unless defined @{$tg{Description}}[0];
-				$debtor = clean_username($cgi->param('Debtor'));
-				$whinge->("Non-existent account \"$debtor\"") unless exists $acct_names{$debtor};
+				$debtor = validate_acct($cgi->param('Debtor'), \%acct_names, $whinge);
 				my @split_desc = split (' ', @{$tg{Description}}[0]);
-				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{$cred} for $split_desc[0]...";
+				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{@{$tg{Creditor}}[0]} for $split_desc[0]...";
 			} else {
 				my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 				my $type = clean_words($cgi->param('Debtor'));
 				$whinge->('Broken expense type') unless defined $type;
 				($debtor, $type) = split('!', $type, 2);
-				$whinge->("Non-existent account \"$debtor\"") unless exists $vacct_names{$debtor};
+				validate_acct($debtor, \%vacct_names, $whinge);
 				$whinge->('Broken expense type') unless defined $type;
 				$tg{Name} = "Expense: $type";
 			}
@@ -1113,19 +1100,13 @@ sub despatch_user
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$whinge->('No transaction group name supplied') unless defined $tg{Name};
-
-			my $date = clean_words($cgi->param('tg_date'));
-			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
-			$whinge->('Unparsable date') if $pd_error;
-			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
+			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
-			my @cred_accts = map { s/^Cred_//; $_ } grep (/^Cred_.*$/, $cgi->param);
 			my %creds;
-			foreach my $acct (@cred_accts) {
-				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
-				my $amnt = clean_decimal($cgi->param("Cred_$acct"));
-				$whinge->('Non-numerics in creditor amount') unless defined $amnt;
+			foreach my $acct (map { s/^Cred_//; $_ } grep (/^Cred_.*$/, $cgi->param)) {
+				validate_acct($acct, \%acct_names, $whinge);
+				my $amnt = validate_decimal($cgi->param("Cred_$acct"), 'Creditor amount', undef, $whinge);
 				$creds{$acct} = $amnt unless $amnt == 0;
 			}
 			$whinge->('No creditors?') unless scalar keys %creds > 0;
@@ -1141,13 +1122,10 @@ sub despatch_user
 				push (@{$tg{TrnsfrPot}}, 1) if scalar keys %creds > 1;
 			}
 
-			my @debt_accts = map { s/^Debt_//; $_ } grep (/^Debt_.*$/, $cgi->param);
 			my %debts;
-			foreach my $acct (@debt_accts) {
-				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
-				my $amnt = clean_decimal($cgi->param("Debt_$acct"));
-				$whinge->('Non-numerics in debtor value') unless defined $amnt;
-				$whinge->('Debt share cannot be negative') if $amnt =~ /-/;
+			foreach my $acct (map { s/^Debt_//; $_ } grep (/^Debt_.*$/, $cgi->param)) {
+				validate_acct($acct, \%acct_names, $whinge);
+				my $amnt = validate_decimal($cgi->param("Debt_$acct"), 'Debt share', 1, $whinge);
 				$debts{$acct} = $amnt unless $amnt == 0;
 			}
 			$whinge->('No debtors?') unless scalar keys %debts > 0;
@@ -1215,10 +1193,7 @@ sub despatch_user
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$whinge->('No transaction group name supplied') unless defined $tg{Name};
-			my $date = clean_words($cgi->param('tg_date'));
-			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
-			$whinge->('Unparsable date') if $pd_error;
-			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
+			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
 
 			my $max_rows = -1;
 			$max_rows++ while ($max_rows < 100 and defined $cgi->param("Creditor_" . ($max_rows + 1)));
@@ -1226,32 +1201,29 @@ sub despatch_user
 
 			my %acct_names = get_acct_name_map;
 			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
+			my (%ppl, %vaccts);
 			foreach my $acct (@accts) {
-				$whinge->("Non-existent account \"$acct\"") unless exists $acct_names{$acct};
+				validate_acct($acct, \%acct_names, $whinge);
+				((-r "$config{Root}/users/$acct") ? $ppl{$acct} : $vaccts{$acct}) = $acct_names{$acct};
 			}
 
 			foreach my $row (0 .. $max_rows) {
 				my ($cred, $amnt);
 				my $set = 0;
-				if ($cred = clean_username($cgi->param("Creditor_$row"))) {
-					$whinge->("Non-existent account \"$cred\"") unless exists $acct_names{$cred};
-					$amnt = clean_decimal($cgi->param("Amount_$row"));
-					$whinge->('Non-numerics in amount') unless defined $amnt;
-					$set = 10000 if $amnt != 0;
-				} elsif ($cgi->param("Creditor_$row") =~ /^(TrnsfrPot[1-9])$/ ) {
+				if ($cgi->param("Creditor_$row") =~ /^(TrnsfrPot[1-9])$/ ) {
 					$cred = $1;
 					$whinge->('Amount must be empty or \'*\' when transfer pot creditor set in same row') unless $cgi->param("Amount_$row") =~ /^\s*([\*]?)\s*$/;
 					$amnt = '*';
 					$set = 10000;
 				} else {
-					$whinge->("Invalid account");
+					$cred = validate_acct($cgi->param("Creditor_$row"), \%acct_names, $whinge);
+					$amnt = validate_decimal($cgi->param("Amount_$row"), 'Amount', undef, $whinge);
+					$set = 10000 if $amnt != 0;
 				}
 
 				my @rowshares;
 				foreach my $acct (@accts) {
-					push (@rowshares, clean_decimal($cgi->param("${acct}_$row")));
-					$whinge->('Non-numerics in debt share') unless defined $rowshares[$#rowshares];
-					$whinge->('Debt share cannot be negative') if $rowshares[$#rowshares] =~ /-/;
+					push (@rowshares, validate_decimal($cgi->param("${acct}_$row"), 'Debt share', 1, $whinge));
 					$set++ unless $rowshares[$#rowshares] == 0;
 				}
 
@@ -1285,10 +1257,6 @@ sub despatch_user
 				$whinge->("Missing debtors for transfer pot $1") unless grep (/^TrnsfrPot$1$/, @{$tg{Creditor}});
 			}
 
-			my %all_ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-			my %all_vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-			my (%ppl, %vaccts);
-			((exists $all_ppl{$_}) ? ($ppl{$_} = $all_ppl{$_}) : ($vaccts{$_} = $all_vaccts{$_})) foreach (@accts);
 			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', 'TrnsfrPot', \%ppl, \%vaccts, 'Description');
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
