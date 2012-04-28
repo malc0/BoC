@@ -22,7 +22,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_html clean_decimal clean_email clean_text clean_username);
+use CleanData qw(untaint encode_for_file encode_for_html clean_decimal clean_email clean_text clean_username clean_word clean_words);
 use HeadedTSV ();
 use TG ();
 
@@ -626,7 +626,7 @@ sub despatch_admin
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
 
 		if (defined $cgi->param('save')) {
-			my $fullname = clean_text($cgi->param('fullname'));
+			my $fullname = clean_words($cgi->param('fullname'));
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
 			my $rename = ($edit_acct and $edit_acct ne $new_acct);
@@ -749,7 +749,7 @@ sub despatch_admin
 
 			foreach my $param ($cgi->param()) {
 				next if ($param eq 'tmpl' or $param eq 'etoken' or $param eq 'save');
-				$inst_cfg{$param} = clean_text($cgi->param($param));
+				$inst_cfg{$param} = clean_word($cgi->param($param));
 			}
 
 			whinge('Unable to get commit lock', gen_edit_inst_cfg($etoken)) unless try_commit_lock($sessid);
@@ -782,7 +782,7 @@ sub despatch_admin
 			@{$cfg{Description}} = ();
 			@{$cfg{DebitAcct}} = ();
 			foreach my $row (0 .. $max_rows) {
-				my $desc = clean_text($cgi->param("Description_$row"));
+				my $desc = clean_words($cgi->param("Description_$row"));
 				my $acct = clean_username($cgi->param("DebitAcct_$row"));
 				next unless $desc or $acct;
 				$whinge->('Missing account') unless $acct;
@@ -1058,12 +1058,12 @@ sub despatch_user
 			$whinge->('Missing amount') if $amnt == 0;
 			push (@{$tg{Amount}}, $amnt);
 
-			my $date = clean_text($cgi->param('tg_date'));
+			my $date = clean_words($cgi->param('tg_date'));
 			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
 			$whinge->('Unparsable date') if $pd_error;
 			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
 
-			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
+			push (@{$tg{Description}}, clean_words($cgi->param('Description')));
 
 			my $debtor;
 			if ($swap) {
@@ -1074,7 +1074,7 @@ sub despatch_user
 				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{$cred} for $split_desc[0]...";
 			} else {
 				my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-				my $type = clean_text($cgi->param('Debtor'));
+				my $type = clean_words($cgi->param('Debtor'));
 				$whinge->('Broken expense type') unless defined $type;
 				($debtor, $type) = split('!', $type, 2);
 				$whinge->("Non-existent account \"$debtor\"") unless exists $vacct_names{$debtor};
@@ -1111,10 +1111,10 @@ sub despatch_user
 			my %tg;
 			my $whinge = sub { whinge($_[0], gen_add_split($session, $etoken)) };
 
-			$tg{Name} = clean_text($cgi->param('tg_name'));
+			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$whinge->('No transaction group name supplied') unless defined $tg{Name};
 
-			my $date = clean_text($cgi->param('tg_date'));
+			my $date = clean_words($cgi->param('tg_date'));
 			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
 			$whinge->('Unparsable date') if $pd_error;
 			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
@@ -1213,9 +1213,9 @@ sub despatch_user
 		if (defined $cgi->param('save')) {
 			my $whinge = sub { whinge($_[0], gen_tg($tgfile, 1, $session, $etoken)) };
 
-			$tg{Name} = clean_text($cgi->param('tg_name'));
+			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$whinge->('No transaction group name supplied') unless defined $tg{Name};
-			my $date = clean_text($cgi->param('tg_date'));
+			my $date = clean_words($cgi->param('tg_date'));
 			my ($pd_secs, $pd_error) = parsedate($date, (FUZZY => 1, UK => 1, DATE_REQUIRED => 1, PREFER_PAST => 1, WHOLE => 1));
 			$whinge->('Unparsable date') if $pd_error;
 			$tg{Date} = join('.', ((localtime($pd_secs))[3], (localtime($pd_secs))[4] + 1, (localtime($pd_secs))[5] + 1900));
@@ -1263,7 +1263,7 @@ sub despatch_user
 					$set++;
 				}
 
-				my $desc = clean_text($cgi->param("Description_$row"));
+				my $desc = clean_words($cgi->param("Description_$row"));
 
 				if ($set > 10000) {
 					push (@{$tg{Creditor}}, $cred);

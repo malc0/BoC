@@ -10,7 +10,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(untaint encode_for_file encode_for_html clean_decimal clean_email clean_text clean_username);
+our @EXPORT = qw(untaint encode_for_file encode_for_html clean_decimal clean_email clean_text clean_username clean_word clean_words);
 
 sub untaint
 {
@@ -53,10 +53,8 @@ sub clean_email
 sub clean_text
 {
 	return undef unless defined $_[0];
-	return undef if $_[0] eq '';
-	my $escaped_text = encode_for_html($_[0]);
-	return undef unless $escaped_text =~ /^(.+)$/;
-	return $1;
+	return undef unless $_[0] =~ /^\s*(.+?)\s*$/s;
+	return encode_for_html($1);
 }
 
 sub clean_username
@@ -65,4 +63,18 @@ sub clean_username
 	# don't allow upper case to give special TG columns (Creditor, TrnsfrPot etc.) their own namespace
 	return undef unless $_[0] =~ /^([a-z0-9\-+_]*)$/;	# these have to exist on a filesystem.  certainly do not permit dots (.), as could get trashed lock files
 	return $1;
+}
+
+sub clean_word
+{
+	return undef unless defined $_[0];
+	return undef unless $_[0] =~ /^\s*(\S*)\s*$/;
+	return encode_for_html($1);
+}
+
+sub clean_words
+{
+	return undef unless defined $_[0];
+	return undef unless $_[0] =~ /^\s*([^\n\r\v\f]+?)\s*$/;
+	return encode_for_html($1);
 }
