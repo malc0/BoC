@@ -843,16 +843,18 @@ sub gen_ucp
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
 	foreach my $tg (@sorted_tgs) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
-		my %computed = compute_tg(\%tgdetails);
-		next unless exists $computed{$user};
+		my %computed = eval { compute_tg(\%tgdetails) };
+		my $tg_broken = ($@ ne '');
+		next unless exists $computed{$user} or $tg_broken;
 
 		my %outputdetails = (
 			ACC => $tg,
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
-			SUMMARY => ($computed{$user} > 0 ? '+' : '') . $computed{$user},
+			BROKEN => $tg_broken,
+			SUMMARY => $tg_broken ? 'TG BROKEN' : ($computed{$user} > 0 ? '+' : '') . $computed{$user},
 		);
-		push ((($computed{$user} >= 0) ? \@credlist : \@debtlist), \%outputdetails);
+		push ((($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist), \%outputdetails);
 	}
 	my %acct_names = get_acct_name_map;
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
@@ -871,7 +873,11 @@ sub gen_accts_disp
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
 	my %running;
 	foreach my $tg (glob("$config{Root}/transaction_groups/*")) {
-		my %computed = compute_tg(\%{{read_tg($tg)}});
+		my %computed = eval { compute_tg(\%{{read_tg($tg)}}) };
+		if ($@) {
+			$tmpl->param(BROKEN => 1);
+			return $tmpl;
+		}
 		foreach (keys %computed) {
 			$running{$_} = 0 unless exists $running{$_};
 			$running{$_} += $computed{$_};

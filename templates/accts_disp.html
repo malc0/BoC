@@ -10,6 +10,9 @@
 		<div>
 			<input type="hidden" name="tmpl" value="accts_disp"/>
 
+			<TMPL_IF NAME=BROKEN>
+			<h2 style="color:red">BROKEN!</h2>
+			<TMPL_ELSE>
 			<TMPL_IF NAME=UNKNOWN>
 			<h2>Unknown Accounts</h2>
 			<table bgcolor="red" border=1 width="90%">
@@ -35,6 +38,7 @@
 				<tr><td style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=VAL></td><TMPL_IF 0><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></TMPL_IF></tr>
 				</TMPL_LOOP>
 			</table>
+			</TMPL_IF>
 			<p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
