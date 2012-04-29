@@ -858,6 +858,7 @@ sub gen_ucp
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
 	$tmpl->param(CREDITS => \@credlist);
 	$tmpl->param(DEBITS => \@debtlist);
+	$tmpl->param(LOGIN => $session->param('User'));
 
 	return $tmpl;
 }
