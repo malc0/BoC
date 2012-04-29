@@ -6,6 +6,7 @@
 	<body>
 		<form action="boc.pl" method="post">
 		<div>
+			<TMPL_UNLESS NAME=ACCT>
 			<input type="hidden" name="tmpl" value="ucp"/>
 
 			<p><input type="submit" name="add_vacct_expense" value="Add communal expense"/>
@@ -15,22 +16,31 @@
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<hr />
 			<p><input type="submit" name="disp_accts" value="Accounts summary"/></p>
+			<TMPL_ELSE>
+			<input type="hidden" name="tmpl" value="view_acct"/>
+			</TMPL_UNLESS>
 
-			<h2>My credits</h2>
+			<h2><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> credits</h2>
 			<table border=1>
 				<tr><th>Name</th><th>Date</th><th>Value</th></tr>
 				<TMPL_LOOP NAME=CREDITS>
 				<tr><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=SUMMARY></td></tr>
 				</TMPL_LOOP>
 			</table>
-			<h2>My debits</h2>
+			<h2><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> debits</h2>
 			<table border=1>
 				<tr><th>Name</th><th>Date</th><th>Value</th></tr>
 				<TMPL_LOOP NAME=DEBITS>
 				<tr><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=SUMMARY></td></tr>
 				</TMPL_LOOP>
 			</table>
+			<TMPL_UNLESS NAME=ACCT>
 			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
+			<TMPL_ELSE>
+			<p><input type="submit" name="disp_accts" value="Back to accounts summary"/></p>
+			<p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+			</TMPL_UNLESS>
 		</div>
 		</form>
 	</body>

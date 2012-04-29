@@ -830,14 +830,14 @@ sub get_acct_name_map
 
 sub gen_ucp
 {
-	my $session = $_[0];
+	my ($session, $acct) = @_;
 	my $tmpl = load_template('user_cp.html');
 
 	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date');
 	my %rtgds;
 	push (@{$rtgds{$tg_dates{$_}}}, $_) foreach keys %tg_dates;	# arrgh non-unique dates
 	my @sorted_tgs = map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf("%04d%02d%02d", (split '\.', $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
-	my $user = $session->param('User');
+	my $user = (defined $acct) ? $acct : $session->param('User');
 	my (@credlist, @debtlist);
 
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
@@ -854,6 +854,8 @@ sub gen_ucp
 		);
 		push ((($computed{$user} >= 0) ? \@credlist : \@debtlist), \%outputdetails);
 	}
+	my %acct_names = get_acct_name_map;
+	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
 	$tmpl->param(CREDITS => \@credlist);
 	$tmpl->param(DEBITS => \@debtlist);
 
@@ -907,7 +909,7 @@ sub gen_accts_disp
 		$g -= 255 * 2 * ($pc - 50) / 100 if $pc > 50;
 
 		my %outputdetails = (
-#			ACC => $_,
+			ACC => $_,
 			NAME => (exists $acct_names{$_}) ? $acct_names{$_} : $_,
 			VAL => ($running{$_} > 0 ? '+' : '') . $running{$_},
 			C => sprintf("#%02x%02x%02x", $r, $g, $b),
@@ -1278,6 +1280,11 @@ sub despatch_user
 
 		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
 		emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : "Add split cancelled", gen_ucp($session));
+	}
+	if ($cgi->param('tmpl') eq 'accts_disp') {
+		if (defined $cgi->param('view')) {
+			emit(gen_ucp($session,  $cgi->param('view')));
+		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
