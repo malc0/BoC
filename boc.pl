@@ -601,6 +601,10 @@ sub despatch_admin
 
 	return if (defined $cgi->param('logout'));
 
+	if (defined $cgi->param('to_cp')) {
+		emit(load_template('treasurer_cp.html'));
+	}
+
 	if ($cgi->param('tmpl') eq 'login') {
 		my $tmpl = load_template('treasurer_cp.html');
 		print $tmpl->output;
@@ -698,45 +702,41 @@ sub despatch_admin
 		}
 	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccts') {
-		if (defined $cgi->param('to_cp')) {
-			emit(load_template('treasurer_cp.html'));
+		my $acct;
+		my $delete = 0;
+		my $person = $cgi->param('tmpl') eq 'view_ppl';
+		my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
+
+		foreach my $p ($cgi->param) {
+			if ($p =~ /^edit_(.*)$/) {
+				$acct = $1;
+				last;
+			}
+			if ($p =~ /^del_(.*)$/) {
+				$acct = $1;
+				$delete = 1;
+				last;
+			}
+		}
+
+		my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
+		unless ($delete) {
+			if ($acct) {
+				$whinge->("Couldn't get edit lock for account \"$acct\"") unless try_lock($acct_file, $sessid);
+				unless (-r $acct_file) {
+					unlock($acct_file);
+					$whinge->("Couldn't edit account \"$acct\", file disappeared");
+				}
+			}
+			my $etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
+			emit(gen_add_edit_acc($acct, $person, $etoken));
 		} else {
-			my $acct;
-			my $delete = 0;
-			my $person = $cgi->param('tmpl') eq 'view_ppl';
-			my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
-
-			foreach my $p ($cgi->param) {
-				if ($p =~ /^edit_(.*)$/) {
-					$acct = $1;
-					last;
-				}
-				if ($p =~ /^del_(.*)$/) {
-					$acct = $1;
-					$delete = 1;
-					last;
-				}
-			}
-
-			my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
-			unless ($delete) {
-				if ($acct) {
-					$whinge->("Couldn't get edit lock for account \"$acct\"") unless try_lock($acct_file, $sessid);
-					unless (-r $acct_file) {
-						unlock($acct_file);
-						$whinge->("Couldn't edit account \"$acct\", file disappeared");
-					}
-				}
-				my $etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
-				emit(gen_add_edit_acc($acct, $person, $etoken));
-			} else {
-				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-				try_commit_and_unlock(sub {
-					$git->rm($acct_file);
-					commit(unroot($acct_file) . ': deleted', $session);
-				});
-				emit_with_status("Deleted account \"$acct\"", gen_manage_accts($person));
-			}
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			try_commit_and_unlock(sub {
+				$git->rm($acct_file);
+				commit(unroot($acct_file) . ': deleted', $session);
+			});
+			emit_with_status("Deleted account \"$acct\"", gen_manage_accts($person));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
@@ -1074,6 +1074,12 @@ sub despatch_user
 
 	return if (defined $cgi->param('logout'));
 
+	if (defined $cgi->param('manage_tgs')) {
+		emit(gen_manage_tgs);
+	} elsif (defined $cgi->param('to_cp')) {
+		emit(gen_ucp($session));
+	}
+
 	if ($cgi->param('tmpl') eq 'login_nopw') {
 		my $tmpl = gen_ucp($session);
 		print $tmpl->output;
@@ -1086,9 +1092,6 @@ sub despatch_user
 		}
 		if (defined $cgi->param('add_split')) {
 			emit(gen_add_split($session, get_edit_token($sessid, 'add_split')));
-		}
-		if (defined $cgi->param('manage_tgs')) {
-			emit(gen_manage_tgs);
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_swap' or $cgi->param('tmpl') eq 'add_vacct_expense') {
@@ -1220,17 +1223,13 @@ sub despatch_user
 			my $tmpl = gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
 			$tmpl->param(DONE_TMPL => 'ucp') if $cgi->param('ucp_ret');
 			emit($tmpl);
-		} elsif (defined $cgi->param('to_cp')) {
-			emit(gen_ucp($session));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
 		my $edit_id = clean_tgid($cgi->param('tg_id'));
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
-		if (defined $cgi->param('manage_tgs')) {
-			emit(gen_manage_tgs);
-		} elsif (defined $cgi->param('edit')) {
+		if (defined $cgi->param('edit')) {
 			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
