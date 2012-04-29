@@ -8,12 +8,27 @@
 		<div>
 			<input type="hidden" name="tmpl" value="ucp"/>
 
-			<p><input type="submit" name="add_vacct_expense" value="Add communal expense"/></p>
-			<p><input type="submit" name="add_swap" value="Add person-to-person swap"/></p>
-			<p><input type="submit" name="add_split" value="Add a set of expenses split across a number of people"/></p>
-			<p><input type="submit" name="manage_tgs" value="Manage transaction groups"/></p>
+			<p><input type="submit" name="add_vacct_expense" value="Add communal expense"/>
+			   <input type="submit" name="add_swap" value="Add person-to-person swap"/>
+			   <input type="submit" name="add_split" value="Add a set of expenses split across a number of people"/>
+			   <input style="float:right" type="submit" name="logout" value="Logout"/></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="logout" value="Logout"/></p>
+
+			<h2>My credits</h2>
+			<table border=1>
+				<tr><th>Name</th><th>Date</th><th>Value</th></tr>
+				<TMPL_LOOP NAME=CREDITS>
+				<tr><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=SUMMARY></td></tr>
+				</TMPL_LOOP>
+			</table>
+			<h2>My debits</h2>
+			<table border=1>
+				<tr><th>Name</th><th>Date</th><th>Value</th></tr>
+				<TMPL_LOOP NAME=DEBITS>
+				<tr><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=SUMMARY></td></tr>
+				</TMPL_LOOP>
+			</table>
+			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
 		</div>
 		</form>
 	</body>

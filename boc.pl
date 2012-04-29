@@ -25,7 +25,7 @@ use YAML::XS;
 use lib '.';
 use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_text clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal);
 use HeadedTSV ();
-use TG qw(validate_tg);
+use TG qw(compute_tg validate_tg);
 
 our %config;
 our $git;
@@ -805,6 +805,38 @@ sub despatch_admin
 	}
 }
 
+sub gen_ucp
+{
+	my $session = $_[0];
+	my $tmpl = load_template('user_cp.html');
+
+	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date');
+	my %rtgds;
+	push (@{$rtgds{$tg_dates{$_}}}, $_) foreach keys %tg_dates;	# arrgh non-unique dates
+	my @sorted_tgs = map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf("%04d%02d%02d", (split '\.', $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
+	my $user = $session->param('User');
+	my (@credlist, @debtlist);
+
+	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
+	foreach my $tg (@sorted_tgs) {
+		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
+		my %computed = compute_tg(\%tgdetails);
+		next unless exists $computed{$user};
+
+		my %outputdetails = (
+			ACC => $tg,
+			NAME => $tgdetails{Name},
+			DATE => $tgdetails{Date},
+			SUMMARY => ($computed{$user} > 0 ? '+' : '') . $computed{$user},
+		);
+		push ((($computed{$user} >= 0) ? \@credlist : \@debtlist), \%outputdetails);
+	}
+	$tmpl->param(CREDITS => \@credlist);
+	$tmpl->param(DEBITS => \@debtlist);
+
+	return $tmpl;
+}
+
 sub gen_add_swap
 {
 	my ($swap, $session, $etoken) = @_;
@@ -900,10 +932,10 @@ sub gen_manage_tgs
 		}
 
 		my %outputdetails = (
-				ACC => $tg,
-				NAME => $tgdetails{Name},
-				DATE => $tgdetails{Date},
-				SUMMARY => substr($sum_str, 0, -2),
+			ACC => $tg,
+			NAME => $tgdetails{Name},
+			DATE => $tgdetails{Date},
+			SUMMARY => substr($sum_str, 0, -2),
 		);
 		push(@tglist, \%outputdetails);
 	}
@@ -1043,7 +1075,7 @@ sub despatch_user
 	return if (defined $cgi->param('logout'));
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
-		my $tmpl = load_template('user_cp.html');
+		my $tmpl = gen_ucp($session);
 		print $tmpl->output;
 		exit;
 	}
@@ -1096,7 +1128,7 @@ sub despatch_user
 			validate_tg(\%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
+			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
 			try_commit_and_unlock(sub {
 				$tgfile = new_tgfile;
 				write_tg($tgfile, %tg);
@@ -1109,9 +1141,9 @@ sub despatch_user
 
 		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
 		if ($swap) {
-			emit_with_status((defined $cgi->param('save')) ? "Swap saved ($1)" : "Add swap cancelled", load_template('user_cp.html'));
+			emit_with_status((defined $cgi->param('save')) ? "Swap saved ($1)" : "Add swap cancelled", gen_ucp($session));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Expense saved ($1)" : "Add expense cancelled", load_template('user_cp.html'));
+			emit_with_status((defined $cgi->param('save')) ? "Expense saved ($1)" : "Add expense cancelled", gen_ucp($session));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_split') {
@@ -1161,7 +1193,7 @@ sub despatch_user
 			validate_tg(\%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('user_cp.html')) unless redeem_edit_token($sessid, 'add_split', $etoken);
+			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, 'add_split', $etoken);
 			try_commit_and_unlock(sub {
 				$tgfile = new_tgfile;
 				write_tg($tgfile, %tg);
@@ -1173,7 +1205,7 @@ sub despatch_user
 		}
 
 		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
-		emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : "Add split cancelled", load_template('user_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : "Add split cancelled", gen_ucp($session));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
@@ -1189,7 +1221,7 @@ sub despatch_user
 			$tmpl->param(DONE_TMPL => 'ucp') if $cgi->param('ucp_ret');
 			emit($tmpl);
 		} elsif (defined $cgi->param('to_cp')) {
-			emit(load_template('user_cp.html'));
+			emit(gen_ucp($session));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
@@ -1266,7 +1298,7 @@ sub despatch_user
 		if ($edit_id) {
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", $cgi->param('done_tmpl') ? load_template('user_cp.html') : gen_manage_tgs);
+			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", $cgi->param('done_tmpl') ? gen_ucp($session) : gen_manage_tgs);
 		}
 	}
 }
