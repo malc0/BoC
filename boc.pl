@@ -1220,6 +1220,13 @@ sub despatch_user
 			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
 			my (%ppl, %vaccts);
 			foreach my $acct (@accts) {
+				unless (exists $acct_names{$acct}) {
+					my $in_use = 0;
+					foreach (0 .. $max_rows) {
+						$in_use = 1 unless CleanData::clean_decimal($cgi->param("${acct}_$_")) == 0;
+					}
+					next unless $in_use;
+				}
 				validate_acct($acct, \%acct_names, $whinge);
 				((-r "$config{Root}/users/$acct") ? $ppl{$acct} : $vaccts{$acct}) = $acct_names{$acct};
 			}
@@ -1227,7 +1234,7 @@ sub despatch_user
 			foreach my $row (0 .. $max_rows) {
 				push (@{$tg{Creditor}}, clean_word($cgi->param("Creditor_$row")));
 				push (@{$tg{Amount}}, clean_word($cgi->param("Amount_$row")));
-				push (@{$tg{$_}}, clean_word($cgi->param("${_}_$row"))) foreach (@accts);
+				push (@{$tg{$_}}, clean_word($cgi->param("${_}_$row"))) foreach (keys %ppl, keys %vaccts);
 				push (@{$tg{TrnsfrPot}}, clean_word($cgi->param("TrnsfrPot_$row")));
 				push (@{$tg{Description}}, clean_words($cgi->param("Description_$row")));
 			}
