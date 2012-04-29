@@ -7,6 +7,7 @@ use warnings;
 use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
+use File::Find;
 use List::Util qw(first min);
 use Time::HiRes qw(usleep);
 
@@ -283,9 +284,12 @@ sub try_commit_and_unlock
 	my $commit_fail = $@;
 	if ($commit_fail) {
 		eval { $git->reset({hard => 1}) };
-		# die hard, leaving locks, if we can't clean up
-		open (my $fh, ">$config{Root}/RepoBroke") if ($@ and not -e "$config{Root}/RepoBroke");
-		die "Clean up failed: $@\nOriginally due to: $commit_fail" if $@;
+		eval { find({ wanted => sub { /^(.*\.new)$/ and unlink $1 }, untaint => 1}, $config{Root}) } unless $@;
+		if ($@) {
+			# die hard, leaving locks, if we can't clean up
+			open (my $fh, ">$config{Root}/RepoBroke") unless -e "$config{Root}/RepoBroke";
+			die "Clean up failed: $@\nOriginally due to: $commit_fail";
+		}
 	}
 	un_commit_lock;
 	unlock($extra_lock) if $extra_lock;
