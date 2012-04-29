@@ -805,6 +805,29 @@ sub despatch_admin
 	}
 }
 
+sub query_all_htsv_in_path
+{
+	my ($path, $key) = @_;
+
+	my @accts = glob("$path/*");
+	my %response;
+
+	foreach my $acct (@accts) {
+		my %acctdetails = read_htsv($acct);
+		$acct =~ /.*\/(.*)/;
+		$response{$1} = $acctdetails{$key};
+	}
+
+	return %response;
+}
+
+sub get_acct_name_map
+{
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	return (%ppl, %vaccts);
+}
+
 sub gen_ucp
 {
 	my $session = $_[0];
@@ -833,6 +856,73 @@ sub gen_ucp
 	}
 	$tmpl->param(CREDITS => \@credlist);
 	$tmpl->param(DEBITS => \@debtlist);
+
+	return $tmpl;
+}
+
+sub gen_accts_disp
+{
+	my $session = $_[0];
+	my $tmpl = load_template('accts_disp.html');
+
+	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
+	my %running;
+	foreach my $tg (glob("$config{Root}/transaction_groups/*")) {
+		my %computed = compute_tg(\%{{read_tg($tg)}});
+		foreach (keys %computed) {
+			$running{$_} = 0 unless exists $running{$_};
+			$running{$_} += $computed{$_};
+		}
+	}
+
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my %acct_names = (%ppl, %vaccts);
+	my @unknown;
+	my ($maxu, $maxp, $maxv) = (0, 0, 0);
+	foreach (keys %running) {
+		if (exists $ppl{$_}) {
+			$maxp = abs $running{$_} if abs $running{$_} > $maxp;
+		} elsif (exists $vaccts{$_}) {
+			$maxv = abs $running{$_} if abs $running{$_} > $maxv;
+		} else {
+			$maxu = abs $running{$_} if abs $running{$_} > $maxu;
+			push (@unknown, $_);
+		}
+	}
+	my (@unklist, @ppllist, @vacctslist);
+	foreach ((sort @unknown), sort_AoH(\%ppl, \%vaccts)) {
+		next unless exists $running{$_};
+
+		my $pc;
+		if (exists $ppl{$_}) {
+			$pc = 100 / $maxp * abs $running{$_};
+		} elsif (exists $vaccts{$_}) {
+			$pc = 100 / $maxv * abs $running{$_};
+		} else {
+			$pc = 100 / $maxu * abs $running{$_};
+		}
+		my ($r, $g, $b) = (255, 255, 0);
+		$r = 255 * 2 * $pc / 100 if $pc < 50;
+		$g -= 255 * 2 * ($pc - 50) / 100 if $pc > 50;
+
+		my %outputdetails = (
+#			ACC => $_,
+			NAME => (exists $acct_names{$_}) ? $acct_names{$_} : $_,
+			VAL => ($running{$_} > 0 ? '+' : '') . $running{$_},
+			C => sprintf("#%02x%02x%02x", $r, $g, $b),
+			L => $running{$_} > 0 ? 0 : $pc,
+			R => $running{$_} <= 0 ? 0 : $pc,
+		);
+		if (exists $acct_names{$_}) {
+			push ((exists $ppl{$_}) ? \@ppllist : \@vacctslist, \%outputdetails);
+		} else {
+			push (@unklist, \%outputdetails);
+		}
+	}
+	$tmpl->param(UNKNOWN => \@unklist) if scalar @unklist;
+	$tmpl->param(PPL => \@ppllist) if scalar @ppllist;
+	$tmpl->param(VACCTS => \@vacctslist) if scalar @vacctslist;
 
 	return $tmpl;
 }
@@ -870,29 +960,6 @@ sub gen_add_split
 	$tmpl->param(PPL => \@pploptions);
 
 	return $tmpl;
-}
-
-sub query_all_htsv_in_path
-{
-	my ($path, $key) = @_;
-
-	my @accts = glob("$path/*");
-	my %response;
-
-	foreach my $acct (@accts) {
-		my %acctdetails = read_htsv($acct);
-		$acct =~ /.*\/(.*)/;
-		$response{$1} = $acctdetails{$key};
-	}
-
-	return %response;
-}
-
-sub get_acct_name_map
-{
-	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	return (%ppl, %vaccts);
 }
 
 sub gen_manage_tgs
@@ -1078,6 +1145,8 @@ sub despatch_user
 		emit(gen_manage_tgs);
 	} elsif (defined $cgi->param('to_cp')) {
 		emit(gen_ucp($session));
+	} elsif (defined $cgi->param('disp_accts')) {
+		emit(gen_accts_disp);
 	}
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {

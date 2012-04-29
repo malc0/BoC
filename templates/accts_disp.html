@@ -1,0 +1,43 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> accounts summary</title>
+	</head>
+	<body>
+		<h1>Accounts summary</h1>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="accts_disp"/>
+
+			<TMPL_IF NAME=UNKNOWN>
+			<h2>Unknown Accounts</h2>
+			<table bgcolor="red" border=1 width="90%">
+				<tr><th>Name</th><th>Balance</th></tr>
+				<TMPL_LOOP NAME=UNKNOWN>
+				<tr><td style="white-space: nowrap"><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
+				</TMPL_LOOP>
+			</table>
+			</TMPL_IF>
+
+			<h2>Personal Accounts</h2>
+			<table border=1 width="90%">
+				<tr><th>Name</th><th>Balance</th></tr>
+				<TMPL_LOOP NAME=PPL>
+				<tr><td style="white-space: nowrap"><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
+				</TMPL_LOOP>
+			</table>
+
+			<h2>Virtual Accounts</h2>
+			<table border=1>
+				<tr><th>Name</th><th>Balance</th></tr>
+				<TMPL_LOOP NAME=VACCTS>
+				<tr><td style="white-space: nowrap"><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=VAL></td><TMPL_IF 0><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></TMPL_IF></tr>
+				</TMPL_LOOP>
+			</table>
+			<p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/></p>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>
