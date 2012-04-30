@@ -828,20 +828,26 @@ sub get_acct_name_map
 	return (%ppl, %vaccts);
 }
 
+sub date_sorted_tgs
+{
+	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date');
+	my %rtgds;
+	foreach (keys %tg_dates) {
+		$tg_dates{$_} = '0.0.0' unless defined $tg_dates{$_} and $tg_dates{$_} =~ /\s*\d*\s*\.\s*\d*\s*\.\s*\d*\s*/;
+		push (@{$rtgds{$tg_dates{$_}}}, $_);	# non-unique dates
+	}
+	return map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf("%04d%02d%02d", (split '\.', $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
+}
+
 sub gen_ucp
 {
 	my ($session, $acct) = @_;
 	my $tmpl = load_template('user_cp.html');
-
-	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date');
-	my %rtgds;
-	push (@{$rtgds{$tg_dates{$_}}}, $_) foreach keys %tg_dates;	# arrgh non-unique dates
-	my @sorted_tgs = map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf("%04d%02d%02d", (split '\.', $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
 	my $user = (defined $acct) ? $acct : $session->param('User');
-	my (@credlist, @debtlist);
 
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
-	foreach my $tg (@sorted_tgs) {
+	my (@credlist, @debtlist);
+	foreach my $tg (date_sorted_tgs) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my %computed = eval { compute_tg(\%tgdetails) };
 		my $tg_broken = ($@ ne '');
@@ -974,15 +980,10 @@ sub gen_add_split
 sub gen_manage_tgs
 {
 	my $tmpl = load_template('manage_transactions.html');
-
 	my %acct_names = get_acct_name_map;
-	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date');
-	my %rtgds;
-	push (@{$rtgds{$tg_dates{$_}}}, $_) foreach keys %tg_dates;	# arrgh non-unique dates
-	my @sorted_tgs = map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf("%04d%02d%02d", (split '\.', $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
-	my @tglist;
 
-	foreach my $tg (@sorted_tgs) {
+	my @tglist;
+	foreach my $tg (date_sorted_tgs) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 
 		my %summary;
