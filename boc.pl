@@ -985,34 +985,39 @@ sub gen_manage_tgs
 	my @tglist;
 	foreach my $tg (date_sorted_tgs) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
+		my $tg_fail;
+		validate_tg(\%tgdetails, sub { $tg_fail = $_[0] });
 
-		my %summary;
 		my $sum_str = "";
-		foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
-			my $acct = $tgdetails{Creditor}[$i];
-			unless (defined $acct_names{$acct}) {
-				next if $acct =~ /^TrnsfrPot\d$/;
-				$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  ";
-				last;
+		unless ($tg_fail) {
+			my %summary;
+			foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
+				my $acct = $tgdetails{Creditor}[$i];
+				unless (defined $acct_names{$acct}) {
+					next if $acct =~ /^TrnsfrPot\d$/;
+					$tg_fail = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)";
+					last;
+				}
+				next if exists $summary{$acct};
+				$summary{$acct} = 0;
+				foreach my $j ($i .. $#{$tgdetails{Creditor}}) {
+					next unless $tgdetails{Creditor}[$j] eq $acct;
+					$summary{$acct} += $tgdetails{Amount}[$j];
+				}
+				$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
 			}
-			next if exists $summary{$acct};
-			$summary{$acct} = 0;
-			foreach my $j ($i .. $#{$tgdetails{Creditor}}) {
-				next unless $tgdetails{Creditor}[$j] eq $acct;
-				$summary{$acct} += $tgdetails{Amount}[$j];
+			foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)]) {
+				next if $acct eq 'TrnsfrPot';
+				$tg_fail = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)" unless (defined $acct_names{$acct});
 			}
-			$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
-		}
-		foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)]) {
-			next if $acct eq 'TrnsfrPot';
-			$sum_str = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)  " unless (defined $acct_names{$acct});
 		}
 
 		my %outputdetails = (
 			ACC => $tg,
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
-			SUMMARY => substr($sum_str, 0, -2),
+			BROKEN => $tg_fail,
+			SUMMARY => $tg_fail ? $tg_fail : substr($sum_str, 0, -2),
 		);
 		push(@tglist, \%outputdetails);
 	}
