@@ -627,11 +627,12 @@ sub despatch_admin
 		my $edit_acct = clean_username($cgi->param('eacct'));
 		my $person = defined $cgi->param('email');
 		my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
-		my $new_acct = validate_acctname($cgi->param('account'), $whinge);
+		my $new_acct;
 		my $root = $config{Root};
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
 
 		if (defined $cgi->param('save')) {
+			$new_acct = validate_acctname($cgi->param('account'), $whinge);
 			my $fullname = clean_words($cgi->param('fullname'));
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
