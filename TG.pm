@@ -139,6 +139,7 @@ sub stround
 sub compute_tg
 {
 	my %tg = %{$_[0]};
+	my %neg_accts = %{$_[1]};
 	my $die = sub { confess $_[0] };
 
 	my @cred_accts = validate_tg(\%tg, $die);
@@ -161,27 +162,47 @@ sub compute_tg
 
 	my @tp_net = (0) x 10;
 	my @tp_shares = ([(0) x scalar @head_accts]) x 10;
+	my $neg_error = 0;
 	foreach my $row (0 .. $#cred_accts) {
 		next unless defined $cred_accts[$row];
 		$relevant_accts{$tg{Creditor}[$row]} += $tg{Amount}[$row] unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
+		if (exists $neg_accts{$tg{Creditor}[$row]}) {
+			$neg_error += 2 * $tg{Amount}[$row];
+			$tg{Amount}[$row] *= -1;
+		}
 		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (exists $tg{TrnsfrPot} and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
 			$tp_net[$1] += $tg{Amount}[$row] if exists $tg{TrnsfrPot} and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/;
 			$tp_shares[$1][$_] += $tg{$head_accts[$_]}[$row] foreach (0 .. $#head_accts);
 		} else {
 			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
 			my $share_sum = sum @shares;
-			$relevant_accts{$head_accts[$_]} -= $tg{Amount}[$row] * $shares[$_] / $share_sum foreach (0 .. $#head_accts);
+			foreach (0 .. $#head_accts) {
+				my $amnt = $tg{Amount}[$row] * $shares[$_] / $share_sum;
+				if (exists $neg_accts{$head_accts[$_]}) {
+					$neg_error += 2 * $amnt;
+					$amnt *= -1;
+				}
+				$relevant_accts{$head_accts[$_]} -= $amnt;
+			}
 		}
 	}
 	foreach my $tp (1 .. 9) {
 		next if $tp_net[$tp] == 0;
 		my $share_sum = sum @{$tp_shares[$tp]};
-		$relevant_accts{$head_accts[$_]} -= $tp_net[$tp] * $tp_shares[$tp][$_] / $share_sum foreach (0 .. $#head_accts);
+		foreach (0 .. $#head_accts) {
+			my $amnt = $tp_net[$tp] * $tp_shares[$tp][$_] / $share_sum;
+			if (exists $neg_accts{$head_accts[$_]}) {
+				$neg_error += 2 * $amnt;
+				$amnt *= -1;
+			}
+			$relevant_accts{$head_accts[$_]} -= $amnt;
+		}
 	}
 
 	my (%pennies, %resid);
 	@pennies{keys %relevant_accts} = map (stround($_, 2), values %relevant_accts);
-	for (my $loops = scalar keys %pennies; abs (sum values %pennies) > .0001 and $loops; $loops--) {
+	$neg_error = stround($neg_error, 2);
+	for (my $loops = scalar keys %pennies; abs ($neg_error - sum values %pennies) > .0001 and $loops; $loops--) {
 		@resid{keys %relevant_accts} = map ($relevant_accts{$_} - $pennies{$_}, keys %relevant_accts);
 
 		my $maxkey;
@@ -195,7 +216,7 @@ sub compute_tg
 		$pennies{$maxkey} += $resid{$maxkey} < 0 ? -.01 : .01;
 		$relevant_accts{$maxkey} = $pennies{$maxkey};
 	}
-	die 'Couldn\'t balance TG' if abs (sum values %pennies) > .0001;
+	die 'Couldn\'t balance TG' if abs ($neg_error - sum values %pennies) > .0001;
 
 	return %pennies;
 }

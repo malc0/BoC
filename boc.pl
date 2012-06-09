@@ -553,6 +553,7 @@ sub gen_add_edit_acc
 		$tmpl->param(NAME => $acctdetails{Name});
 		$tmpl->param(EMAIL => $acctdetails{email});
 		$tmpl->param(ADDRESS => $acctdetails{Address});
+		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
 	$tmpl->param(USER_ACCT => 1) if $person;
 
@@ -655,6 +656,7 @@ sub despatch_admin
 				$userdetails{Address} = $address;
 			} else {
 				(mkdir $acct_path or die) unless (-d $acct_path);
+				(defined $cgi->param('is_negated')) ? $userdetails{IsNegated} = undef : delete $userdetails{IsNegated};
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
@@ -850,7 +852,8 @@ sub gen_ucp
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_tgs) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
-		my %computed = eval { compute_tg(\%tgdetails) };
+		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+		my %computed = eval { compute_tg(\%tgdetails, \%neg_accts) };
 		my $tg_broken = ($@ ne '');
 		next unless exists $computed{$user} or $tg_broken;
 
@@ -883,7 +886,8 @@ sub gen_accts_disp
 	foreach my $tg (glob("$config{Root}/transaction_groups/*")) {
 		my %tgdetails = read_tg($tg);
 		next if exists $tgdetails{Omit};
-		my %computed = eval { compute_tg(\%tgdetails) };
+		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+		my %computed = eval { compute_tg(\%tgdetails, \%neg_accts) };
 		if ($@) {
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;

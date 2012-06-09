@@ -21,6 +21,8 @@
 			<p><label>e-mail: <input type="text" name="email" value="<TMPL_VAR NAME=EMAIL>"/></label></p>
 			<!-- FIXME: college drop-down -->
 			<p><label>Real-world address/contact details: <textarea name="address" cols=40 rows=5><TMPL_VAR NAME=ADDRESS></textarea></label></p>
+			<TMPL_ELSE>
+			<p><label>Tranactions on this account are negated?: <input type="checkbox" name="is_negated" value="" <TMPL_IF NAME=IS_NEGATED>checked="checked"</TMPL_IF>/></label></p>
 			</TMPL_IF>
 
 			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="<TMPL_IF NAME=EACCT>Save changes<TMPL_ELSE>Add account</TMPL_IF>"/></p>
