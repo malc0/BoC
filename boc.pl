@@ -808,7 +808,7 @@ sub despatch_admin
 
 sub query_all_htsv_in_path
 {
-	my ($path, $key) = @_;
+	my ($path, $key, $all) = @_;
 
 	my @accts = glob("$path/*");
 	my %response;
@@ -816,7 +816,7 @@ sub query_all_htsv_in_path
 	foreach my $acct (@accts) {
 		my %acctdetails = read_htsv($acct);
 		$acct =~ /.*\/(.*)/;
-		$response{$1} = $acctdetails{$key};
+		$response{$1} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
 	}
 
 	return %response;
@@ -831,7 +831,7 @@ sub get_acct_name_map
 
 sub date_sorted_tgs
 {
-	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date');
+	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date', 1);
 	my %rtgds;
 	foreach (keys %tg_dates) {
 		$tg_dates{$_} = '0.0.0' unless defined $tg_dates{$_} and $tg_dates{$_} =~ /\s*\d*\s*\.\s*\d*\s*\.\s*\d*\s*/;
