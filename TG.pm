@@ -67,12 +67,13 @@ sub validate_tg
 		$whinge->("Unknown heading \"$_\"") unless exists $tg{$_};
 	}
 	foreach my $key (keys %tg) {
-		next if $key eq 'Date' or $key eq 'Name' or $key eq 'Headings';
+		next if $key eq 'Date' or $key eq 'Name' or $key eq 'Omit' or $key eq 'Headings';
 		$whinge->("Unlisted heading \"$key\"") unless scalar grep (/^$key$/, @{$tg{Headings}}) == 1;
 	}
 
 	$whinge->('Missing transaction group name') unless clean_text($tg{Name});
 	$whinge->('Unparsable date') unless clean_date($tg{Date});
+	$whinge->('\'Omit\' keyword should not have a value') if defined $tg{Omit};
 
 	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
 	foreach (@all_head_accts) {

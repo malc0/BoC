@@ -15,6 +15,8 @@
 
 			<TMPL_IF NAME=RO><p>Date: <TMPL_VAR NAME=DATE></p><TMPL_ELSE><p><label>Date: <input type="text" value="<TMPL_VAR NAME=DATE>" name="tg_date"/></label></p></TMPL_IF>
 
+			<p><label>Omit from inclusion?: <input type="checkbox" name="omit" value="" <TMPL_IF NAME=OMIT>checked="checked"</TMPL_IF> <TMPL_IF NAME=RO>disabled="disabled"</TMPL_IF>/></label></p>
+
 			<table border=1>
 				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Transfer Pot</th><th rowspan=2>Description</th></tr>
 				<tr><TMPL_LOOP NAME=HEADINGS><th <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>

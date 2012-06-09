@@ -856,6 +856,7 @@ sub gen_ucp
 
 		my %outputdetails = (
 			ACC => $tg,
+			OMITTED => (exists $tgdetails{Omit}),
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
 			BROKEN => $tg_broken,
@@ -880,7 +881,9 @@ sub gen_accts_disp
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
 	my %running;
 	foreach my $tg (glob("$config{Root}/transaction_groups/*")) {
-		my %computed = eval { compute_tg(\%{{read_tg($tg)}}) };
+		my %tgdetails = read_tg($tg);
+		next if exists $tgdetails{Omit};
+		my %computed = eval { compute_tg(\%tgdetails) };
 		if ($@) {
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;
@@ -1015,6 +1018,7 @@ sub gen_manage_tgs
 
 		my %outputdetails = (
 			ACC => $tg,
+			OMITTED => (exists $tgdetails{Omit}),
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
 			BROKEN => $tg_fail,
@@ -1087,6 +1091,7 @@ sub gen_tg
 	$tmpl->param(RO => (!$edit_mode and $tg_file));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
+	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
 	$tmpl->param(NOACCTS => scalar @sorted_accts);
 	my @headings;
 	foreach my $key (@{$tgdetails{Headings}}) {
@@ -1134,6 +1139,7 @@ sub clean_tg
 
 	$newtg{Name} = $tg->{Name};
 	$newtg{Date} = $tg->{Date};
+	$newtg{Omit} = undef if exists $tg->{Omit};
 
 	foreach my $row (0 .. $#$compact_creds) {
 		next unless $$compact_creds[$row];
@@ -1336,6 +1342,7 @@ sub despatch_user
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
+			(defined $cgi->param('omit')) ? $tg{Omit} = undef : delete $tg{Omit};
 
 			my $max_rows = -1;
 			$max_rows++ while ($max_rows < 100 and defined $cgi->param("Creditor_" . ($max_rows + 1)));

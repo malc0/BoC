@@ -24,14 +24,14 @@
 			<table border=1>
 				<tr><th>Name</th><th>Date</th><th>Value</th></tr>
 				<TMPL_LOOP NAME=CREDITS>
-				<tr><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td <TMPL_IF NAME=BROKEN>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=SUMMARY></td></tr>
+				<tr <TMPL_IF NAME=OMITTED>bgcolor="grey"</TMPL_IF>><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td <TMPL_IF NAME=BROKEN>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=SUMMARY></td></tr>
 				</TMPL_LOOP>
 			</table>
 			<h2><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> debits</h2>
 			<table border=1>
 				<tr><th>Name</th><th>Date</th><th>Value</th></tr>
 				<TMPL_LOOP NAME=DEBITS>
-				<tr><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td <TMPL_IF NAME=BROKEN>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=SUMMARY></td></tr>
+				<tr <TMPL_IF NAME=OMITTED>bgcolor="grey"</TMPL_IF>><td><a href="boc.pl?tmpl=manage_tgs&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td <TMPL_IF NAME=BROKEN>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=SUMMARY></td></tr>
 				</TMPL_LOOP>
 			</table>
 			<TMPL_UNLESS NAME=ACCT>
