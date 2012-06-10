@@ -765,7 +765,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to installation config" : "Edit installation config cancelled", load_template('treasurer_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'edit_simp_trans') {
 		my $cfg_file = "$config{Root}/config_simp_trans";
@@ -804,7 +804,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to config" : "Edit config cancelled", load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to transaction config" : "Edit transaction config cancelled", load_template('treasurer_cp.html'));
 	}
 }
 
