@@ -11,7 +11,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(untaint encode_for_file encode_for_html clean_date clean_decimal clean_email clean_text clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal);
+our @EXPORT = qw(untaint encode_for_file encode_for_html clean_date clean_decimal clean_email clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname validate_unit);
 
 sub untaint
 {
@@ -63,6 +63,14 @@ sub clean_text
 	return undef unless defined $_[0];
 	return undef unless $_[0] =~ /^\s*(.+?)\s*$/s;
 	return encode_for_html($1);
+}
+
+sub clean_unit
+{
+	return undef unless defined $_[0];
+	$_[0] = uc ($_[0]);
+	return undef unless $_[0] =~ /^([A-Z\-+_.]*)$/;
+	return $1;
 }
 
 sub clean_username
@@ -133,4 +141,29 @@ sub validate_decimal
 	$whinge->("$type negative") if $neg_test and $val < 0;
 
 	return $val;
+}
+
+sub validate_unitname
+{
+	my ($unit, $whinge) = @_;
+
+	$unit = clean_unit($unit);
+
+	$whinge->('Disallowed characters in short code') unless defined $unit;
+	$whinge->('Short code too short') if length $unit < 1;
+	$whinge->('Short code too long') if length $unit > 4;
+
+	return $unit;
+}
+
+sub validate_unit
+{
+	my ($unit, $valid_ref, $whinge) = @_;
+
+	$unit = clean_unit($unit);
+
+	$whinge->('Disallowed characters in currency code') unless defined $unit;
+	$whinge->("Non-existent unit \"$unit\"") unless grep (/^$unit$/, @$valid_ref);
+
+	return $unit;
 }
