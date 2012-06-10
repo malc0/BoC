@@ -1,0 +1,35 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> currencies</title>
+	</head>
+	<body>
+		<h1>Currency configuration</h1>
+
+		<h3>Beware: changing a code defining an existing unit will re-code that unit, not create a new one.</h3>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="edit_units"/>
+			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
+			
+			<table border=1>
+				<tr><th>Currency description</th><th>Short code</th><th>Commodity</th><th>Anchor currency</th><th>Presentation default</th></tr>
+
+				<TMPL_LOOP NAME=ROWS><tr>
+					<td><input type="text" value="<TMPL_VAR NAME=D>" name="Description_<TMPL_VAR NAME=R>"/></td>
+					<td><input type="text" value="<TMPL_VAR NAME=C>" name="Code_<TMPL_VAR NAME=R>"/></td>
+					<td><input type="checkbox" value="" name="Commodity_<TMPL_VAR NAME=R>" <TMPL_IF NAME=A>checked="checked"</TMPL_IF>/></td>
+					<td><input type="radio" value="<TMPL_VAR NAME=R>" name="Anchor" <TMPL_IF NAME=B>checked="checked"</TMPL_IF>/></td>
+					<td><input type="radio" value="<TMPL_VAR NAME=R>" name="Default" <TMPL_IF NAME=P>checked="checked"</TMPL_IF>/></td>
+				</tr>
+				</TMPL_LOOP>
+			</table>
+
+			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="rates" value="Proceed to set exchange rates"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>

@@ -23,9 +23,10 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_text clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal);
+use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname);
 use HeadedTSV;
 use TG;
+use Units;
 
 our %config;
 our $git;
@@ -547,6 +548,21 @@ sub gen_edit_simp_trans
 	return $tmpl;
 }
 
+sub gen_edit_units
+{
+	my $tmpl = load_template('edit_units.html', $_[0]);
+
+	my %cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%cfg);
+	my $num_rows = (scalar @units > 0) ? (scalar @units) + 3 : 5;
+	my @rows = map ({ D => $cfg{$_}, C => $_, A => !!($cfg{Commodities} =~ /(^|;)$_($|;)/), B => ($cfg{Anchor} eq $_), P => ($cfg{Default} eq $_), R => $_ }, @units);
+	push (@rows, { D => '', C => '', B => 0, A => 0, P => 0, R => $_ }) foreach (scalar @units .. ($num_rows - 1));
+
+	$tmpl->param(ROWS => \@rows);
+
+	return $tmpl;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -576,6 +592,10 @@ sub despatch_admin
 		if (defined $cgi->param('edit_simp_trans')) {
 			$whinge->() unless try_lock("$config{Root}/config_simp_trans", $sessid);
 			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
+		}
+		if (defined $cgi->param('edit_units')) {
+			$whinge->() unless try_lock("$config{Root}/config_units", $sessid);
+			emit(gen_edit_units(get_edit_token($sessid, 'edit_units')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_acct') {
@@ -759,6 +779,79 @@ sub despatch_admin
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to transaction config" : "Edit transaction config cancelled", load_template('treasurer_cp.html'));
+	}
+	if ($cgi->param('tmpl') eq 'edit_units') {
+		my $cfg_file = "$config{Root}/config_units";
+
+		if (defined $cgi->param('rates')) {
+			my $whinge = sub { whinge($_[0], gen_edit_units($etoken)) };
+			my @rows = map {/^Description_(.*)/; $1} grep (/^Description_.+$/, $cgi->param);
+
+			$whinge->('No currencies?') unless scalar @rows;
+
+			my %cfg = read_units_cfg($cfg_file, 1);
+			foreach (keys %cfg) {
+				delete $cfg{$_} unless ref $cfg{$_};
+			}
+
+			$cfg{Commodities} = '';
+			my $anchor_set = 0;
+			my $pres_set = 0;
+
+			foreach my $row (@rows) {
+				my $code = clean_unit($cgi->param("Code_$row"));
+				my $desc = clean_words($cgi->param("Description_$row"));
+				next unless $code or $desc;
+				$whinge->('Missing/invalid short code') unless $code;
+				validate_unitname($code, $whinge);
+				unless ($row =~ /^\d+$/ or $code eq $row) {
+					# renaming!
+					foreach my $key (keys %cfg) {
+						if (ref $cfg{$key} and $key =~ /^$row\/(.*)$/) {
+							my $new = "$code/$1";
+							s/^$key$/$new/ foreach (@{$cfg{Headings}});
+							$cfg{$new} = $cfg{$key};
+							delete $cfg{$key};
+						}
+						if (ref $cfg{$key} and $key =~ /^(.*)\/$row$/) {
+							my $new = "$1/$code";
+							s/^$key$/$new/ foreach (@{$cfg{Headings}});
+							$cfg{$new} = $cfg{$key};
+							delete $cfg{$key};
+						}
+					}
+					# FIX TGs for currency re-coding? (FIXME)
+				}
+				$cfg{$code} = $desc;
+
+				$cfg{Commodities} .= "$code;" if defined $cgi->param("Commodity_$row");
+				if (defined $cgi->param('Anchor') and $cgi->param('Anchor') eq $row) {
+					$whinge->('More than one anchor currency?') if $anchor_set;
+					$cfg{Anchor} = $code;
+					$anchor_set = 1;
+				}
+				if (defined $cgi->param('Default') and $cgi->param('Default') eq $row) {
+					$whinge->('More than one presentation currency?') if $pres_set;
+					$cfg{Default} = $code;
+					$pres_set = 1;
+				}
+			}
+			$cfg{Commodities} =~ s/;$//;
+
+			validate_units(\%cfg, $whinge, 1);
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
+			try_commit_and_unlock(sub {
+				write_units_cfg($cfg_file, \%cfg);
+				add_commit($cfg_file, 'config_units: units modified', $session);
+			}, $cfg_file);
+		} else {
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_units', $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('rates')) ? 'Saved edits to units config' : 'Edit units config cancelled', load_template('treasurer_cp.html'));
 	}
 }
 
@@ -1369,6 +1462,8 @@ $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
 $ENV{PATH} = "/bin:/usr/bin";
 $git = Git::Wrapper->new($config{Root});
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
+
+init_units_cfg("$config{Root}/config_units");
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;
