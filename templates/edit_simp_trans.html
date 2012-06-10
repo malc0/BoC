@@ -12,7 +12,7 @@
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
 
 			<table border=1>
-				<th>Transaction description</th><th>Debit account</th>
+				<tr><th>Transaction description</th><th>Debit account</th></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr>
 					<td><input type="text" value="<TMPL_VAR NAME=D>" name="Description_<TMPL_VAR NAME=R>"/></td>
