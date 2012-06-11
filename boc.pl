@@ -563,6 +563,62 @@ sub gen_edit_units
 	return $tmpl;
 }
 
+sub gen_edit_rates
+{
+	my $tmpl = load_template('edit_rates.html', $_[0]);
+
+	my %cfg = read_units_cfg("$config{Root}/config_units.p1");
+	# note that similarly to gen_tg we don't validate here -- the form has to give the opportunity to correct invalid data
+	# we make a best-efforts attempt to parse the file here, and display it, but ultimately if our parsing is shit
+	# it doesn't matter, as it won't validate correctly when attempting to save
+
+	my @units = known_units(%cfg);
+	my %curs;
+	foreach (@units) {
+		$curs{$_} = 1 unless $cfg{Commodities} =~ /(^|;)$_($|;)/;
+	}
+
+	@units = grep (!/^$cfg{Anchor}$/, @units);	# exclude self-referencing rate henceforth
+
+	my %in;
+	foreach my $unit (@units) {
+		$in{$unit} = $cfg{Anchor};
+		my @try_in = grep (/\/$unit$/, @{$cfg{Headings}});
+		next if scalar @try_in < 1;
+		($in{$unit} = $try_in[0]) =~ s/\/.*//;
+		$in{$unit} = undef unless exists $cfg{$in{$unit}};	# deal with disappearing denominators
+	}
+
+	my @heads;
+	foreach my $unit (@units) {
+		my @currencies = map ({ C => $_, S => $_ eq $in{$unit} }, keys %curs);
+		push (@heads, { COMMOD => (not exists $curs{$unit}), ONECUR => (scalar keys %curs < 2), ANCHOR => $cfg{Anchor}, U => $unit, CURS => \@currencies });
+	}
+	$tmpl->param(HEADINGS => \@heads);
+
+	my @blankrates = map ({ X => '', U => $_ }, @units);
+	my @rows;
+	if (exists $cfg{Date} and scalar @{$cfg{Date}}) {
+		my $counter = 0;
+		push (@rows, { DATE => '', R => $counter++, RATES => \@blankrates });
+		foreach my $row (0 .. $#{$cfg{Date}}) {
+			my @rates;
+			foreach (@units) {
+				my $str = (exists $curs{$_}) ? "$_/$in{$_}" : "$in{$_}/$_";
+				push (@rates, { X => ((exists $cfg{$str}) ? $cfg{$str}[$row] : ''), U => $_ });
+			}
+			push (@rows, { DATE => $cfg{Date}[$row], R => $counter++, RATES => \@rates });
+			push (@rows, { DATE => '', R => $counter++, RATES => \@blankrates });
+		}
+		push (@rows, { DATE => '', R => $counter++, RATES => \@blankrates });
+	} else {
+		@rows = map ({ DATE => '', R => $_, RATES => \@blankrates }, 0 .. 4);
+	}
+	$tmpl->param(ROWS => \@rows);
+
+	return $tmpl;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -797,6 +853,7 @@ sub despatch_admin
 			$cfg{Commodities} = '';
 			my $anchor_set = 0;
 			my $pres_set = 0;
+			my $nunits = 0;
 
 			foreach my $row (@rows) {
 				my $code = clean_unit($cgi->param("Code_$row"));
@@ -823,6 +880,7 @@ sub despatch_admin
 					# FIX TGs for currency re-coding? (FIXME)
 				}
 				$cfg{$code} = $desc;
+				$nunits++;
 
 				$cfg{Commodities} .= "$code;" if defined $cgi->param("Commodity_$row");
 				if (defined $cgi->param('Anchor') and $cgi->param('Anchor') eq $row) {
@@ -840,18 +898,98 @@ sub despatch_admin
 
 			validate_units(\%cfg, $whinge, 1);
 
+			if ($nunits < 2) {
+				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+				bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
+				try_commit_and_unlock(sub {
+					write_units_cfg($cfg_file, \%cfg);
+					add_commit($cfg_file, 'config_units: units/rates modified', $session);
+				}, $cfg_file);
+				emit_with_status('Saved edits to units config (rate setting inapplicable)', load_template('treasurer_cp.html'));
+			} else {
+				write_units_cfg("$cfg_file.p1", \%cfg);
+
+				emit(gen_edit_rates($etoken));
+			}
+		} else {
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_units', $etoken);
+			emit_with_status('Edit units config cancelled', load_template('treasurer_cp.html'));
+		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_rates') {
+		my $cfg_file = "$config{Root}/config_units";
+
+		if (defined $cgi->param('save')) {
+			my $whinge = sub { whinge($_[0], gen_edit_rates($etoken)) };
+
+			my $max_rows = -1;
+			$max_rows++ while ($max_rows < 100 and defined $cgi->param('Date_' . ($max_rows + 1)));
+			$whinge->('No rates?') unless $max_rows >= 0;
+
+			my %cfg = read_units_cfg("$cfg_file.p1");	# presume we got here having successfully just defined units
+			foreach (keys %cfg) {
+				delete $cfg{$_} if ref $cfg{$_};
+			}
+
+			my @units = known_units(%cfg);
+			my %curs;
+			foreach (@units) {
+				$curs{$_} = 1 unless $cfg{Commodities} =~ /(^|;)$_($|;)/;
+			}
+
+			@{$cfg{Headings}} = ( 'Date' );
+			foreach (@units) {
+				next if $_ eq $cfg{Anchor};
+				if (exists $curs{$_}) {
+					push (@{$cfg{Headings}}, "$_/$cfg{Anchor}");
+				} elsif (scalar keys %curs == 1) {
+					push (@{$cfg{Headings}}, "$cfg{Anchor}/$_");
+				} else {
+					my $in = clean_unit($cgi->param("Denom_$_"));
+					$whinge->("No valid defining currency for $_") unless $in;
+					push (@{$cfg{Headings}}, "$in/$_");
+				}
+			}
+
+			my $added = 0;
+			foreach my $row (0 .. $max_rows) {
+				my $rate_found = 0;
+				my %row;
+				foreach (@{$cfg{Headings}}) {
+					next if $_ eq 'Date';
+					(my $unit = $_) =~ s/.*\///;
+					($unit = $_) =~ s/\/.*// if $unit eq $cfg{Anchor};
+					my $ex = $cgi->param("Rate_${row}_$unit");	# I have precisely no idea why this intermediate is necessary
+					my $rate = validate_decimal($ex, 'Exchange rate', 1, $whinge);
+					$rate_found = 1 unless $rate == 0;
+					$row{$_} = ($rate != 0) ? $rate : undef;
+				}
+				if ($rate_found) {
+					$row{Date} = validate_date($cgi->param("Date_$row"), $whinge);
+					push (@{$cfg{$_}}, $row{$_}) foreach (@{$cfg{Headings}});
+					$added++;
+				}
+			}
+			$whinge->('No rates set') unless $added;
+
+			validate_units(\%cfg, $whinge);
+			%cfg = date_sort_rates(%cfg);
+
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
 			try_commit_and_unlock(sub {
 				write_units_cfg($cfg_file, \%cfg);
-				add_commit($cfg_file, 'config_units: units modified', $session);
+				add_commit($cfg_file, 'config_units: units/rates modified', $session);
+				unlink "$cfg_file.p1";
 			}, $cfg_file);
 		} else {
+			unlink "$cfg_file.p1";
 			unlock($cfg_file);
 			redeem_edit_token($sessid, 'edit_units', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('rates')) ? 'Saved edits to units config' : 'Edit units config cancelled', load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to units config' : 'Edit units config cancelled', load_template('treasurer_cp.html'));
 	}
 }
 

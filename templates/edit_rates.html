@@ -1,0 +1,41 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> exchange rates</title>
+	</head>
+	<body>
+		<h1>Exchange rate configuration</h1>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="edit_rates"/>
+			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
+			
+			<table border=1>
+				<tr>
+					<th>Date</th>
+					<TMPL_LOOP NAME=HEADINGS><th><TMPL_IF NAME=COMMOD><TMPL_IF NAME=ONECUR><TMPL_VAR NAME=ANCHOR>/<TMPL_ELSE>
+						<select name="Denom_<TMPL_VAR NAME=U>">
+							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
+							</TMPL_LOOP>
+						</select>/
+						</TMPL_IF></TMPL_IF><TMPL_VAR NAME=U><TMPL_UNLESS NAME=COMMOD>/<TMPL_VAR NAME=ANCHOR></TMPL_UNLESS></th>
+					</TMPL_LOOP>
+				</tr>
+
+				<TMPL_LOOP NAME=ROWS><tr>
+					<td><input type="text" value="<TMPL_VAR NAME=DATE>" name="Date_<TMPL_VAR NAME=R>"/></td>
+					<TMPL_LOOP NAME=RATES><td><input type="text" value="<TMPL_VAR NAME=X>" name="Rate_<TMPL_VAR NAME=R>_<TMPL_VAR NAME=U>"/></td>
+					</TMPL_LOOP>
+				</tr>
+				</TMPL_LOOP>
+			</table>
+
+			<p><i>Warning: cancelling now will discard any changes made in previous page</i></p>
+			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>
