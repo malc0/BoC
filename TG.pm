@@ -7,8 +7,9 @@ use warnings;
 use Carp;
 use List::Util qw(sum);
 
-use CleanData qw(clean_date clean_decimal clean_text clean_username validate_acct validate_acctname validate_decimal);
+use CleanData qw(clean_date clean_decimal clean_text clean_username validate_acct validate_acctname validate_decimal validate_unit);
 use HeadedTSV;
+use Units qw(known_units);
 
 our $VERSION = '1.00';
 
@@ -26,6 +27,7 @@ sub read_tg
 
 	foreach my $col (@{$content{Headings}}) {
 		next if $col eq 'Creditor';
+		next if $col eq 'Currency';
 		next if $col eq 'Description';
 		next if $col eq 'TrnsfrPot';
 		if ($col eq 'Amount') {
@@ -75,7 +77,7 @@ sub validate_tg
 	$whinge->('Unparsable date') unless clean_date($tg{Date});
 	$whinge->('\'Omit\' keyword should not have a value') if defined $tg{Omit};
 
-	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
+	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
 	foreach (@all_head_accts) {
 		validate_acctname($_, $whinge);
 		validate_acct($_, $valid_accts, $whinge) if $valid_accts;
@@ -85,6 +87,9 @@ sub validate_tg
 		validate_acctname($_, $whinge) unless $_ =~ /^TrnsfrPot[1-9]$/;
 		validate_acct($_, $valid_accts, $whinge) if $valid_accts and not $_ =~ /^TrnsfrPot[1-9]$/;
 	}
+
+	my @valid_units = known_units();
+	$whinge->('No currency data') if scalar @valid_units > 1 and not exists $tg{Currency};
 
 	foreach my $row (0 .. $#cred_accts) {
 		my $debtors = 0;
@@ -108,6 +113,7 @@ sub validate_tg
 			my $amnt = validate_decimal($tg{Amount}[$row], 'Amount', undef, $whinge);
 			$whinge->('Missing debtor(s)') if $amnt != 0 and $debtors == 0;
 			$whinge->('Missing amount') if $amnt == 0 and $debtors == 1;
+			validate_unit($tg{Currency}[$row], \@valid_units, $whinge) if exists $tg{Currency};
 			if ($amnt == 0 and $debtors == 0) {
 				$whinge->('Creditor but no amount or debtor(s)') if $tg{Creditor}[$row] ne $unset_cred;
 				$whinge->('Description but no amount or debtor(s)') if clean_text($tg{Description}[$row]);
@@ -144,7 +150,7 @@ sub compute_tg
 
 	my @cred_accts = validate_tg(\%tg, $die);
 
-	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
+	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
 	my %relevant_accts;
 
 	foreach my $row (0 .. $#cred_accts) {

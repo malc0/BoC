@@ -1189,9 +1189,8 @@ sub gen_manage_tgs
 				next if $acct =~ /^TrnsfrPot\d$/;
 				next if exists $summary{$acct};
 				$summary{$acct} = 0;
-				foreach my $j ($i .. $#{$tgdetails{Creditor}}) {
-					next unless $tgdetails{Creditor}[$j] eq $acct;
-					$summary{$acct} += $tgdetails{Amount}[$j];
+				foreach my $_ ($i .. $#{$tgdetails{Creditor}}) {
+					$summary{$acct} += $tgdetails{Amount}[$_] if $tgdetails{Creditor}[$_] eq $acct;
 				}
 				$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
 			}
@@ -1232,9 +1231,11 @@ sub gen_tg
 {
 	my ($tg_file, $view_mode, $session, $etoken) = @_;
 	my %tgdetails;
+	my $init_creds = 0;
 
 	if ($tg_file) {
 		%tgdetails = read_tg($tg_file);
+		$init_creds = scalar @{$tgdetails{Creditor}};
 		push (@{$tgdetails{Creditor}}, ($session->param('User')) x min(5, 100 - scalar @{$tgdetails{Creditor}})) unless $view_mode;
 	} else {
 		push (@{$tgdetails{Creditor}}, ($session->param('User')) x 10);
@@ -1247,6 +1248,7 @@ sub gen_tg
 	my %unknown;
 	my @tps_in_use;
 	foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
+		next if $acct eq 'Currency';
 		$unknown{$acct} = $acct unless $acct =~ /^TrnsfrPot\d?$/ or exists $ppl{$acct} or exists $vaccts{$acct};
 		$tps_in_use[$1] = 1 if ($acct =~ /^TrnsfrPot(\d)$/);
 	}
@@ -1261,28 +1263,43 @@ sub gen_tg
 	}
 	my %acct_names = (%unknown, %ppl, %vaccts, %tps);
 	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
 
 	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_accts);
+	push (@{$tgdetails{Currency}}, ('') x ($init_creds - scalar @{$tgdetails{Currency}})) if scalar @units > 1;
+	push (@{$tgdetails{Currency}}, ($units_cfg{Default}) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{Currency}})) if scalar @units;
+
+	my @allunits = @units;
+	foreach my $cur (@{$tgdetails{Currency}}) {
+		push (@allunits, $cur) if defined $cur and not grep (/^$cur$/, @allunits);
+	}
 
 	$tmpl->param(TG_ID => $1) if ($tg_file and $tg_file =~ /\/([^\/]+)$/);
 	$tmpl->param(RO => $view_mode);
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
+	$tmpl->param(CURCOL => scalar @allunits > 1);
 	$tmpl->param(NOACCTS => scalar @sorted_accts);
 	$tmpl->param(HEADINGS => [ map ({ H => $acct_names{$_}, U => exists $unknown{$_} }, @sorted_accts) ]);
 
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
 		my @creditors = map ({ O => $acct_names{$_}, V => $_, S => $tgdetails{Creditor}[$row] eq $_, TP => exists $tps{$_} }, (@sorted_accts, sort_AoH(\%tps)));
+		my $unk_cur = (not defined $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units));
+		my @currencies = map ({ C => $_, S => (defined $tgdetails{Currency}[$row] and $_ eq $tgdetails{Currency}[$row]) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
 		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", U => exists $unknown{$_} }, ( @sorted_accts, 'TrnsfrPot', 'Description' ));
 		push (@rows, { U => exists $unknown{@{$tgdetails{Creditor}}[$row]},
 			       R => $row,
 			       CREDS => \@creditors,
+			       UC => (not exists $tps{@{$tgdetails{Creditor}}[$row]} and (not $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units))),
+			       CURS => \@currencies,
 			       A => $tgdetails{Amount}[$row],
 			       RC => \@rowcontents });
 	}
 	$tmpl->param(ROWS => \@rows);
+	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
 
 	return $tmpl;
 }
@@ -1515,7 +1532,7 @@ sub despatch_user
 			$whinge->('No transactions?') unless $max_rows >= 0;
 
 			my %acct_names = get_acct_name_map;
-			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
+			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
 			my (%ppl, %vaccts);
 			foreach my $acct (@accts) {
 				unless (exists $acct_names{$acct}) {
@@ -1529,14 +1546,17 @@ sub despatch_user
 				((-r "$config{Root}/users/$acct") ? $ppl{$acct} : $vaccts{$acct}) = $acct_names{$acct};
 			}
 
+			my @units = known_units();
 			foreach my $row (0 .. $max_rows) {
 				push (@{$tg{Creditor}}, clean_word($cgi->param("Creditor_$row")));
 				push (@{$tg{Amount}}, clean_word($cgi->param("Amount_$row")));
+				push (@{$tg{Currency}}, (scalar @units > 1) ? clean_word($cgi->param("Currency_$row")) : $units[0]) if (scalar @units);
 				push (@{$tg{$_}}, clean_word($cgi->param("${_}_$row"))) foreach (keys %ppl, keys %vaccts);
 				push (@{$tg{TrnsfrPot}}, clean_word($cgi->param("TrnsfrPot_$row")));
 				push (@{$tg{Description}}, clean_words($cgi->param("Description_$row")));
 			}
 			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', 'TrnsfrPot', \%ppl, \%vaccts, 'Description');
+			splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
 			my @cred_accts = validate_tg(\%tg, $whinge, \%acct_names, $session->param('User'));
 
