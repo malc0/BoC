@@ -411,7 +411,7 @@ sub login
 	my $pass = $cgi->param('pass');
 	my $whinge = sub { whinge('Login failed!', load_template('login.html')) };
 
-	$whinge->() unless (-r "$config{Root}/users/$user");
+	$whinge->() unless $user and (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
 	$whinge->() unless defined $userdetails{Password};
 
@@ -447,7 +447,7 @@ sub login_nopw
 	my ($cgi, $userdetout) = @_;
 	my $user = clean_username($cgi->param('user'));
 
-	whinge('Login failed!', gen_login_nopw) unless (-r "$config{Root}/users/$user");
+	whinge('Login failed!', gen_login_nopw) unless $user and (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
 	return 'No PW login on account with password set?' if defined $userdetails{Password};
 
