@@ -1089,7 +1089,7 @@ sub gen_tg
 		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
 		push (@{$tgdetails{$acct}}, (0) x (scalar @{$tgdetails{Creditor}} - $lower));
 	}
-	@{$tgdetails{Headings}} = ('Creditor', 'Amount', @sorted_accts, 'TrnsfrPot', 'Description');
+	@{$tgdetails{Headings}} = ( 'Creditor', 'Amount', @sorted_accts, 'TrnsfrPot', 'Description' );
 
 	$tmpl->param(TG_ID => $1) if ($tg_file and $tg_file =~ /\/([^\/]+)$/);
 	$tmpl->param(RO => (!$edit_mode and $tg_file));
@@ -1221,7 +1221,7 @@ sub despatch_user
 			}
 			push (@{$tg{$debtor}}, 1);
 
-			@{$tg{Headings}} = ('Creditor', 'Amount', $debtor, 'Description');
+			@{$tg{Headings}} = ( 'Creditor', 'Amount', $debtor, 'Description' );
 
 			validate_tg(\%tg, $whinge);
 
@@ -1284,7 +1284,7 @@ sub despatch_user
 
 			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
 
-			@{$tg{Headings}} = ('Creditor', 'Amount' );
+			@{$tg{Headings}} = ( 'Creditor', 'Amount' );
 			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
 			push (@{$tg{Headings}}, $_) foreach sort_AoH(\%debts, 'Description');
 
