@@ -67,7 +67,7 @@ sub validate_tg
 		$whinge->("Unknown heading \"$_\"") unless exists $tg{$_};
 	}
 	foreach my $key (keys %tg) {
-		next if $key eq 'Date' or $key eq 'Name' or $key eq 'Omit' or $key eq 'Headings';
+		next if $key eq 'Headings' or not ref $tg{$key};
 		$whinge->("Unlisted heading \"$key\"") unless scalar grep (/^$key$/, @{$tg{Headings}}) == 1;
 	}
 
