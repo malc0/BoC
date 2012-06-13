@@ -1179,18 +1179,14 @@ sub gen_manage_tgs
 	foreach my $tg (date_sorted_tgs) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
-		validate_tg(\%tgdetails, sub { $tg_fail = $_[0] });
+		validate_tg(\%tgdetails, sub { $tg_fail = $_[0] }, \%acct_names);
 
 		my $sum_str = "";
 		unless ($tg_fail) {
 			my %summary;
 			foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
 				my $acct = $tgdetails{Creditor}[$i];
-				unless (defined $acct_names{$acct}) {
-					next if $acct =~ /^TrnsfrPot\d$/;
-					$tg_fail = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)";
-					last;
-				}
+				next if $acct =~ /^TrnsfrPot\d$/;
 				next if exists $summary{$acct};
 				$summary{$acct} = 0;
 				foreach my $j ($i .. $#{$tgdetails{Creditor}}) {
@@ -1198,10 +1194,6 @@ sub gen_manage_tgs
 					$summary{$acct} += $tgdetails{Amount}[$j];
 				}
 				$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
-			}
-			foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)]) {
-				next if $acct eq 'TrnsfrPot';
-				$tg_fail = "TRANSACTION GROUP REFERENCES UNKNOWN ACCOUNT ($acct)" unless (defined $acct_names{$acct});
 			}
 		}
 
@@ -1238,12 +1230,12 @@ sub sort_AoH
 
 sub gen_tg
 {
-	my ($tg_file, $edit_mode, $session, $etoken) = @_;
+	my ($tg_file, $view_mode, $session, $etoken) = @_;
 	my %tgdetails;
 
 	if ($tg_file) {
 		%tgdetails = read_tg($tg_file);
-		push (@{$tgdetails{Creditor}}, ($session->param('User')) x min(5, 100 - scalar @{$tgdetails{Creditor}})) if $edit_mode;
+		push (@{$tgdetails{Creditor}}, ($session->param('User')) x min(5, 100 - scalar @{$tgdetails{Creditor}})) unless $view_mode;
 	} else {
 		push (@{$tgdetails{Creditor}}, ($session->param('User')) x 10);
 	}
@@ -1254,7 +1246,7 @@ sub gen_tg
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %unknown;
 	my @tps_in_use;
-	foreach my $acct (@{$tgdetails{Headings}}[2..($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
+	foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
 		$unknown{$acct} = $acct unless $acct =~ /^TrnsfrPot\d?$/ or exists $ppl{$acct} or exists $vaccts{$acct};
 		$tps_in_use[$1] = 1 if ($acct =~ /^TrnsfrPot(\d)$/);
 	}
@@ -1270,40 +1262,25 @@ sub gen_tg
 	my %acct_names = (%unknown, %ppl, %vaccts, %tps);
 	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
 
-	foreach my $acct ('Amount', @sorted_accts) {
-		my $lower = exists $tgdetails{$acct} ? scalar(@{$tgdetails{$acct}}) : 0;
-		push (@{$tgdetails{$acct}}, (0) x (scalar @{$tgdetails{Creditor}} - $lower));
-	}
-	@{$tgdetails{Headings}} = ( 'Creditor', 'Amount', @sorted_accts, 'TrnsfrPot', 'Description' );
+	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_accts);
 
 	$tmpl->param(TG_ID => $1) if ($tg_file and $tg_file =~ /\/([^\/]+)$/);
-	$tmpl->param(RO => (!$edit_mode and $tg_file));
+	$tmpl->param(RO => $view_mode);
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
 	$tmpl->param(NOACCTS => scalar @sorted_accts);
-	my @headings;
-	foreach my $key (@{$tgdetails{Headings}}) {
-		next unless exists $acct_names{$key};
-		my %heading = ( H => $acct_names{$key}, U => exists $unknown{$key} );
-		push(@headings, \%heading);
-	}
-	$tmpl->param(HEADINGS => \@headings);
+	$tmpl->param(HEADINGS => [ map ({ H => $acct_names{$_}, U => exists $unknown{$_} }, @sorted_accts) ]);
 
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
-		my @rowoptions;
-		foreach my $key (@{$tgdetails{Headings}}, sort_AoH(\%tps)) {
-			next unless exists $acct_names{$key};
-			my %options = ( O => $acct_names{$key}, V => $key, S => $tgdetails{Creditor}[$row] eq $key, TP => exists $tps{$key} );
-			push (@rowoptions, \%options);
-		}
-		my @rowcontents;
-		foreach my $key (@{$tgdetails{Headings}}[1 .. $#{$tgdetails{Headings}}]) {
-			my %data = ( D => $tgdetails{$key}[$row], N => "${key}_$row", U => exists $unknown{$key} );
-			push (@rowcontents, \%data);
-		}
-		push (@rows, { R => \@rowcontents, CREDS => \@rowoptions, CRNAME => "Creditor_$row", U => exists $unknown{@{$tgdetails{Creditor}}[$row]} });
+		my @creditors = map ({ O => $acct_names{$_}, V => $_, S => $tgdetails{Creditor}[$row] eq $_, TP => exists $tps{$_} }, (@sorted_accts, sort_AoH(\%tps)));
+		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", U => exists $unknown{$_} }, ( @sorted_accts, 'TrnsfrPot', 'Description' ));
+		push (@rows, { U => exists $unknown{@{$tgdetails{Creditor}}[$row]},
+			       R => $row,
+			       CREDS => \@creditors,
+			       A => $tgdetails{Amount}[$row],
+			       RC => \@rowcontents });
 	}
 	$tmpl->param(ROWS => \@rows);
 
@@ -1492,7 +1469,7 @@ sub despatch_user
 	}
 	if ($cgi->param('tmpl') eq 'accts_disp') {
 		if (defined $cgi->param('view')) {
-			emit(gen_ucp($session,  $cgi->param('view')));
+			emit(gen_ucp($session, $cgi->param('view')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
@@ -1505,7 +1482,7 @@ sub despatch_user
 				emit(gen_manage_tgs) unless (-r $tg);
 			}
 
-			my $tmpl = gen_tg($tg, 0, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
+			my $tmpl = gen_tg($tg, $view, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
 			$tmpl->param(DONE_TMPL => 'ucp') if $cgi->param('ucp_ret');
 			emit($tmpl);
 		}
@@ -1520,14 +1497,14 @@ sub despatch_user
 				unlock($tgfile);
 				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs);
 			}
-			emit(gen_tg($tgfile, 1, $session, get_edit_token($sessid, "edit_$edit_id")));
+			emit(gen_tg($tgfile, 0, $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
 
 		# only left with save and cancel now
 		my %tg;
 
 		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_tg($tgfile, 1, $session, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_tg($tgfile, 0, $session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
@@ -1581,7 +1558,7 @@ sub despatch_user
 
 		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 0, $session, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 1, $session, undef));
 		} else {
 			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", $cgi->param('done_tmpl') ? gen_ucp($session) : gen_manage_tgs);
 		}
