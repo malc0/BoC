@@ -124,9 +124,11 @@ sub validate_date
 {
 	my ($input, $whinge) = @_;
 
+	$whinge->('Missing date') unless defined $input;
+
 	my $pd_secs = clean_date($input);
 
-	$whinge->('Unparsable date') unless defined $pd_secs;
+	$whinge->("Unparsable date \"$input\"") unless defined $pd_secs;
 
 	return join ('.', ((localtime ($pd_secs))[3], (localtime ($pd_secs))[4] + 1, (localtime ($pd_secs))[5] + 1900));
 }
