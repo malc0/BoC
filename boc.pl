@@ -228,7 +228,8 @@ sub add_commit
 {
 	my ($file, $message, $userdata) = @_;
 	$git->add($file);
-	commit($message, $userdata);
+	my $statuses = $git->status;
+	commit($message, $userdata) if $statuses->get('indexed');
 }
 
 sub try_commit_and_unlock
@@ -237,6 +238,7 @@ sub try_commit_and_unlock
 
 	eval { $sub->() };
 	my $commit_fail = $@;
+#	say STDERR $@->output() if $@;
 	if ($commit_fail) {
 		eval { $git->reset({hard => 1}) };
 		eval { find({ wanted => sub { /^(.*\.new)$/ and unlink $1 }, untaint => 1}, $config{Root}) } unless $@;
