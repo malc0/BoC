@@ -1418,7 +1418,8 @@ sub despatch_user
 				$whinge->('Missing description') unless defined @{$tg{Description}}[0];
 				$debtor = validate_acct($cgi->param('Debtor'), \%acct_names, $whinge);
 				my @split_desc = split (' ', @{$tg{Description}}[0]);
-				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{@{$tg{Creditor}}[0]} for $split_desc[0]...";
+				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{@{$tg{Creditor}}[0]} for $split_desc[0]";
+				$tg{Name} .= ' [...]' if scalar @split_desc > 1;
 			} else {
 				my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 				my $type = clean_words($cgi->param('Debtor'));
