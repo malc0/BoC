@@ -19,7 +19,12 @@
 
 			<h2>Step 2: how much is it?</h2>
 			<!-- FIXME JS: verify negative input -->
-			<p><input type="text" value=0 name="Amount"/> <i>negative values transfer funds </i>from<i> your account</i></p>
+			<p><input type="text" value=0 name="Amount"/>
+			   <TMPL_IF NAME=CUR><select name="Currency">
+				<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</option>
+				</TMPL_LOOP>
+			   </select></TMPL_IF>
+			   <i>negative values transfer funds </i>from<i> your account</i></p>
 
 			<h2>Step 3: when was it incurred (enter as dd/mm/yy or 'today', 'last Friday', etc.)?</h2>
 			<p><input type="text" name="tg_date"/></p>

@@ -1173,6 +1173,9 @@ sub gen_add_swap
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @sorted_accts = sort_AoH(\%accts);
 	my @pploptions = map ({ O => $accts{$_}, V => $_, S => $session->param('User') eq $_ }, @sorted_accts);
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
+	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $units_cfg{Default} eq $_ }, @units);
 
 	my @debtaccts;
 	if ($swap) {
@@ -1182,7 +1185,7 @@ sub gen_add_swap
 		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, 0 .. $#{$cfg{Description}});
 	}
 
-	$tmpl->param(SWAP => $swap, PPL => \@pploptions, DEBTACCTS => \@debtaccts);
+	$tmpl->param(SWAP => $swap, PPL => \@pploptions, CUR => (scalar @units > 1), CURS => \@currencies, DEBTACCTS => \@debtaccts);
 
 	return $tmpl;
 }
@@ -1194,8 +1197,11 @@ sub gen_add_split
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @pploptions = map ({ NAME => $accts{$_}, A => $_ }, sort_AoH(\%accts));
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
+	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $units_cfg{Default} eq $_ }, @units);
 
-	$tmpl->param(PPL => \@pploptions);
+	$tmpl->param(PPL => \@pploptions, CUR => (scalar @units > 1), CURS => \@currencies);
 
 	return $tmpl;
 }
@@ -1407,10 +1413,12 @@ sub despatch_user
 			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session, $etoken)) };
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my @units = known_units();
 
 			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
 			push (@{$tg{Creditor}}, validate_acct($cgi->param('Creditor'), \%acct_names, $whinge));
 			push (@{$tg{Amount}}, clean_word($cgi->param('Amount')));
+			push (@{$tg{Currency}}, (scalar @units > 1) ? clean_word($cgi->param('Currency')) : $units[0]) if (scalar @units);
 			push (@{$tg{Description}}, clean_words($cgi->param('Description')));
 
 			my $debtor;
@@ -1432,6 +1440,7 @@ sub despatch_user
 			push (@{$tg{$debtor}}, 1);
 
 			@{$tg{Headings}} = ( 'Creditor', 'Amount', $debtor, 'Description' );
+			splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
 			validate_tg(\%tg, $whinge);
 
@@ -1473,14 +1482,18 @@ sub despatch_user
 			}
 			$whinge->('No creditors?') unless scalar keys %creds > 0;
 
+			my @units = known_units();
+
 			if (scalar keys %creds > 1) {
 				push (@{$tg{Creditor}}, 'TrnsfrPot1');
 				push (@{$tg{Amount}}, '*');
+				push (@{$tg{Currency}}, undef) if (scalar @units);
 				push (@{$tg{TrnsfrPot}}, undef);
 			}
 			foreach my $cred (keys %creds) {
 				push (@{$tg{Creditor}}, $cred);
 				push (@{$tg{Amount}}, $creds{$cred});
+				push (@{$tg{Currency}}, (scalar @units > 1) ? clean_word($cgi->param('Currency')) : $units[0]) if (scalar @units);
 				push (@{$tg{TrnsfrPot}}, 1) if scalar keys %creds > 1;
 			}
 
@@ -1495,6 +1508,7 @@ sub despatch_user
 			push (@{$tg{Description}}, clean_text($cgi->param('Description')));
 
 			@{$tg{Headings}} = ( 'Creditor', 'Amount' );
+			push (@{$tg{Headings}}, 'Currency') if exists $tg{Currency};
 			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
 			push (@{$tg{Headings}}, $_) foreach sort_AoH(\%debts, 'Description');
 
