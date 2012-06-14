@@ -9,7 +9,15 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(read_htsv write_htsv);
+our @EXPORT = qw(set_htsv_encoders read_htsv write_htsv);
+
+my $read_encoder;
+my $write_encoder;
+
+sub set_htsv_encoders
+{
+	($read_encoder, $write_encoder) = @_;
+}
 
 sub read_htsv
 {
@@ -52,6 +60,8 @@ sub read_htsv
 	}
 	close(FH);
 
+	$read_encoder->(\%content) if ($read_encoder);
+
 	return %content;
 }
 
@@ -62,7 +72,9 @@ sub write_htsv
 	$hdg_key = 'Headings' unless defined $hdg_key;
 	my $heading_only = 1;
 
-	open(FH, ">$file") or confess "$file: $!";
+	$write_encoder->($content) if ($write_encoder);
+
+	open (FH, ">$file") or confess "$file: $!";
 	foreach my $key (keys $content) {
 		unless (ref ($content->{$key})) {
 			# check if non-white exists (since trailing white killed on read anyway)
@@ -100,3 +112,5 @@ sub write_htsv
 
 	close(FH);
 }
+
+1;
