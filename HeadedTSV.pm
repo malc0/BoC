@@ -74,7 +74,7 @@ sub write_htsv
 
 	$write_encoder->($content) if ($write_encoder);
 
-	open (FH, ">$file") or confess "$file: $!";
+	open (FH, ">$file.new") or confess "$file.new: $!";
 	foreach my $key (keys $content) {
 		unless (ref ($content->{$key})) {
 			# check if non-white exists (since trailing white killed on read anyway)
@@ -110,7 +110,9 @@ sub write_htsv
 
 	say FH "\n# vim: ts=$ts" unless ($heading_only and not defined $given_ts);;
 
-	close(FH);
+	close (FH);
+
+	rename ("$file.new", $file) or confess "$file: $!";
 }
 
 1;
