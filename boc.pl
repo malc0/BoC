@@ -24,8 +24,8 @@ use YAML::XS;
 
 use lib '.';
 use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_text clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal);
-use HeadedTSV ();
-use TG qw(compute_tg validate_tg);
+use HeadedTSV;
+use TG;
 
 our %config;
 our $git;
@@ -185,80 +185,34 @@ sub try_tg_lock
 
 sub read_simp_cfg
 {
-	my ($filename, $nexist_ok) = @_;
-
-	my %config = HeadedTSV::read_htsv($filename, $nexist_ok);
-
-	foreach my $key (keys %config) {
-		next if $key eq 'Password';
-		$config{$key} = encode_for_html($config{$key}) if $config{$key};
-	}
-
-	return %config;
+	return read_htsv(@_);
 }
 
 sub write_simp_cfg
 {
 	my ($file, %config) = @_;
 
-	foreach my $key (keys %config) {
-		$config{$key} = encode_for_file($config{$key}) if $config{$key};
-	}
-
-	HeadedTSV::write_htsv("$file.new", \%config);
-	rename ("$file.new", $file);
+	write_htsv($file, \%config);
 }
 
-sub read_tg
+sub read_htsv_encode
 {
-	my %content = TG::read_tg($_[0]);
+	my $content = $_[0];
 
-	foreach my $key (keys %content) {
-		$content{$key} = encode_for_html($content{$key}) unless (ref($content{$key}) or not $content{$key});
+	foreach my $key (keys %$content) {
+		$content->{$key} = encode_for_html($content->{$key}) unless (ref($content->{$key}) or not $content->{$key});
+		@{$content->{$key}} = map (encode_for_html($_), @{$content->{$key}}) if ref ($content->{$key});
 	}
-	@{$content{Description}} = map (encode_for_html($_), @{$content{Description}});
-
-	return %content;
 }
 
-sub write_tg
+sub write_htsv_encode
 {
-	my ($file, %content) = @_;
-
-	foreach my $key (keys %content) {
-		$content{$key} = encode_for_file($content{$key}) unless (ref($content{$key}) or not $content{$key});
-	}
-	@{$content{Description}} = map (encode_for_file($_), @{$content{Description}});
-
-	TG::write_tg("$file.new", %content);
-	rename ("$file.new", $file);
-}
-
-sub read_htsv
-{
-	my ($filename, $nexist_ok) = @_;
-
-	my %content = HeadedTSV::read_htsv($filename, $nexist_ok);
-
-	foreach my $key (keys %content) {
-		$content{$key} = encode_for_html($content{$key}) unless (ref($content{$key}) or not $content{$key});
-		@{$content{$key}} = map (encode_for_html($_), @{$content{$key}}) if ref ($content{$key});
-	}
-
-	return %content;
-}
-
-sub write_htsv
-{
-	my ($file, $content, $ts) = @_;
+	my $content = $_[0];
 
 	foreach my $key (keys %$content) {
 		$content->{$key} = encode_for_file($content->{$key}) unless (ref($content->{$key}) or not $content->{$key});
 		@{$content->{$key}} = map (encode_for_file($_), @{$content->{$key}}) if ref ($content->{$key});
 	}
-
-	HeadedTSV::write_htsv("$file.new", $content, $ts);
-	rename ("$file.new", $file);
 }
 
 sub commit
@@ -1403,6 +1357,7 @@ sub despatch_user
 	}
 }
 
+set_htsv_encoders(\&read_htsv_encode, \&write_htsv_encode);
 my $cgi = CGI->new;
 
 %config = read_simp_cfg('boc_config');
