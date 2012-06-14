@@ -621,6 +621,40 @@ sub gen_edit_rates
 	return $tmpl;
 }
 
+sub commit_config_units
+{
+	my ($whinge, $session, $etoken, $rename, $cfg) = @_;
+	my $sessid = $session->id();
+	my $cfg_file = "$config{Root}/config_units";
+
+	$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+	bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
+	try_commit_and_unlock(sub {
+		my $commit_msg = 'config_units: units/rates modified';
+
+		if (keys %$rename) {
+			my @tgs = glob("$config{Root}/transaction_groups/*");
+			foreach my $tg (@tgs) {
+				$tg = untaint($tg);
+				my %tgdetails = read_tg($tg);
+
+				foreach my $old (keys %$rename) {
+					s/^$old$/$rename->{$old}/ foreach (@{$tgdetails{Currency}});
+				}
+
+				write_tg($tg, %tgdetails);
+				$git->add($tg);
+			}
+			$commit_msg .= ' AND RENAMED';
+		}
+
+		write_units_cfg($cfg_file, $cfg);
+		add_commit($cfg_file, $commit_msg, $session);
+		unlink "$cfg_file.p1" if -e "$cfg_file.p1";
+		unlink "$cfg_file.rename" if -e "$cfg_file.rename";
+	}, $cfg_file);
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -856,6 +890,7 @@ sub despatch_admin
 			my $anchor_set = 0;
 			my $pres_set = 0;
 			my $nunits = 0;
+			my %rename;
 
 			foreach my $row (@rows) {
 				my $code = clean_unit($cgi->param("Code_$row"));
@@ -879,7 +914,8 @@ sub despatch_admin
 							delete $cfg{$key};
 						}
 					}
-					# FIX TGs for currency re-coding? (FIXME)
+
+					$rename{$row} = $code;
 				}
 				$cfg{$code} = $desc;
 				$nunits++;
@@ -901,15 +937,11 @@ sub despatch_admin
 			validate_units(\%cfg, $whinge, 1);
 
 			if ($nunits < 2) {
-				$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-				bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
-				try_commit_and_unlock(sub {
-					write_units_cfg($cfg_file, \%cfg);
-					add_commit($cfg_file, 'config_units: units/rates modified', $session);
-				}, $cfg_file);
+				commit_config_units($whinge, $session, $etoken, \%rename, \%cfg);
 				emit_with_status('Saved edits to units config (rate setting inapplicable)', load_template('treasurer_cp.html'));
 			} else {
 				write_units_cfg("$cfg_file.p1", \%cfg);
+				write_simp_cfg("$cfg_file.rename", %rename) if keys %rename;
 
 				emit(gen_edit_rates($etoken));
 			}
@@ -978,15 +1010,11 @@ sub despatch_admin
 			validate_units(\%cfg, $whinge);
 			%cfg = date_sort_rates(%cfg);
 
-			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
-			try_commit_and_unlock(sub {
-				write_units_cfg($cfg_file, \%cfg);
-				add_commit($cfg_file, 'config_units: units/rates modified', $session);
-				unlink "$cfg_file.p1";
-			}, $cfg_file);
+			my %rename = read_simp_cfg("$cfg_file.rename", 1);
+			commit_config_units($whinge, $session, $etoken, \%rename, \%cfg);
 		} else {
 			unlink "$cfg_file.p1";
+			unlink "$cfg_file.rename" if -e "$cfg_file.rename";
 			unlock($cfg_file);
 			redeem_edit_token($sessid, 'edit_units', $etoken);
 		}
