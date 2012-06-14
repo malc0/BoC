@@ -170,8 +170,8 @@ sub compute_tg
 			$neg_error += 2 * $tg{Amount}[$row];
 			$tg{Amount}[$row] *= -1;
 		}
-		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (exists $tg{TrnsfrPot} and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
-			$tp_net[$1] += $tg{Amount}[$row] if exists $tg{TrnsfrPot} and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/;
+		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
+			$tp_net[$1] += $tg{Amount}[$row] if defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/;
 			$tp_shares[$1][$_] += $tg{$head_accts[$_]}[$row] foreach (0 .. $#head_accts);
 		} else {
 			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
