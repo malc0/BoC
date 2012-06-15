@@ -1084,6 +1084,8 @@ sub gen_ucp
 	}
 	my %acct_names = get_acct_name_map;
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
+	my @units = known_units();
+	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
 	$tmpl->param(CREDITS => \@credlist);
 	$tmpl->param(DEBITS => \@debtlist);
 	$tmpl->param(LOGIN => $session->param('User'));
@@ -1161,6 +1163,9 @@ sub gen_accts_disp
 	$tmpl->param(UNKNOWN => \@unklist) if scalar @unklist;
 	$tmpl->param(PPL => \@ppllist) if scalar @ppllist;
 	$tmpl->param(VACCTS => \@vacctslist) if scalar @vacctslist;
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
+	$tmpl->param(DEFCUR => (scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
 
 	return $tmpl;
 }
@@ -1245,7 +1250,9 @@ sub gen_manage_tgs
 		);
 		push(@tglist, \%outputdetails);
 	}
-	$tmpl->param(TGS => \@tglist);
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
+	$tmpl->param(TGS => \@tglist, DEFCUR => (scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
 
 	return $tmpl;
 }

@@ -38,7 +38,9 @@
 				<tr><td style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=VAL></td><TMPL_IF 0><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></TMPL_IF></tr>
 				</TMPL_LOOP>
 			</table>
+			<TMPL_IF NAME=DEFCUR><p>All accounts denominated in <TMPL_VAR NAME=DEFCUR></p></TMPL_IF>
 			</TMPL_IF>
+
 			<p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
