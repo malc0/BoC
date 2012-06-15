@@ -1215,7 +1215,7 @@ sub gen_manage_tgs
 	foreach my $tg (date_sorted_tgs) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
-		validate_tg(\%tgdetails, sub { $tg_fail = $_[0] }, \%acct_names);
+		eval { validate_tg(\%tgdetails, sub { $tg_fail = $_[0]; die }, \%acct_names) };
 
 		my $sum_str = "";
 		unless ($tg_fail) {
