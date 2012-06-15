@@ -4,6 +4,8 @@ use 5.012;
 use strict;
 use warnings;
 
+use Carp;
+
 use CleanData qw(clean_date validate_date validate_decimal);
 use HeadedTSV;
 
@@ -11,7 +13,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_units validate_units date_sort_rates);
+our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_units validate_units date_sort_rates get_rates);
 
 my $cfg_file;
 
@@ -178,6 +180,49 @@ sub date_sort_rates
 	}
 
 	return %cfg;
+}
+
+sub get_rates
+{
+	my $date = clean_date($_[0]);
+	my $die = $_[1] ? $_[1] : sub { confess $_[0] };
+	my %cfg = read_units_cfg($cfg_file);
+
+	validate_units(\%cfg, $die);
+	%cfg = date_sort_rates(%cfg);
+
+	my @units = known_units(%cfg);
+
+	my %rate;
+	$rate{$cfg{Anchor}} = 1 if exists $cfg{Anchor};
+
+	foreach my $unit (@units) {
+		next if $unit eq $cfg{Anchor};
+		next if $cfg{Commodities} =~ /(^|;)$unit($|;)/;
+
+		my $row = 0;
+		do {
+			$rate{$unit} = 1 / $cfg{"$unit/$cfg{Anchor}"}[$row] if $cfg{"$unit/$cfg{Anchor}"}[$row];
+		} while $row < $#{$cfg{Date}} and (clean_date($cfg{Date}[++$row]) <= $date or not exists $rate{$unit});
+	}
+	foreach my $unit (@units) {
+		next if exists $rate{$unit};
+
+		my @ex = grep (/\/$unit$/, @{$cfg{Headings}});
+		(my $in = $ex[0]) =~ s/\/.*//;
+
+		my $row = 0;
+		do {
+			$rate{$unit} = $cfg{"$in/$unit"}[$row] if $cfg{"$in/$unit"}[$row];
+		} while $row < $#{$cfg{Date}} and (clean_date($cfg{Date}[++$row]) <= $date or not exists $rate{$unit});
+
+		$rate{$unit} *= $rate{$in};
+	}
+
+	my $pres_conv = 1 / $rate{$cfg{Default}};	# avoid accidently setting the presentation currency factor to 1 before using it
+	$rate{$_} = $rate{$_} * $pres_conv foreach (@units);
+
+	return %rate;
 }
 
 1;
