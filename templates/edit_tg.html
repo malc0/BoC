@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<title><TMPL_IF NAME=NAME><TMPL_VAR NAME=SN> transaction group "<TMPL_VAR NAME=NAME>"<TMPL_ELSE>Add <TMPL_VAR NAME=SN> transaction group</TMPL_IF></title>
-		<style type="text/css">th.negated { font-style: italic }</style>
+		<style type="text/css">th.negated { font-style: italic } .unknown_d { background-color: red } td.unknown_u { background-color: red } tr.unknown_c { background-color: red } .tp { font-style: italic }</style>
 	</head>
 	<body>
 		<form action="boc.pl" method="post">
@@ -20,24 +20,24 @@
 
 			<table border=1>
 				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><TMPL_IF NAME=CURCOL><th rowspan=2>Currency</th></TMPL_IF><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Transfer Pot</th><th rowspan=2>Description</th></tr>
-				<tr><TMPL_LOOP NAME=HEADINGS><th class="<TMPL_VAR NAME=CL>" <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
+				<tr><TMPL_LOOP NAME=HEADINGS><th class="<TMPL_VAR NAME=HEAD_CL>"><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
 
-				<TMPL_LOOP NAME=ROWS><tr <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>>
-					<td><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><TMPL_IF NAME=TP><i><TMPL_VAR NAME=O></i><TMPL_ELSE><TMPL_VAR NAME=O></TMPL_IF></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+				<TMPL_LOOP NAME=ROWS><tr class="<TMPL_VAR NAME=ROW_CL>">
+					<td class="<TMPL_VAR NAME=CR_CL>"><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><TMPL_VAR NAME=O></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=CR_CL><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="Creditor_<TMPL_VAR NAME=R>">
-							<TMPL_LOOP NAME=CREDS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=TP>style="font-style: italic"</TMPL_IF> <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+							<TMPL_LOOP NAME=CREDS><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 							</TMPL_LOOP>
 						</select>
 					</TMPL_IF></td>
 					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=A><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=A>" name="Amount_<TMPL_VAR NAME=R>"/></TMPL_IF></td>
-					<TMPL_IF NAME=CURCOL><td <TMPL_IF NAME=UC>bgcolor="red"</TMPL_IF>><TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+					<TMPL_IF NAME=CURCOL><td class="<TMPL_VAR NAME=CUR_CL>"><TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="Currency_<TMPL_VAR NAME=R>">
 							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
 							</TMPL_LOOP>
 						</select>
 					</TMPL_IF></td></TMPL_IF>
 					<!-- FIXME: JS confirm if no line description -->
-					<TMPL_LOOP NAME=RC><td <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>><TMPL_IF NAME=RO><TMPL_VAR NAME=D><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=D>" name="<TMPL_VAR NAME=N>"/></TMPL_IF></td>
+					<TMPL_LOOP NAME=RC><td class="<TMPL_VAR NAME=D_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=D><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=D>" name="<TMPL_VAR NAME=N>"/></TMPL_IF></td>
 					</TMPL_LOOP>
 				</tr>
 				</TMPL_LOOP>

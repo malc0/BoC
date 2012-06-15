@@ -1074,10 +1074,10 @@ sub gen_ucp
 
 		my %outputdetails = (
 			ACC => $tg,
-			OMITTED => (exists $tgdetails{Omit}),
+			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
-			BROKEN => $tg_broken,
+			SUMMARY_CL => $tg_broken ? 'broken' : '',
 			SUMMARY => $tg_broken ? 'TG BROKEN' : ($computed{$user} > 0 ? '+' : '') . $computed{$user},
 		);
 		push ((($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist), \%outputdetails);
@@ -1242,10 +1242,10 @@ sub gen_manage_tgs
 
 		my %outputdetails = (
 			ACC => $tg,
-			OMITTED => (exists $tgdetails{Omit}),
+			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
-			BROKEN => $tg_fail,
+			SUMMARY_CL => $tg_fail ? 'broken' : '',
 			SUMMARY => $tg_fail ? $tg_fail : substr($sum_str, 0, -2),
 		);
 		push(@tglist, \%outputdetails);
@@ -1332,20 +1332,22 @@ sub gen_tg
 	my @heads;
 	foreach (@sorted_accts) {
 		my $class = (exists $negated{$_}) ? 'negated' : '';
-		push (@heads, { H => $acct_names{$_}, CL => $class, U => exists $unknown{$_} });
+		$class .= ' unknown_d' if exists $unknown{$_};
+		push (@heads, { H => $acct_names{$_}, HEAD_CL => $class });
 	}
 	$tmpl->param(HEADINGS => \@heads);
 
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
-		my @creditors = map ({ O => $acct_names{$_}, V => $_, S => $tgdetails{Creditor}[$row] eq $_, TP => exists $tps{$_} }, (@sorted_accts, sort_AoH(\%tps)));
+		my @creditors = map ({ O => $acct_names{$_}, V => $_, S => $tgdetails{Creditor}[$row] eq $_, CR_CL => (exists $tps{$_}) ? 'tp' : '' }, (@sorted_accts, sort_AoH(\%tps)));
 		my $unk_cur = (not defined $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units));
 		my @currencies = map ({ C => $_, S => (defined $tgdetails{Currency}[$row] and $_ eq $tgdetails{Currency}[$row]) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
-		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", U => exists $unknown{$_} }, ( @sorted_accts, 'TrnsfrPot', 'Description' ));
-		push (@rows, { U => exists $unknown{@{$tgdetails{Creditor}}[$row]},
+		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => (exists $unknown{$_}) ? 'unknown_d' : '' }, ( @sorted_accts, 'TrnsfrPot', 'Description' ));
+		push (@rows, { ROW_CL => (exists $unknown{@{$tgdetails{Creditor}}[$row]}) ? 'unknown_c' : '',
 			       R => $row,
+			       CR_CL => (exists $tps{@{$tgdetails{Creditor}}[$row]} and $view_mode) ? 'tp' : '',
 			       CREDS => \@creditors,
-			       UC => (not exists $tps{@{$tgdetails{Creditor}}[$row]} and (not $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units))),
+			       CUR_CL => (not exists $tps{@{$tgdetails{Creditor}}[$row]} and (not $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units))) ? 'unknown_u' : '',
 			       CURS => \@currencies,
 			       A => $tgdetails{Amount}[$row],
 			       RC => \@rowcontents });
