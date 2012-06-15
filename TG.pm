@@ -9,7 +9,7 @@ use List::Util qw(sum);
 
 use CleanData qw(clean_date clean_decimal clean_text clean_username validate_acct validate_acctname validate_decimal validate_unit);
 use HeadedTSV;
-use Units qw(known_units);
+use Units qw(known_units get_rates);
 
 our $VERSION = '1.00';
 
@@ -149,6 +149,7 @@ sub compute_tg
 	my $die = sub { confess $_[0] };
 
 	my @cred_accts = validate_tg(\%tg, $die);
+	my %rates = get_rates($tg{Date}, $die);
 
 	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
 	my %relevant_accts;
@@ -171,24 +172,27 @@ sub compute_tg
 	my $neg_error = 0;
 	foreach my $row (0 .. $#cred_accts) {
 		next unless defined $cred_accts[$row];
-		$relevant_accts{$tg{Creditor}[$row]} += $tg{Amount}[$row] unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
+
+		my $amnt = $tg{Amount}[$row] * ((scalar keys %rates < 2) ? 1 : $rates{$tg{Currency}[$row]}) unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
+
+		$relevant_accts{$tg{Creditor}[$row]} += $amnt unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
 		if (exists $neg_accts{$tg{Creditor}[$row]}) {
-			$neg_error += 2 * $tg{Amount}[$row];
-			$tg{Amount}[$row] *= -1;
+			$neg_error += 2 * $amnt;
+			$amnt *= -1;
 		}
 		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
-			$tp_net[$1] += $tg{Amount}[$row] if defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/;
+			$tp_net[$1] += $amnt if defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/;
 			$tp_shares[$1][$_] += $tg{$head_accts[$_]}[$row] foreach (0 .. $#head_accts);
 		} else {
 			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
 			my $share_sum = sum @shares;
 			foreach (0 .. $#head_accts) {
-				my $amnt = $tg{Amount}[$row] * $shares[$_] / $share_sum;
+				my $samnt = $amnt * $shares[$_] / $share_sum;
 				if (exists $neg_accts{$head_accts[$_]}) {
-					$neg_error += 2 * $amnt;
-					$amnt *= -1;
+					$neg_error += 2 * $samnt;
+					$samnt *= -1;
 				}
-				$relevant_accts{$head_accts[$_]} -= $amnt;
+				$relevant_accts{$head_accts[$_]} -= $samnt;
 			}
 		}
 	}

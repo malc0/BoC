@@ -1216,6 +1216,7 @@ sub gen_manage_tgs
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
 		eval { validate_tg(\%tgdetails, sub { $tg_fail = $_[0]; die }, \%acct_names) };
+		my %rates = eval { get_rates($tgdetails{Date}, sub { $tg_fail = "Currency config: $_[0]"; die }) } unless $@;
 
 		my $sum_str = "";
 		unless ($tg_fail) {
@@ -1226,7 +1227,9 @@ sub gen_manage_tgs
 				next if exists $summary{$acct};
 				$summary{$acct} = 0;
 				foreach my $_ ($i .. $#{$tgdetails{Creditor}}) {
-					$summary{$acct} += $tgdetails{Amount}[$_] if $tgdetails{Creditor}[$_] eq $acct;
+					next if $tgdetails{Creditor}[$_] ne $acct;
+					my $rate = (scalar keys %rates < 2) ? 1 : $rates{$tgdetails{Currency}[$_]};
+					$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate);
 				}
 				$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
 			}
