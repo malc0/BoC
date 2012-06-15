@@ -261,7 +261,7 @@ sub bad_token_whinge
 
 sub set_status
 {
-	$_[0]->param(STATUS => "Status: $_[1]");
+	$_[0]->param(STATUS => encode_for_html("Status: $_[1]"));
 }
 
 sub clean_tgid
@@ -303,7 +303,7 @@ sub emit_with_status
 sub whinge
 {
 	my ($whinge, $tmpl) = @_;
-	$tmpl->param(STATUS => $whinge);
+	$tmpl->param(STATUS => encode_for_html($whinge));
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
@@ -312,7 +312,7 @@ sub gen_cds_p
 {
 	my $reason = $_[0];
 	my $tmpl = load_template('create_ds_p.html');
-	$tmpl->param(REASON => $reason);
+	$tmpl->param(REASON => encode_for_html($reason));
 	$tmpl->param(ROOT => $config{Root});
 
 	return $tmpl;
@@ -1078,7 +1078,7 @@ sub gen_ucp
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_broken ? 'broken' : '',
-			SUMMARY => $tg_broken ? 'TG BROKEN' : ($computed{$user} > 0 ? '+' : '') . $computed{$user},
+			SUMMARY => encode_for_html($tg_broken ? 'TG BROKEN' : ($computed{$user} > 0 ? '+' : '') . $computed{$user}),
 		);
 		push ((($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist), \%outputdetails);
 	}
@@ -1246,7 +1246,7 @@ sub gen_manage_tgs
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_fail ? 'broken' : '',
-			SUMMARY => $tg_fail ? $tg_fail : substr($sum_str, 0, -2),
+			SUMMARY => encode_for_html($tg_fail ? $tg_fail : substr($sum_str, 0, -2)),
 		);
 		push(@tglist, \%outputdetails);
 	}
