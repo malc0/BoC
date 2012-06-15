@@ -2,6 +2,7 @@
 <html>
 	<head>
 		<title><TMPL_IF NAME=NAME><TMPL_VAR NAME=SN> transaction group "<TMPL_VAR NAME=NAME>"<TMPL_ELSE>Add <TMPL_VAR NAME=SN> transaction group</TMPL_IF></title>
+		<style type="text/css">th.negated { font-style: italic }</style>
 	</head>
 	<body>
 		<form action="boc.pl" method="post">
@@ -19,7 +20,7 @@
 
 			<table border=1>
 				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><TMPL_IF NAME=CURCOL><th rowspan=2>Currency</th></TMPL_IF><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Transfer Pot</th><th rowspan=2>Description</th></tr>
-				<tr><TMPL_LOOP NAME=HEADINGS><th <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
+				<tr><TMPL_LOOP NAME=HEADINGS><th class="<TMPL_VAR NAME=CL>" <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr <TMPL_IF NAME=U>bgcolor="red"</TMPL_IF>>
 					<td><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><TMPL_IF NAME=TP><i><TMPL_VAR NAME=O></i><TMPL_ELSE><TMPL_VAR NAME=O></TMPL_IF></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>

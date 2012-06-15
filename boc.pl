@@ -1328,7 +1328,13 @@ sub gen_tg
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
 	$tmpl->param(CURCOL => scalar @allunits > 1);
 	$tmpl->param(NOACCTS => scalar @sorted_accts);
-	$tmpl->param(HEADINGS => [ map ({ H => $acct_names{$_}, U => exists $unknown{$_} }, @sorted_accts) ]);
+	my %negated = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my @heads;
+	foreach (@sorted_accts) {
+		my $class = (exists $negated{$_}) ? 'negated' : '';
+		push (@heads, { H => $acct_names{$_}, CL => $class, U => exists $unknown{$_} });
+	}
+	$tmpl->param(HEADINGS => \@heads);
 
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
