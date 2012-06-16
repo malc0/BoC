@@ -28,15 +28,16 @@ use HeadedTSV;
 use TG;
 use Units;
 
-our %config;
-our $git;
+my %config;
+my $git;
 
 sub update_global_config
 {
 	my (%append_cfg) = @_;
 	@config{keys %append_cfg} = values %append_cfg;	# merge settings
-	$config{LongName} = "Set LongName in installation config!" unless defined $config{LongName};
-	$config{ShortName} = "Set ShortName in installation config!" unless defined $config{ShortName};
+	$config{LongName} = 'Set LongName in installation config!' unless defined $config{LongName};
+	$config{ShortName} = 'Set ShortName in installation config!' unless defined $config{ShortName};
+	return;
 }
 
 sub flock_and_read
@@ -59,7 +60,7 @@ sub write_and_close
 	my $data = Dump(%datah);
 	seek ($fh, 0, SEEK_SET);
 	truncate ($fh, 0);
-	write_file($fh, $data);	# write_file does close() for us
+	return write_file($fh, $data);	# write_file does close() for us
 }
 
 sub push_session_data
@@ -74,9 +75,9 @@ sub push_session_data
 		return;
 	}
 
-	push(@{$data{$key}}, $value);
+	push (@{$data{$key}}, $value);
 
-	write_and_close($fh, %data);
+	return write_and_close($fh, %data);
 }
 
 sub pop_session_data
@@ -131,9 +132,9 @@ sub try_lock
 	unless (sysopen ($lock, $lockfile, O_WRONLY | O_EXCL | O_CREAT)) {	# we assume it's not on NFSv2
 		my $mtime = (stat($lockfile))[9];
 
-		return undef unless ((not defined $mtime) or (time() - $mtime) > 600);
+		return undef if defined $mtime and (time() - $mtime) < 600;
 
-		return undef unless open ($lock, "+>$lockfile");
+		return undef unless open ($lock, '+>', $lockfile);
 		return undef unless flock ($lock, LOCK_EX | LOCK_NB);
 	}
 
@@ -148,7 +149,7 @@ sub unlock
 {
 	my $lockfile = "$_[0].lock";
 	$lockfile =~ s/^(.*\/)([^\/]*)/$1.$2/;	# insert a . to hide file (especially from directory globbing)
-	unlink $lockfile;
+	return unlink $lockfile;
 }
 
 sub try_lock_wait
@@ -171,7 +172,7 @@ sub try_commit_lock
 
 sub un_commit_lock
 {
-	unlink "$config{Root}/.DSLOCK.lock";
+	return unlink "$config{Root}/.DSLOCK.lock";
 }
 
 sub try_tg_lock
@@ -191,9 +192,9 @@ sub read_simp_cfg
 
 sub write_simp_cfg
 {
-	my ($file, %config) = @_;
+	my ($file, %cfg) = @_;
 
-	write_htsv($file, \%config);
+	return write_htsv($file, \%cfg);
 }
 
 sub read_htsv_encode
@@ -204,6 +205,8 @@ sub read_htsv_encode
 		$content->{$key} = encode_for_html($content->{$key}) unless (ref($content->{$key}) or not $content->{$key});
 		@{$content->{$key}} = map (encode_for_html($_), @{$content->{$key}}) if ref ($content->{$key});
 	}
+
+	return;
 }
 
 sub write_htsv_encode
@@ -214,6 +217,8 @@ sub write_htsv_encode
 		$content->{$key} = encode_for_file($content->{$key}) unless (ref($content->{$key}) or not $content->{$key});
 		@{$content->{$key}} = map (encode_for_file($_), @{$content->{$key}}) if ref ($content->{$key});
 	}
+
+	return;
 }
 
 sub commit
@@ -221,7 +226,7 @@ sub commit
 	my ($message, $userdata) = @_;
 	my $user = ref $userdata ? $userdata->param('User') : $userdata;
 	my $name = ref $userdata ? $userdata->param('Name') : $userdata;
-	$git->commit({author => "$name <$user>", message => $message});
+	return $git->commit({author => "$name <$user>", message => $message});
 }
 
 sub add_commit
@@ -230,6 +235,7 @@ sub add_commit
 	$git->add($file);
 	my $statuses = $git->status;
 	commit($message, $userdata) if $statuses->get('indexed');
+	return;
 }
 
 sub try_commit_and_unlock
@@ -244,24 +250,30 @@ sub try_commit_and_unlock
 		eval { find({ wanted => sub { /^(.*\.new)$/ and unlink $1 }, untaint => 1}, $config{Root}) } unless $@;
 		if ($@) {
 			# die hard, leaving locks, if we can't clean up
-			open (my $fh, ">$config{Root}/RepoBroke") unless -e "$config{Root}/RepoBroke";
+			unless (-e "$config{Root}/RepoBroke") {
+				open (my $fh, '>', "$config{Root}/RepoBroke");
+				close $fh;
+			}
 			die "Clean up failed: $@\nOriginally due to: $commit_fail";
 		}
 	}
 	un_commit_lock;
 	unlock($extra_lock) if $extra_lock;
 	die $commit_fail if $commit_fail;
+
+	return;
 }
 
 sub bad_token_whinge
 {
 	un_commit_lock;
-	whinge('Invalid edit token (double submission?)', $_[0]);
+	return whinge('Invalid edit token (double submission?)', $_[0]);
 }
 
 sub set_status
 {
 	$_[0]->param(STATUS => encode_for_html("Status: $_[1]"));
+	return;
 }
 
 sub clean_tgid
@@ -273,7 +285,7 @@ sub clean_tgid
 
 sub unroot
 {
-	$_[0] =~ /$config{Root}\/(.*)/;
+	return undef unless $_[0] =~ /$config{Root}\/(.*)/;
 	return $1;
 }
 
@@ -346,6 +358,8 @@ sub create_datastore
 	} else {
 		emit(gen_cds_p($reason));
 	}
+
+	return;
 }
 
 sub validate_admins
@@ -363,7 +377,7 @@ sub validate_admins
 
 sub login
 {
-	my ($cgi, $userdetout) = @_;
+	my $cgi = $_[0];
 	my $user = clean_username($cgi->param('user'));
 	my $pass = $cgi->param('pass');
 	my $whinge = sub { whinge('Login failed!', load_template('login.html')) };
@@ -379,7 +393,7 @@ sub login
 	$whinge->() unless ($cryptpass eq $userdetails{Password});
 
 	$userdetails{User} = $user;
-	%{$userdetout} = %userdetails;
+	return %userdetails;
 }
 
 sub gen_login_nopw
@@ -390,7 +404,7 @@ sub gen_login_nopw
 	my @userlist;
 
 	foreach my $user (@users) {
-		$user =~ /.*\/(.*)/;
+		next unless $user =~ /.*\/(.*)/;
 		my %outputdetails = ( USER => $1 );
 		push(@userlist, \%outputdetails);
 	}
@@ -422,12 +436,14 @@ sub clear_old_session_locks
 	no autodie qw(open);	# file may not exist
 	foreach my $lockfile (@locks) {
 		$lockfile = untaint($lockfile);
-		next unless open (my $lock, "$lockfile");
+		next unless open (my $lock, '<', $lockfile);
 
 		unlink ($lockfile) if $sessid eq <$lock>;
 
 		close ($lock);
 	}
+
+	return;
 }
 
 sub get_new_session
@@ -450,7 +466,7 @@ sub get_new_session
 	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
 		$tmpl = load_template('login.html') if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
 	} elsif ($last_tmpl eq 'login') {
-		login($cgi, \%userdetails);
+		%userdetails = login($cgi);
 	} else {
 		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
 	}
@@ -477,7 +493,7 @@ sub gen_manage_accts
 	foreach my $acct (@accounts) {
 		my %acctdetails = read_simp_cfg($acct);
 		my %outputdetails;
-		$acct =~ /.*\/(.*)/;
+		next unless $acct =~ /.*\/(.*)/;
 		if ($people) {
 			%outputdetails = (
 				ACCT => $1,
@@ -629,7 +645,7 @@ sub commit_config_units
 
 	$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 	bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
-	try_commit_and_unlock(sub {
+	return try_commit_and_unlock(sub {
 		my $commit_msg = 'config_units: units/rates modified';
 
 		if (keys %$rename) {
@@ -765,9 +781,9 @@ sub despatch_admin
 		}
 
 		if ($edit_acct) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : "Edit account cancelled", gen_manage_accts($person));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : 'Edit account cancelled', gen_manage_accts($person));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : "Add account cancelled", gen_manage_accts($person));
+			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', gen_manage_accts($person));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccts') {
@@ -797,7 +813,7 @@ sub despatch_admin
 					$whinge->("Couldn't edit account \"$acct\", file disappeared");
 				}
 			}
-			my $etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
+			$etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
 			emit(gen_add_edit_acc($acct, $person, $etoken));
 		} else {
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
@@ -831,7 +847,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to installation config" : "Edit installation config cancelled", load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to installation config' : 'Edit installation config cancelled', load_template('treasurer_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'edit_simp_trans') {
 		my $cfg_file = "$config{Root}/config_simp_trans";
@@ -841,7 +857,7 @@ sub despatch_admin
 			my $whinge = sub { whinge($_[0], gen_edit_simp_trans($etoken)) };
 
 			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 100 and defined $cgi->param("DebitAcct_" . ($max_rows + 1)));
+			$max_rows++ while ($max_rows < 100 and defined $cgi->param('DebitAcct_' . ($max_rows + 1)));
 			$whinge->('No transactions?') unless $max_rows >= 0;
 
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
@@ -870,7 +886,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to transaction config" : "Edit transaction config cancelled", load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to transaction config' : 'Edit transaction config cancelled', load_template('treasurer_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'edit_units') {
 		my $cfg_file = "$config{Root}/config_units";
@@ -1021,6 +1037,8 @@ sub despatch_admin
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to units config' : 'Edit units config cancelled', load_template('treasurer_cp.html'));
 	}
+
+	return;
 }
 
 sub query_all_htsv_in_path
@@ -1032,7 +1050,7 @@ sub query_all_htsv_in_path
 
 	foreach my $acct (@accts) {
 		my %acctdetails = read_htsv($acct);
-		$acct =~ /.*\/(.*)/;
+		next unless $acct =~ /.*\/(.*)/;
 		$response{$1} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
 	}
 
@@ -1051,10 +1069,10 @@ sub date_sorted_tgs
 	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date', 1);
 	my %rtgds;
 	foreach (keys %tg_dates) {
-		$tg_dates{$_} = '0.0.0' unless defined $tg_dates{$_} and $tg_dates{$_} =~ /\s*\d*\s*\.\s*\d*\s*\.\s*\d*\s*/;
+		$tg_dates{$_} = '0.0.0' unless defined $tg_dates{$_} and $tg_dates{$_} =~ /^\s*\d+\s*[.]\s*\d+\s*[.]\s*\d+\s*$/;
 		push (@{$rtgds{$tg_dates{$_}}}, $_);	# non-unique dates
 	}
-	return map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf("%04d%02d%02d", (split '\.', $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
+	return map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf('%04d%02d%02d', (split /[.]/, $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
 }
 
 sub gen_ucp
@@ -1150,7 +1168,7 @@ sub gen_accts_disp
 			ACC => $_,
 			NAME => (exists $acct_names{$_}) ? $acct_names{$_} : $_,
 			VAL => ($running{$_} > 0 ? '+' : '') . $running{$_},
-			C => sprintf("#%02x%02x%02x", $r, $g, $b),
+			C => sprintf('#%02x%02x%02x', $r, $g, $b),
 			L => $running{$_} > 0 ? 0 : $pc,
 			R => $running{$_} <= 0 ? 0 : $pc,
 		);
@@ -1223,7 +1241,7 @@ sub gen_manage_tgs
 		eval { validate_tg(\%tgdetails, sub { $tg_fail = $_[0]; die }, \%acct_names) };
 		my %rates = eval { get_rates($tgdetails{Date}, sub { $tg_fail = "Currency config: $_[0]"; die }) } unless $@;
 
-		my $sum_str = "";
+		my $sum_str = '';
 		unless ($tg_fail) {
 			my %summary;
 			foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
@@ -1236,7 +1254,7 @@ sub gen_manage_tgs
 					my $rate = (scalar keys %rates < 2) ? 1 : $rates{$tgdetails{Currency}[$_]};
 					$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate);
 				}
-				$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ", ";
+				$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ', ';
 			}
 		}
 
@@ -1474,11 +1492,11 @@ sub despatch_user
 			redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
 		}
 
-		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
+		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
 		if ($swap) {
-			emit_with_status((defined $cgi->param('save')) ? "Swap saved ($1)" : "Add swap cancelled", gen_ucp($session));
+			emit_with_status((defined $cgi->param('save')) ? "Swap saved ($1)" : 'Add swap cancelled', gen_ucp($session));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Expense saved ($1)" : "Add expense cancelled", gen_ucp($session));
+			emit_with_status((defined $cgi->param('save')) ? "Expense saved ($1)" : 'Add expense cancelled', gen_ucp($session));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_split') {
@@ -1493,12 +1511,12 @@ sub despatch_user
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my %creds;
-			foreach my $acct (map { s/^Cred_//; $_ } grep (/^Cred_.*$/, $cgi->param)) {
+			foreach my $acct (map { /^Cred_(.*)/; $1 } grep (/^Cred_.+$/, $cgi->param)) {
 				validate_acct($acct, \%acct_names, $whinge);
 				my $amnt = validate_decimal($cgi->param("Cred_$acct"), 'Creditor amount', undef, $whinge);
 				$creds{$acct} = $amnt unless $amnt == 0;
 			}
-			$whinge->('No creditors?') unless scalar keys %creds > 0;
+			$whinge->('No creditors?') unless scalar keys %creds;
 
 			my @units = known_units();
 
@@ -1516,7 +1534,7 @@ sub despatch_user
 			}
 
 			my %debts;
-			foreach my $acct (map { s/^Debt_//; $_ } grep (/^Debt_.*$/, $cgi->param)) {
+			foreach my $acct (map { /^Debt_(.*)/; $1 } grep (/^Debt_.+$/, $cgi->param)) {
 				validate_acct($acct, \%acct_names, $whinge);
 				my $amnt = validate_decimal($cgi->param("Debt_$acct"), 'Debt share', 1, $whinge);
 				$debts{$acct} = $amnt unless $amnt == 0;
@@ -1544,8 +1562,8 @@ sub despatch_user
 			redeem_edit_token($sessid, 'add_split', $etoken);
 		}
 
-		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
-		emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : "Add split cancelled", gen_ucp($session));
+		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
+		emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : 'Add split cancelled', gen_ucp($session));
 	}
 	if ($cgi->param('tmpl') eq 'accts_disp') {
 		if (defined $cgi->param('view')) {
@@ -1591,11 +1609,11 @@ sub despatch_user
 			(defined $cgi->param('omit')) ? $tg{Omit} = undef : delete $tg{Omit};
 
 			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 100 and defined $cgi->param("Creditor_" . ($max_rows + 1)));
+			$max_rows++ while ($max_rows < 100 and defined $cgi->param('Creditor_' . ($max_rows + 1)));
 			$whinge->('No transactions?') unless $max_rows >= 0;
 
 			my %acct_names = get_acct_name_map;
-			my @accts = map { s/_0$//; $_ } grep ((/^(.*)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
+			my @accts = map { /^(.*)_0$/; $1 } grep ((/^(.+)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
 			my (%ppl, %vaccts);
 			foreach my $acct (@accts) {
 				unless (exists $acct_names{$acct}) {
@@ -1642,13 +1660,15 @@ sub despatch_user
 			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 		}
 
-		$tgfile =~ /.*\/([^\/]{4})[^\/]*$/ if $tgfile;
+		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : "Edit cancelled", gen_tg($tgfile, 1, $session, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($tgfile, 1, $session, undef));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : "Add transaction group cancelled", $cgi->param('done_tmpl') ? gen_ucp($session) : gen_manage_tgs);
+			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $cgi->param('done_tmpl') ? gen_ucp($session) : gen_manage_tgs);
 		}
 	}
+
+	return;
 }
 
 set_htsv_encoders(\&read_htsv_encode, \&write_htsv_encode);
@@ -1660,7 +1680,7 @@ die 'Can\'t find value for "Root" key in ./boc_config' unless defined $config{Ro
 die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $config{TemplateDir};
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} and -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
-$ENV{PATH} = "/bin:/usr/bin";
+$ENV{PATH} = '/bin:/usr/bin';
 $git = Git::Wrapper->new($config{Root});
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
 
