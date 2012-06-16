@@ -21,9 +21,9 @@ sub read_tg
 {
 	my %content = read_htsv($_[0]);
 
-	($content{Headings}[0] eq 'Creditor') or die "tg data is broken ($content{Headings}[0])";
-	($content{Headings}[1] eq 'Amount') or die "tg data is broken ($content{Headings}[1])";
-	($content{Headings}[$#{$content{Headings}}] eq 'Description') or die "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
+	($content{Headings}[0] eq 'Creditor') or confess "tg data is broken ($content{Headings}[0])";
+	($content{Headings}[1] eq 'Amount') or confess "tg data is broken ($content{Headings}[1])";
+	($content{Headings}[$#{$content{Headings}}] eq 'Description') or confess "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
 
 	foreach my $col (@{$content{Headings}}) {
 		next if $col eq 'Creditor';
@@ -46,17 +46,17 @@ sub write_tg
 {
 	my ($file, %content) = @_;
 
-	($content{Headings}[0] eq 'Creditor') or die "tg data is broken ($content{Headings}[0])";
-	($content{Headings}[1] eq 'Amount') or die "tg data is broken ($content{Headings}[1])";
-	($content{Headings}[$#{$content{Headings}}] eq 'Description') or die "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
+	($content{Headings}[0] eq 'Creditor') or confess "tg data is broken ($content{Headings}[0])";
+	($content{Headings}[1] eq 'Amount') or confess "tg data is broken ($content{Headings}[1])";
+	($content{Headings}[$#{$content{Headings}}] eq 'Description') or confess "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
 
 	foreach my $col (@{$content{Headings}}) {
 		next if $col eq 'Creditor';
 		next if $col eq 'Description';
-		@{$content{$col}} = map (((not defined $_) or ($_ =~ /^-?\d*\.?\d*$/ and ($_ eq '' or $_ == 0))) ? undef : $_, @{$content{$col}});
+		@{$content{$col}} = map (((not defined $_) or ($_ =~ /^-?\d*[.]?\d*$/ and ($_ eq '' or $_ == 0))) ? undef : $_, @{$content{$col}});
 	}
 
-	write_htsv($file, \%content, 11);
+	return write_htsv($file, \%content, 11);
 }
 
 sub validate_tg
@@ -107,7 +107,7 @@ sub validate_tg
 
 		if ($tg{Creditor}[$row] =~ /^TrnsfrPot[1-9]$/) {
 			my $amnt = $tg{Amount}[$row];
-			$whinge->('Amount must be empty or \'*\' for a transfer pot creditor') unless (not defined $amnt) or $amnt =~ /^\s*[\*]?\s*$/;
+			$whinge->('Amount must be empty or \'*\' for a transfer pot creditor') unless (not defined $amnt) or $amnt =~ /^\s*[*]?\s*$/;
 			$whinge->('Transfer pot creditor lacks debtor(s)') if $debtors == 0;
 		} else {
 			my $amnt = validate_decimal($tg{Amount}[$row], 'Amount', undef, $whinge);
@@ -139,7 +139,8 @@ sub stround
 	my ($n, $places) = @_;
 	my $sign = ($n < 0) ? '-' : '';
 	my $abs = abs $n;
-	$sign . substr ($abs + ('0.' . '0' x $places . '5'), 0, $places + length (int ($abs)) + 1);
+
+	return $sign . substr ($abs + ('0.' . '0' x $places . '5'), 0, $places + length (int ($abs)) + 1);
 }
 
 sub compute_tg
@@ -181,8 +182,9 @@ sub compute_tg
 			$amnt *= -1;
 		}
 		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
-			$tp_net[$1] += $amnt if defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/;
-			$tp_shares[$1][$_] += $tg{$head_accts[$_]}[$row] foreach (0 .. $#head_accts);
+			my $tp = $1;
+			$tp_net[$tp] += $amnt if defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*\d\s*$/;
+			$tp_shares[$tp][$_] += $tg{$head_accts[$_]}[$row] foreach (0 .. $#head_accts);
 		} else {
 			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
 			my $share_sum = sum @shares;
@@ -229,7 +231,9 @@ sub compute_tg
 		$pennies{$maxkey} += $resid{$maxkey} < 0 ? -.01 : .01;
 		$relevant_accts{$maxkey} = $pennies{$maxkey};
 	}
-	die 'Couldn\'t balance TG' if abs ($neg_error - sum values %pennies) > .0001;
+	confess 'Couldn\'t balance TG' if abs ($neg_error - sum values %pennies) > .0001;
 
 	return %pennies;
 }
+
+1;
