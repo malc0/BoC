@@ -1,6 +1,6 @@
 #!/usr/bin/perl -T
 
-use 5.012;
+use 5.014;	# get guaranteed correct exception handling
 use autodie;
 use warnings;
 
