@@ -184,7 +184,7 @@ sub compute_tg
 		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
 			my $tp = $1;
 			$tp_net[$tp] += $amnt if defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*\d\s*$/;
-			$tp_shares[$tp][$_] += $tg{$head_accts[$_]}[$row] foreach (0 .. $#head_accts);
+			$tp_shares[$tp][$_] += clean_decimal($tg{$head_accts[$_]}[$row]) foreach (0 .. $#head_accts);
 		} else {
 			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
 			my $share_sum = sum @shares;
