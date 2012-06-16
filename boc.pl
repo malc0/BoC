@@ -1363,7 +1363,6 @@ sub gen_tg
 		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => (exists $unknown{$_}) ? 'unknown_d' : '' }, ( @sorted_accts, 'TrnsfrPot', 'Description' ));
 		push (@rows, { ROW_CL => (exists $unknown{@{$tgdetails{Creditor}}[$row]}) ? 'unknown_c' : '',
 			       R => $row,
-			       CR_CL => (exists $tps{@{$tgdetails{Creditor}}[$row]} and $view_mode) ? 'tp' : '',
 			       CREDS => \@creditors,
 			       CUR_CL => (not exists $tps{@{$tgdetails{Creditor}}[$row]} and (not $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units))) ? 'unknown_u' : '',
 			       CURS => \@currencies,
