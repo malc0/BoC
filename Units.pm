@@ -4,14 +4,14 @@ use 5.012;
 use strict;
 use warnings;
 
-use CleanData qw(validate_date validate_decimal);
+use CleanData qw(clean_date validate_date validate_decimal);
 use HeadedTSV;
 
 our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_units validate_units);
+our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_units validate_units date_sort_rates);
 
 my $cfg_file;
 
@@ -164,6 +164,20 @@ sub validate_units
 		}
 		$whinge->("No valid rates found for $ex") unless $rate_found;
 	}
+}
+
+sub date_sort_rates
+{
+	my %cfg = @_;
+
+	my @order = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, clean_date($cfg{Date}[$_]) ], 0 .. $#{$cfg{Date}}));	# Schwartzian transform ftw
+
+	foreach (keys %cfg) {
+		next if $_ eq 'Headings' or not ref $cfg{$_};
+		@{$cfg{$_}} = @{$cfg{$_}}[@order];
+	}
+
+	return %cfg;
 }
 
 1;
