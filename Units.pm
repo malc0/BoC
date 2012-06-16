@@ -20,6 +20,7 @@ my $cfg_file;
 sub init_units_cfg
 {
 	$cfg_file = $_[0];
+	return;
 }
 
 sub read_units_cfg
@@ -61,7 +62,7 @@ sub write_units_cfg
 		}
 	}
 
-	write_htsv($file, $cfg, 12);
+	return write_htsv($file, $cfg, 12);
 }
 
 sub known_units
@@ -166,6 +167,8 @@ sub validate_units
 		}
 		$whinge->("No valid rates found for $ex") unless $rate_found;
 	}
+
+	return 1;
 }
 
 sub date_sort_rates
