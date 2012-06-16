@@ -7,7 +7,7 @@ use warnings;
 use Carp;
 use List::Util qw(sum);
 
-use CleanData qw(clean_date clean_decimal clean_text clean_username validate_acct validate_acctname validate_decimal validate_unit);
+use CleanData qw(clean_date clean_decimal clean_text clean_username clean_words validate_acct validate_acctname validate_decimal validate_unit);
 use HeadedTSV;
 use Units qw(known_units get_rates);
 
@@ -73,7 +73,7 @@ sub validate_tg
 		$whinge->("Unlisted heading \"$key\"") unless scalar grep (/^$key$/, @{$tg{Headings}}) == 1;
 	}
 
-	$whinge->('Missing transaction group name') unless clean_text($tg{Name});
+	$whinge->('Missing transaction group name') unless clean_words($tg{Name});
 	$whinge->('Unparsable date') unless clean_date($tg{Date});
 	$whinge->('\'Omit\' keyword should not have a value') if defined $tg{Omit};
 
