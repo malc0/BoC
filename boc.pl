@@ -1626,6 +1626,9 @@ sub despatch_user
 			%tg = clean_tg(\%tg, \@cred_accts);
 			$whinge->('No transactions?') unless exists $tg{Creditor};
 
+			my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+			eval { compute_tg(\%tg, \%neg_accts, $whinge) };
+
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 			try_commit_and_unlock(sub {

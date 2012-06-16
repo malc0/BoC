@@ -146,7 +146,7 @@ sub compute_tg
 {
 	my %tg = %{$_[0]};
 	my %neg_accts = %{$_[1]};
-	my $die = sub { confess $_[0] };
+	my $die = $_[2] ? $_[2] : sub { confess $_[0] };
 
 	my @cred_accts = validate_tg(\%tg, $die);
 	my %rates = get_rates($tg{Date}, $die);
@@ -210,7 +210,7 @@ sub compute_tg
 	}
 
 	my $imbalance = $neg_error - sum values %relevant_accts;
-	die 'TG does not compute -- probably due to impossible transfer pot' if abs ($imbalance) > .000000001;
+	$die->('TG does not compute -- probably due to impossible transfer pot') if abs ($imbalance) > .000000001;
 
 	my (%pennies, %resid);
 	@pennies{keys %relevant_accts} = map (stround($_, 2), values %relevant_accts);
