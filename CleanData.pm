@@ -11,12 +11,12 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(untaint encode_for_file encode_for_html clean_date clean_decimal clean_email clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname validate_unit);
+our @EXPORT_OK = qw(untaint encode_for_file encode_for_html clean_date clean_decimal clean_email clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname validate_unit);
 
 sub untaint
 {
 	return undef unless defined $_[0];
-	$_[0] =~ /^(.*)$/;
+	return undef unless $_[0] =~ /^(.*)$/s;
 	return $1;
 }
 
@@ -45,7 +45,7 @@ sub clean_decimal
 {
 	return 0 unless defined $_[0];
 	return 0 if ($_[0] =~ /^\s*$/);
-	return undef unless $_[0] =~ /^\s*(-?\d*[\.,·]?\d*)\s*$/;
+	return undef unless $_[0] =~ /^\s*(-?\d*[.,·]?\d*)\s*$/;
 	my $num_str = $1;
 	$num_str =~ tr/,·/../;
 	return $num_str;
@@ -68,8 +68,8 @@ sub clean_text
 sub clean_unit
 {
 	return undef unless defined $_[0];
-	$_[0] = uc ($_[0]);
-	return undef unless $_[0] =~ /^([A-Z\-+_.]*)$/;
+	my $UNIT = uc ($_[0]);
+	return undef unless $UNIT =~ /^([A-Z\-+_.]*)$/;
 	return $1;
 }
 
@@ -169,3 +169,5 @@ sub validate_unit
 
 	return $unit;
 }
+
+1;
