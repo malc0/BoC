@@ -14,14 +14,12 @@
 				<TMPL_IF NAME=USER_ACCT>
 				<tr><th>User name</th><th>Real name</th><th>email</th></tr>
 				<TMPL_LOOP NAME=ACCTS>
-				<!-- FIXME: JS delete confirm! -->
-				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=EMAIL></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete"/></td></tr>
+				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=EMAIL></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete" onclick="return confirm('Really delete account?')"/></td></tr>
 				</TMPL_LOOP>
 				<TMPL_ELSE>
 				<tr><th>Short name</th><th>Long name</th></tr>
 				<TMPL_LOOP NAME=ACCTS>
-				<!-- FIXME: JS delete confirm! -->
-				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete"/></td></tr>
+				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete" onclick="return confirm('Really delete account?')"/></td></tr>
 				</TMPL_LOOP>
 				</TMPL_IF>
 			</table>
