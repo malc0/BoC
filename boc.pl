@@ -1374,15 +1374,15 @@ sub gen_tg
 	return $tmpl;
 }
 
-sub new_tgfile
+sub new_uuidfile
 {
+	my $path = $_[0];
 	my $id;
-	my $tg_path = "$config{Root}/transaction_groups";
-	(mkdir "$tg_path" or die) unless (-d $tg_path);
+	(mkdir "$path" or die) unless (-d $path);
 	do {
 		$id = create_UUID_as_string(UUID_V4);
-	} while (-e "$tg_path/$id");
-	return "$tg_path/$id";
+	} while (-e "$path/$id");
+	return "$path/$id";
 }
 
 sub clean_tg
@@ -1478,7 +1478,7 @@ sub despatch_user
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
 			try_commit_and_unlock(sub {
-				$tgfile = new_tgfile;
+				$tgfile = new_uuidfile("$config{Root}/transaction_groups");
 				write_tg($tgfile, %tg);
 				my @split_tgf = split('-', unroot($tgfile));
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
@@ -1548,7 +1548,7 @@ sub despatch_user
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, 'add_split', $etoken);
 			try_commit_and_unlock(sub {
-				$tgfile = new_tgfile;
+				$tgfile = new_uuidfile("$config{Root}/transaction_groups");
 				write_tg($tgfile, %tg);
 				my @split_tgf = split('-', unroot($tgfile));
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
@@ -1645,7 +1645,7 @@ sub despatch_user
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 			try_commit_and_unlock(sub {
-				$tgfile = new_tgfile unless ($tgfile);
+				$tgfile = new_uuidfile("$config{Root}/transaction_groups") unless ($tgfile);
 				write_tg($tgfile, %tg);
 				my @split_tgf = split('-', unroot($tgfile));
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
