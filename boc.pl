@@ -1063,15 +1063,15 @@ sub get_acct_name_map
 	return (%ppl, %vaccts);
 }
 
-sub date_sorted_tgs
+sub date_sorted_htsvs
 {
-	my %tg_dates = query_all_htsv_in_path("$config{Root}/transaction_groups", 'Date', 1);
-	my %rtgds;
-	foreach (keys %tg_dates) {
-		$tg_dates{$_} = '0.0.0' unless defined $tg_dates{$_} and $tg_dates{$_} =~ /^\s*\d+\s*[.]\s*\d+\s*[.]\s*\d+\s*$/;
-		push (@{$rtgds{$tg_dates{$_}}}, $_);	# non-unique dates
+	my %dates = query_all_htsv_in_path("$config{Root}/$_[0]", 'Date', 1);
+	my %rds;
+	foreach (keys %dates) {
+		$dates{$_} = '0.0.0' unless defined $dates{$_} and $dates{$_} =~ /^\s*\d+\s*[.]\s*\d+\s*[.]\s*\d+\s*$/;
+		push (@{$rds{$dates{$_}}}, $_);	# non-unique dates
 	}
-	return map (@{$rtgds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf('%04d%02d%02d', (split /[.]/, $_)[2,1,0]) ], keys %rtgds));	# Schwartzian transform ftw
+	return map (@{$rds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf('%04d%02d%02d', (split /[.]/, $_)[2,1,0]) ], keys %rds));	# Schwartzian transform ftw
 }
 
 sub gen_ucp
@@ -1082,7 +1082,7 @@ sub gen_ucp
 
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
 	my (@credlist, @debtlist);
-	foreach my $tg (date_sorted_tgs) {
+	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 		my %computed = eval { compute_tg(\%tgdetails, \%neg_accts) };
@@ -1234,7 +1234,7 @@ sub gen_manage_tgs
 	my %acct_names = get_acct_name_map;
 
 	my @tglist;
-	foreach my $tg (date_sorted_tgs) {
+	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
 		eval { validate_tg(\%tgdetails, sub { $tg_fail = $_[0]; die }, \%acct_names) };
