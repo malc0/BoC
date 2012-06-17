@@ -369,7 +369,7 @@ sub validate_admins
 	my @valid_admins;
 	foreach my $user (@users) {
 		my %userdetails = read_simp_cfg($user);
-		push(@valid_admins, $user) if (exists $userdetails{IsAdmin} and defined $userdetails{Password});
+		push (@valid_admins, $user) if (exists $userdetails{IsAdmin} and defined $userdetails{Password});
 	}
 
 	return scalar @valid_admins;
@@ -405,8 +405,7 @@ sub gen_login_nopw
 
 	foreach my $user (@users) {
 		next unless $user =~ /.*\/(.*)/;
-		my %outputdetails = ( USER => $1 );
-		push(@userlist, \%outputdetails);
+		push (@userlist, { USER => $1 });
 	}
 	$tmpl->param(PPL => \@userlist);
 
@@ -506,7 +505,7 @@ sub gen_manage_accts
 				NAME => $acctdetails{Name},
 			);
 		}
-		push(@acctlist, \%outputdetails);
+		push (@acctlist, \%outputdetails);
 	}
 	$tmpl->param(ACCTS => \@acctlist);
 	$tmpl->param(USER_ACCT => 1) if $people;
@@ -1266,7 +1265,7 @@ sub gen_manage_tgs
 			SUMMARY_CL => $tg_fail ? 'broken' : '',
 			SUMMARY => encode_for_html($tg_fail ? $tg_fail : substr($sum_str, 0, -2)),
 		);
-		push(@tglist, \%outputdetails);
+		push (@tglist, \%outputdetails);
 	}
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
@@ -1418,13 +1417,9 @@ sub despatch_user
 
 	return if (defined $cgi->param('logout'));
 
-	if (defined $cgi->param('manage_tgs')) {
-		emit(gen_manage_tgs);
-	} elsif (defined $cgi->param('to_cp')) {
-		emit(gen_ucp($session));
-	} elsif (defined $cgi->param('disp_accts')) {
-		emit(gen_accts_disp);
-	}
+	emit(gen_manage_tgs) if (defined $cgi->param('manage_tgs'));
+	emit(gen_ucp($session)) if (defined $cgi->param('to_cp'));
+	emit(gen_accts_disp) if (defined $cgi->param('disp_accts'));
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
 		my $tmpl = gen_ucp($session);
