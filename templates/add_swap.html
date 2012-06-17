@@ -6,7 +6,11 @@
 	<body>
 		<h1>Add <TMPL_IF NAME=SWAP>a swap between two people<TMPL_ELSE>an expense to be charged communally</TMPL_IF></h1>
 
-		<form action="boc.pl" method="post">
+		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
+				this.save.clicked = false;
+				if (this.Amount.value < 0)
+					return confirm('Really submit with negative amount (take funds from ' + this.Creditor.options[this.Creditor.selectedIndex].text + ' account)?');
+			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="<TMPL_IF NAME=SWAP>add_swap<TMPL_ELSE>add_vacct_expense</TMPL_IF>"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
@@ -18,7 +22,6 @@
 			</select>
 
 			<h2>Step 2: how much is it?</h2>
-			<!-- FIXME JS: verify negative input -->
 			<p><input type="text" value=0 name="Amount"/>
 			   <TMPL_IF NAME=CUR><select name="Currency">
 				<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</option>
@@ -39,7 +42,7 @@
 			<h2>Step 5: <TMPL_IF NAME=SWAP>what's it for<TMPL_ELSE>any other relevant details</TMPL_IF>?</h2>
 			<p><input type="text" name="Description" size=50/></p>
 
-			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Done"/></p>
+			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Done" onclick="this.clicked = true"/></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
