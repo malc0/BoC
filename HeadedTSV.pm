@@ -77,7 +77,7 @@ sub write_htsv
 	$write_encoder->($content) if ($write_encoder);
 
 	open (my $fh, '>', "$file.new") or confess "$file.new: $!";
-	foreach my $key (keys $content) {
+	foreach my $key (sort keys $content) {
 		unless (ref ($content->{$key})) {
 			# check if non-white exists (since trailing white killed on read anyway)
 			say $fh ((defined $content->{$key} and $content->{$key} =~ /\S/) ? "$key	$content->{$key}" : "$key");

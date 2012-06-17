@@ -989,7 +989,7 @@ sub despatch_admin
 			}
 
 			@{$cfg{Headings}} = ( 'Date' );
-			foreach (@units) {
+			foreach (sort @units) {
 				next if $_ eq $cfg{Anchor};
 				if (exists $curs{$_}) {
 					push (@{$cfg{Headings}}, "$_/$cfg{Anchor}");
