@@ -11,7 +11,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT_OK = qw(untaint encode_for_file encode_for_html clean_date clean_decimal clean_email clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname validate_unit);
+our @EXPORT_OK = qw(untaint encode_for_file encode_for_html clean_date clean_decimal clean_email clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 
 sub untaint
 {
@@ -56,6 +56,14 @@ sub clean_email
 	return undef unless defined $_[0];
 	return undef unless $_[0] =~ /^\s*(.+\@.+)\s*$/;
 	return encode_for_html($1);
+}
+
+sub clean_int
+{
+	return 0 unless defined $_[0];
+	return 0 if ($_[0] =~ /^\s*$/);
+	return undef unless $_[0] =~ /^\s*(-?\d*)\s*$/;
+	return $1;
 }
 
 sub clean_text
@@ -140,6 +148,18 @@ sub validate_decimal
 	$val = clean_decimal($val);
 
 	$whinge->("$type non-numeric") unless defined $val;
+	$whinge->("$type negative") if $neg_test and $val < 0;
+
+	return $val;
+}
+
+sub validate_int
+{
+	my ($val, $type, $neg_test, $whinge) = @_;
+
+	$val = clean_int($val);
+
+	$whinge->("$type non-integer") unless defined $val;
 	$whinge->("$type negative") if $neg_test and $val < 0;
 
 	return $val;
