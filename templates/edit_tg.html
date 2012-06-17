@@ -5,7 +5,20 @@
 		<style type="text/css">th.negated { font-style: italic } .unknown_d { background-color: red } td.unknown_u { background-color: red } tr.unknown_c { background-color: red } .tp { font-style: italic }</style>
 	</head>
 	<body>
-		<form action="boc.pl" method="post">
+		<form action="boc.pl" method="post" onsubmit="if ('save' in this && this.save.clicked) {
+				this.save.clicked = false;
+				var missing = '';
+				var row = 0;
+				while ('Creditor_' + row in this) {
+					var amnt = this['Amount_' + row].value;
+					var is_zero = (amnt.search(/^\s*$/) >= 0 || (amnt.search(/^\s*-?\d*[.,·]?\d*\s*$/) >= 0 && amnt == 0));
+					if ((this['Creditor_' + row].value.search(/^TrnsfrPot\d$/) >= 0 || !is_zero) && this['Description_' + row].value.search(/^\s*$/) >= 0)
+						missing += ' ' + row + ',';
+					row++;
+				}
+				if (missing != '')
+					return confirm ('Missing line description, row ' + missing + ' save anyway?');
+			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="edit_tg"/>
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
@@ -36,7 +49,6 @@
 							</TMPL_LOOP>
 						</select>
 					</TMPL_IF></td></TMPL_IF>
-					<!-- FIXME: JS confirm if no line description -->
 					<TMPL_LOOP NAME=RC><td class="<TMPL_VAR NAME=D_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=D><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=D>" name="<TMPL_VAR NAME=N>"/></TMPL_IF></td>
 					</TMPL_LOOP>
 				</tr>
@@ -46,7 +58,7 @@
 
 			<p><a href="boc.pl?serve=tg_help" onclick="window.open('boc.pl?serve=moo', 'foo','height=400,width=550,location=no,menubar=no,status=no,toolbar=no,resizeable=yes,scrollbars=yes')" target="foo" title="Opens in new window">Understanding the transaction group form</a></p>
 			<p><TMPL_IF NAME=RO><input type="submit" name="edit" value="Edit"/><TMPL_ELSE>
-			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save"/></TMPL_IF></p>
+			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p></TMPL_UNLESS>
 			<p><input type="submit" name="logout" value="Logout"/></p>
