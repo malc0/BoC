@@ -1,0 +1,36 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> meets</title>
+		<style type="text/css">td.unknown { background-color: red }</style>
+	</head>
+	<body>
+		<h1>Meets list</h1>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="manage_meets"/>
+
+			<table border=1>
+				<tr><th>Name</th><th>Start Date</th><th>Duration (days)</th><th>Organizer</th><th>Meet fee template</th></tr>
+				<TMPL_LOOP NAME=MEETS>
+				<tr><td><a href="boc.pl?tmpl=manage_meets&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=LEN></td><td class="<TMPL_VAR NAME=LDR_CL>"><TMPL_VAR NAME=LEADER></td><td class="<TMPL_VAR NAME=FT_CL>"><TMPL_VAR NAME=FT></td></tr>
+				</TMPL_LOOP>
+				<tr><td><input type="text" name="name"/></td><td><input type="text" name="date"/></td><td><input type="text" name="len"/></td><td><select name="leader">
+						<TMPL_LOOP NAME=PPL><option value="<TMPL_VAR NAME=A>"><TMPL_VAR NAME=N></option>
+		                                </TMPL_LOOP>
+					</select></td><td><select name="fee_tmpl">
+						<option value="">Select fee template</option>
+						<TMPL_LOOP NAME=FTS><option value="<TMPL_VAR NAME=FTID>"><TMPL_VAR NAME=FTN></option>
+		                                </TMPL_LOOP>
+						<option value="none">No template</option>
+					</select></td><td><input type="submit" name="add" value="Add"/></td></tr>
+			</table>
+
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>

@@ -23,7 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname validate_unit);
+use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use HeadedTSV;
 use TG;
 use Units;
@@ -501,7 +501,8 @@ sub gen_tcp
 	my $tmpl = load_template('treasurer_cp.html');
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	$tmpl->param(VACCTS => scalar keys %vaccts);
+	my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
+	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => (exists $meet_cfg{MeetAccount}));	# FIXME does MeetAccount need to be valid?
 
 	return $tmpl;
 }
@@ -830,6 +831,28 @@ sub commit_config_units
 	}, $cfg_file);
 }
 
+sub gen_manage_meets
+{
+	my $tmpl = load_template('manage_meets.html');
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
+
+	my @meetlist;
+	foreach my $mid (date_sorted_htsvs('meets')) {
+		my %meet = read_htsv("$config{Root}/meets/$mid");
+		my $leader = (exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader};
+		my $ft_state = (not exists $meet{Template} or !!grep (/^$meet{Template}$/, values %fts));
+
+		push (@meetlist, { MID => $mid, NAME => $meet{Name}, DATE => $meet{Date}, LEN => $meet{Duration}, LDR_CL => (exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => (exists $meet{Template}) ? $meet{Template} : 'None' });
+	}
+	my @people = map ({ A => $_, N => $ppl{$_} }, keys %ppl);
+	my @ftlist = map ({ FTID => $_, FTN => $fts{$_} }, keys %fts);
+
+	$tmpl->param(MEETS => \@meetlist, PPL => \@people, FTS => \@ftlist);
+
+	return $tmpl;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -850,6 +873,7 @@ sub despatch_admin
 		my $whinge = sub { whinge('Couldn\'t get edit lock for configuration file', gen_tcp) };
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
+		emit(gen_manage_meets) if (defined $cgi->param('manage_meets'));
 		if (defined $cgi->param('edit_inst_cfg')) {
 			$whinge->() unless try_lock("$config{Root}/config", $sessid);
 			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
@@ -989,6 +1013,33 @@ sub despatch_admin
 				commit(unroot($acct_file) . ': deleted', $session);
 			});
 			emit_with_status("Deleted account \"$acct\"", gen_manage_accts($person));
+		}
+	}
+	if ($cgi->param('tmpl') eq 'manage_meets') {
+		if (defined $cgi->param('add')) {
+			my $whinge = sub { whinge($_[0], gen_manage_meets()) };
+			my %meet;
+			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
+
+			$meet{Name} = clean_words($cgi->param('name'));
+			$meet{Date} = validate_date(scalar $cgi->param('date'), $whinge);
+			$meet{Duration} = validate_int(scalar $cgi->param('len'), 'Duration', 1, $whinge);
+			$meet{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
+			$whinge->('Bad fee template') unless $cgi->param('fee_tmpl') eq 'none' or exists $fts{$cgi->param('fee_tmpl')};
+			$meet{Template} = $fts{$cgi->param('fee_tmpl')}  if exists $fts{$cgi->param('fee_tmpl')};
+
+			$whinge->('No meet name given') unless length $meet{Name};
+			$whinge->('Zero duration?') unless $meet{Duration} > 0;
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			try_commit_and_unlock(sub {
+				my $file = new_uuidfile("$config{Root}/meets");
+				write_simp_cfg($file, %meet);
+				my @split_f = split('-', unroot($file));
+				add_commit($file, "$split_f[0]...: Meet \"$meet{Name}\" created", $session);
+			});
+			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets());
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
