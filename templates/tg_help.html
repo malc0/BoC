@@ -1,0 +1,42 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> Transaction Group help</title>
+	</head>
+	<body>
+		<h1>Transaction Groups</h1>
+
+		<p>A transaction group (TG) is a record of a logically related financial event where funds move from m accounts to n accounts.  It is generally quite flexible in what it can represent, but for clarity this should not be abused into commingling transactions distinct in time, place or nature.</p>
+
+		<h3>Contents</h3>
+		<ul>
+			<li><a href="#headers">Header fields</a></li>
+			<li><a href="#fields">Tabulated fields</a></li>
+			<li><a href="#tps">Transfer Pots</a></li>
+		</ul>
+
+		<a name=headers><h2>Header fields</h2></a>
+
+		<p><b>Name:</b> a representative and descriptive name for the transactions, this is what the TG's purpose will be summarised by in other displays</p>
+		<p><b>Date:</b> when the transaction(s) happened.  Preferably in DD.MM.YYYY, but more imaginative forms may be correctly parsed.  It is important to get this right so that correct currency conversions may be applied.  Also, TGs tend to be sorted by date.</p>
+		<p><b>Omitted:</b> set if the TG's effects should not be included in the overall account balances</p>
+
+		<a name=fields><h2>Tabulated fields</h2></a>
+
+		<p>Typically each row describes one transaction, with the following fields:</p>
+
+		<p><b>Creditor:</b> to whom (/what [*]) the Amount column applies</p>
+		<p><b>Amount:</b> the amount to credit to (or, for a negative value, debit from) the Creditor</p>
+		<p><b>Currency:</b> the currency in which the Amount is expressed</p>
+		<p><b>Debt shares:</b> the proportions to allocate to each of the accounts to finance the Amount.  Must be positive.  Shares are calculated by taking the ratio of an account's share to the sum of all shares.  This allows true monetary values to be used if so desired, assuming they sum to the Amount.  Accounts with italicised headings are <em>Negated</em> accounts, where the account change happens in the same sense (credit/debit) as that of the Creditor.</p>
+		<p><b>Transfer pot:</b> see below</p>
+		<p><b>Description:</b> a particular description for the transaction row, be it describing the Creditor, Amount, or Debt share</p>
+
+		<p>Any field appearing with a red background is one whose saved contents do not now validate for some reason.  Such fields must be amended to permit saving of the TG.</p>
+
+		<a name=tps><h3>[*] Transfer Pots</h3></a>
+		<p>Transfer pots (TPs) are a powerful way to link several rows to make a transaction with multiple Creditors.  A TG may have up to nine TPs, 1-9.</p>
+		<p>Any rows which have the same number (1-9) in the Transfer Pot field have their debt-shares combined.  The Amount to be split across the shares is the nett Amount following summation of the combined rows' Amounts.</p>
+		<p>A numbered Transfer Pot may also be set as a Creditor.  In this circumstance the Amount must be empty or &apos;*&apos;, as this simply specifies that all of the row's debt-shares are to be added to those already in the appropriate pot.</p>
+	</body>
+</html>
