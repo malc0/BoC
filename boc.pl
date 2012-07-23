@@ -23,7 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname);
+use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname validate_unit);
 use HeadedTSV;
 use TG;
 use Units;
@@ -594,6 +594,80 @@ sub gen_edit_simp_trans
 	return $tmpl;
 }
 
+sub gen_manage_fee_tmpls
+{
+	my $tmpl = load_template('manage_fee_tmpls.html');
+
+	my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
+	my @list = map ({ TMPL => $_, NAME => $fts{$_} }, keys %fts);
+	$tmpl->param(TMPLS => \@list);
+
+	return $tmpl;
+}
+
+sub gen_edit_fee_tmpl
+{
+	my ($file, $view_mode, $session, $etoken) = @_;
+
+	my %ft;
+	my $init_rows = 0;
+	my $max_rows = 5;
+
+	if ($file) {
+		%ft = read_htsv($file);
+		$init_rows = scalar @{$ft{Fee}};
+		$max_rows = $init_rows + ($view_mode ? 0 : min(2, 10 - $init_rows));
+	}
+
+	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
+
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
+
+	push (@{$ft{Fee}}, (0) x ($max_rows - scalar @{$ft{Fee}}));
+	push (@{$ft{Unit}}, ('') x ($init_rows - scalar @{$ft{Unit}})) if scalar @units > 1;
+	push (@{$ft{Unit}}, ($units_cfg{Default}) x ($max_rows - scalar @{$ft{Unit}})) if scalar @units;
+	push (@{$ft{Condition}}, ('') x ($max_rows - scalar @{$ft{Condition}}));
+
+	my @allunits = @units;
+	foreach my $cur (@{$ft{Unit}}) {
+		push (@allunits, $cur) if defined $cur and not grep (/^$cur$/, @allunits);
+	}
+
+	$tmpl->param(FT_ID => $1) if ($file and $file =~ /\/([^\/]+)$/);
+	$tmpl->param(RO => $view_mode);
+	$tmpl->param(NAME => $ft{Name});
+	$tmpl->param(CUROPTS => scalar @allunits > 1);
+
+	my @fees;
+	foreach my $row (0 .. $max_rows - 1) {
+		my $unk_cur = (not defined $ft{Unit}[$row] or not grep (/^$ft{Unit}[$row]$/, @units));
+		my @currencies = map ({ C => $_, S => ((defined $ft{Unit}[$row]) ? ($_ eq $ft{Unit}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
+		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies });
+	}
+	my @attrs;
+	foreach my $attr (query_pers_attrs) {
+		my @afees;
+		foreach my $row (0 .. $max_rows - 1) {
+			my $cond = '';
+			($cond = $ft{Condition}[$row]) =~ s/\s*//g if defined $ft{Condition}[$row];
+			$cond =~ s/&amp;/&/g;
+			$cond = '&&' . $cond . '&&';
+			my $if = ($cond =~ /&&$attr&&/);
+			my $unless = ($cond =~ /&&!$attr&&/);
+			$unless = 0 if $if;
+			my $dc = !($if or $unless);
+			push (@afees, { N => $row, I => $if, U => $unless, D => $dc });
+		}
+		push (@attrs, { A => $attr, AFEES => \@afees });
+	}
+	$tmpl->param(FEES => \@fees, ATTRS => \@attrs);
+
+	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
+
+	return $tmpl;
+}
+
 sub gen_edit_pers_attrs
 {
 	my $tmpl = load_template('edit_pers_attrs.html', $_[0]);
@@ -748,6 +822,7 @@ sub despatch_admin
 			$whinge->() unless try_lock("$config{Root}/config_simp_trans", $sessid);
 			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
 		}
+		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
 		if (defined $cgi->param('edit_pers_attrs')) {
 			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
 			emit(gen_edit_pers_attrs(get_edit_token($sessid, 'edit_pers_attrs')));
@@ -938,6 +1013,106 @@ sub despatch_admin
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to transaction config' : 'Edit transaction config cancelled', load_template('treasurer_cp.html'));
+	}
+	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
+		if (defined $cgi->param('view') or defined $cgi->param('add')) {
+			my $view = $cgi->param('view');
+			my $ft;
+
+			if ($view) {
+				$ft = "$config{Root}/fee_tmpls/$view";
+				emit_with_status("No such FT \"$view\"", gen_manage_fee_tmpls) unless (-r $ft);
+			}
+
+			emit(gen_edit_fee_tmpl($ft, $view, $session, $view ? undef : get_edit_token($sessid, 'add_ft')));
+		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_fee_tmpl') {
+		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
+
+		my $edit_id = clean_filename(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls");
+		my $file = $edit_id ? "$config{Root}/fee_tmpls/$edit_id" : undef;
+
+		emit_with_status("No such fee template \"$edit_id\"", gen_manage_fee_tmpls) if $edit_id and ! -r $file;
+
+		if (defined $cgi->param('edit')) {
+			whinge("Couldn't get edit lock for fee template \"$edit_id\"", gen_manage_fee_tmpls) unless try_lock($file, $sessid);
+			unless (-r $file) {
+				unlock($file);
+				whinge("Couldn't edit fee template \"$edit_id\", file disappeared", gen_manage_fee_tmpls);
+			}
+			emit(gen_edit_fee_tmpl($file, 0, $session, get_edit_token($sessid, "edit_$edit_id")));
+		}
+
+		# only left with save and cancel now
+		my %ft;
+
+		if (defined $cgi->param('save')) {
+			my $whinge = sub { whinge($_[0], gen_edit_fee_tmpl($file, 0, $session, $etoken)) };
+
+			$ft{Name} = clean_words($cgi->param('name'));
+			$whinge->('Missing fee template name') unless $ft{Name};
+			my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
+			delete $fts{$edit_id} if $edit_id;	# remove self!
+			$whinge->('Template name already taken') if grep (/^$ft{Name}$/, values %fts);
+
+			my $max_rows = -1;
+			$max_rows++ while ($max_rows < 10 and defined $cgi->param('Fee_' . ($max_rows + 1)));
+			$whinge->('No fees?') unless $max_rows >= 0;
+
+			my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
+			my @units = known_units(%units_cfg);
+			my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
+			my %curs;
+
+			foreach my $row (0 .. $max_rows) {
+				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
+				my $cur;
+				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
+				my $cond;
+				foreach (query_pers_attrs) {
+					if ($cgi->param("${_}_$row") eq 'if') {
+						$cond .= " && $_";
+					} elsif ($cgi->param("${_}_$row") eq 'unless') {
+						$cond .= " && !$_";
+					}
+				}
+				$cond = substr ($cond, 4) if length $cond;
+
+				$whinge->('Missing fee amount') if length $cond and $amnt == 0;
+				next if $amnt == 0;
+
+				push (@{$ft{Fee}}, $amnt);
+				if (scalar @units) {
+					push (@{$ft{Unit}}, $cur);
+					$curs{$cur} = 1 unless grep (/^$cur$/, @commods);
+				}
+				push (@{$ft{Condition}}, $cond);
+			}
+			$whinge->('No fees?') unless exists $ft{Fee};
+			$whinge->('More than one currency in use') if scalar keys %curs > 1;
+
+			@{$ft{Headings}} = ( 'Fee', 'Condition' );
+			splice (@{$ft{Headings}}, 1, 0, 'Unit') if exists $ft{Unit};
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_manage_fee_tmpls) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken);
+			try_commit_and_unlock(sub {
+				$file = new_uuidfile("$config{Root}/fee_tmpls") unless ($file);
+				write_htsv($file, \%ft);
+				my @split_f = split('-', unroot($file));
+				add_commit($file, "$split_f[0]...: Fee template \"$ft{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
+			}, $edit_id ? $file : undef);
+		} else {
+			unlock($file) if $file;
+			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_fee_tmpl', $etoken);
+		}
+
+		if ($edit_id) {
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$ft{Name}\" fee template" : 'Edit cancelled', gen_edit_fee_tmpl($file, 1, $session, undef));
+		} else {
+			emit_with_status((defined $cgi->param('save')) ? "Added fee template \"$ft{Name}\"" : 'Add fee template cancelled', gen_manage_fee_tmpls);
+		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_pers_attrs') {
 		my $cfg_file = "$config{Root}/config_pers_attrs";

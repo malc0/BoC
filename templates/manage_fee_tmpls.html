@@ -1,0 +1,23 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> fee templates</title>
+	</head>
+	<body>
+		<h1>Fee templates</h1>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="manage_fee_tmpls"/>
+
+			<TMPL_LOOP NAME=TMPLS><p><a href="boc.pl?tmpl=manage_fee_tmpls&amp;view=<TMPL_VAR NAME=TMPL>"><TMPL_VAR NAME=NAME></a></p>
+			</TMPL_LOOP>
+
+			<p><input type="submit" name="add" value="Add new fee template"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>

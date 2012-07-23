@@ -1,0 +1,53 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> fee templates</title>
+	</head>
+	<body>
+		<h1>Fee template configuration</h1>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="edit_fee_tmpl"/>
+			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
+			<TMPL_IF NAME=FT_ID><input type="hidden" name="ft_id" value="<TMPL_VAR NAME=FT_ID>"/></TMPL_IF>
+
+			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Template name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="name"/></label></h2></TMPL_IF>
+
+			<TMPL_IF NAME=CURS><p><b>Note: only one currency unit can be employed</b></p></TMPL_IF>
+
+			<table border=1>
+				<tr><TMPL_IF NAME=ATTRS><th rowspan=2>Attribute</th></TMPL_IF>
+					<TMPL_LOOP NAME=FEES><th colspan=3>Fee <TMPL_VAR NAME=N>: <TMPL_IF NAME=RO><TMPL_VAR NAME=F><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=F>" name="Fee_<TMPL_VAR NAME=N>" size=5/></TMPL_IF><TMPL_IF NAME=CUROPTS> <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+						<select name="Unit_<TMPL_VAR NAME=N>">
+							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
+							</TMPL_LOOP>
+						</select></TMPL_IF></TMPL_IF></th>
+					</TMPL_LOOP>
+				</tr>
+				<TMPL_IF NAME=ATTRS><tr><TMPL_LOOP NAME=FEES>
+					<th>If</th><th>!If</th><th>N/A</th><TMPL_IF 0><TMPL_VAR NAME=F><TMPL_VAR NAME=N><TMPL_LOOP NAME=CURS></TMPL_LOOP></TMPL_IF></TMPL_LOOP>
+				</tr></TMPL_IF>
+
+				<TMPL_LOOP NAME=ATTRS><tr>
+					<td><TMPL_VAR NAME=A></td>
+					<TMPL_LOOP NAME=AFEES>
+						<td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=I>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="if" <TMPL_IF NAME=I>checked="checked"</TMPL_IF>/></TMPL_IF></td>
+						<td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=U>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="unless" <TMPL_IF NAME=U>checked="checked"</TMPL_IF>/></TMPL_IF></td>
+						<td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=D>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="dc" <TMPL_IF NAME=D>checked="checked"</TMPL_IF>/></TMPL_IF></td>
+					</TMPL_LOOP>
+				</tr>
+				</TMPL_LOOP>
+			</table>
+			<p>Attributes combine with a logical `AND&apos; sense</p>
+			<TMPL_IF NAME=DEFCUR><p>All transactions denominated in <TMPL_VAR NAME=DEFCUR></p></TMPL_IF>
+
+			<p><TMPL_IF NAME=RO><input type="submit" name="edit" value="Edit"/><TMPL_ELSE>
+			   <input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save"/></TMPL_IF></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_cp" value="Return to control panel"/><input type="submit" name="manage_fee_tmpls" value="See all fee templates"/></p></TMPL_UNLESS>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>
