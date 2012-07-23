@@ -579,6 +579,27 @@ sub gen_edit_simp_trans
 	return $tmpl;
 }
 
+sub gen_edit_pers_attrs
+{
+	my $tmpl = load_template('edit_pers_attrs.html', $_[0]);
+
+	my @types = ( 'Has', 'Is' );
+
+	my %cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
+	foreach my $type (@{$cfg{Type}}) {
+		push (@types, $type) unless grep (/^$type$/, @types);
+	}
+	my $num_rows = ($#{$cfg{Type}} >= 0) ? scalar @{$cfg{Type}} + min(5, 30 - scalar @{$cfg{Type}}) : 10;
+	my @rows;
+	foreach my $row (0 .. ($num_rows - 1)) {
+		my @rowoptions = map ({ T => $_, S => (defined $cfg{Type}[$row]) ? $cfg{Type}[$row] eq $_ : undef }, @types);
+		push (@rows, { TYPES => \@rowoptions, A => $cfg{Attribute}[$row], R => $row });
+	}
+	$tmpl->param(ROWS => \@rows);
+
+	return $tmpl;
+}
+
 sub gen_edit_units
 {
 	my $tmpl = load_template('edit_units.html', $_[0]);
@@ -711,6 +732,10 @@ sub despatch_admin
 		if (defined $cgi->param('edit_simp_trans')) {
 			$whinge->() unless try_lock("$config{Root}/config_simp_trans", $sessid);
 			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
+		}
+		if (defined $cgi->param('edit_pers_attrs')) {
+			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
+			emit(gen_edit_pers_attrs(get_edit_token($sessid, 'edit_pers_attrs')));
 		}
 		if (defined $cgi->param('edit_units')) {
 			$whinge->() unless try_lock("$config{Root}/config_units", $sessid);
@@ -897,6 +922,42 @@ sub despatch_admin
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to transaction config' : 'Edit transaction config cancelled', load_template('treasurer_cp.html'));
+	}
+	if ($cgi->param('tmpl') eq 'edit_pers_attrs') {
+		my $cfg_file = "$config{Root}/config_pers_attrs";
+
+		if (defined $cgi->param('save')) {
+			my %cfg;
+			my $whinge = sub { whinge($_[0], gen_edit_pers_attrs($etoken)) };
+
+			my $max_rows = -1;
+			$max_rows++ while ($max_rows < 100 and defined $cgi->param('Type_' . ($max_rows + 1)));
+			$whinge->('No attributes?') unless $max_rows >= 0;
+
+			foreach my $row (0 .. $max_rows) {
+				my $type = clean_word($cgi->param("Type_$row"));
+				my $attr = clean_words($cgi->param("Attr_$row"));
+				next unless $attr;
+				$whinge->('Attributes cannot have spaces') unless clean_word($attr);
+				$whinge->('Missing type') unless $type;
+
+				push (@{$cfg{Type}}, ucfirst ($type));
+				push (@{$cfg{Attribute}}, ucfirst ($attr));
+			}
+			@{$cfg{Headings}} = ( 'Type', 'Attribute' ) if exists $cfg{Type};
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
+			try_commit_and_unlock(sub {
+				write_htsv($cfg_file, \%cfg);
+				add_commit($cfg_file, 'config_pers_attrs: personal attribute types modified', $session);
+			}, $cfg_file);
+		} else {
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to attribute config' : 'Edit attribute config cancelled', load_template('treasurer_cp.html'));
 	}
 	if ($cgi->param('tmpl') eq 'edit_units') {
 		my $cfg_file = "$config{Root}/config_units";
