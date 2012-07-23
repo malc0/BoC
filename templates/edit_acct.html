@@ -24,6 +24,12 @@
 			<p><label>e-mail: <input type="text" name="email" value="<TMPL_VAR NAME=EMAIL>"/></label></p>
 			<!-- FIXME: college drop-down -->
 			<p><label>Real-world address/contact details: <textarea name="address" cols=40 rows=5><TMPL_VAR NAME=ADDRESS></textarea></label></p>
+			<TMPL_IF NAME=ATTRS>
+			<div><p>Attributes:</p>
+				<TMPL_LOOP NAME=ATTRS><label><TMPL_VAR NAME=A><input type="checkbox" name="<TMPL_VAR NAME=A>" value="" <TMPL_IF NAME=C>checked="checked"</TMPL_IF>/></label>
+				</TMPL_LOOP>
+			</div>
+			</TMPL_IF>
 			<TMPL_ELSE>
 			<p><label>Tranactions on this account are negated?: <input type="checkbox" name="is_negated" value="" <TMPL_IF NAME=IS_NEGATED>checked="checked"</TMPL_IF>/></label></p>
 			</TMPL_IF>

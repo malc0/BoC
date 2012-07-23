@@ -496,6 +496,12 @@ sub get_new_session
 	return $session;
 }
 
+sub query_pers_attrs
+{
+	my %attr_cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
+	return map ($attr_cfg{Type}[$_] . $attr_cfg{Attribute}[$_], 0 .. $#{$attr_cfg{Type}});
+}
+
 sub gen_manage_accts
 {
 	my $people = $_[0];
@@ -531,16 +537,19 @@ sub gen_add_edit_acc
 {
 	my ($edit_acct, $person, $etoken) = @_;
 	my $tmpl = load_template('edit_acct.html', $etoken);
+	my %acctdetails;
 
 	if ($edit_acct) {
 		$tmpl->param(EACCT => $edit_acct);
-		my %acctdetails = read_simp_cfg($person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
+		%acctdetails = read_simp_cfg($person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
 		$tmpl->param(ACCT => $edit_acct);
 		$tmpl->param(NAME => $acctdetails{Name});
 		$tmpl->param(EMAIL => $acctdetails{email});
 		$tmpl->param(ADDRESS => $acctdetails{Address});
 		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
+	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_}) }, query_pers_attrs);
+	$tmpl->param(ATTRS => \@attr_set);
 	$tmpl->param(USER_ACCT => 1) if $person;
 
 	return $tmpl;
@@ -772,6 +781,7 @@ sub despatch_admin
 			if ($person) {
 				$userdetails{email} = $email;
 				$userdetails{Address} = $address;
+				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (query_pers_attrs);
 			} else {
 				(mkdir $acct_path or die) unless (-d $acct_path);
 				(defined $cgi->param('is_negated')) ? $userdetails{IsNegated} = undef : delete $userdetails{IsNegated};
