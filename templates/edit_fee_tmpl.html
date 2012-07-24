@@ -17,26 +17,18 @@
 			<TMPL_IF NAME=CURS><p><b>Note: only one currency unit can be employed</b></p></TMPL_IF>
 
 			<table border=1>
-				<tr><TMPL_IF NAME=ATTRS><th rowspan=2>Attribute</th></TMPL_IF>
-					<TMPL_LOOP NAME=FEES><th colspan=3>Fee <TMPL_VAR NAME=N>: <TMPL_IF NAME=RO><TMPL_VAR NAME=F><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=F>" name="Fee_<TMPL_VAR NAME=N>" size=5/></TMPL_IF><TMPL_IF NAME=CUROPTS> <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+				<tr><th rowspan=2>Fee</th><TMPL_IF NAME=NATTRS><th rowspan=2>Condition</th><th colspan=<TMPL_VAR NAME=NATTRS>>Attributes</th></tr>
+				<tr><TMPL_LOOP NAME=ATTRS><th><TMPL_VAR NAME=A></th></TMPL_LOOP><TMPL_ELSE><tr></tr></TMPL_IF></tr>
+
+				<TMPL_LOOP NAME=FEES>
+				<tr><td rowspan=3><TMPL_IF NAME=RO><TMPL_VAR NAME=F><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=F>" name="Fee_<TMPL_VAR NAME=N>" size=5/></TMPL_IF><TMPL_IF NAME=CUROPTS> <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="Unit_<TMPL_VAR NAME=N>">
 							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
 							</TMPL_LOOP>
-						</select></TMPL_IF></TMPL_IF></th>
-					</TMPL_LOOP>
-				</tr>
-				<TMPL_IF NAME=ATTRS><tr><TMPL_LOOP NAME=FEES>
-					<th>If</th><th>!If</th><th>N/A</th><TMPL_IF 0><TMPL_VAR NAME=F><TMPL_VAR NAME=N><TMPL_LOOP NAME=CURS></TMPL_LOOP></TMPL_IF></TMPL_LOOP>
-				</tr></TMPL_IF>
-
-				<TMPL_LOOP NAME=ATTRS><tr>
-					<td><TMPL_VAR NAME=A></td>
-					<TMPL_LOOP NAME=AFEES>
-						<td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=I>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="if" <TMPL_IF NAME=I>checked="checked"</TMPL_IF>/></TMPL_IF></td>
-						<td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=U>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="unless" <TMPL_IF NAME=U>checked="checked"</TMPL_IF>/></TMPL_IF></td>
-						<td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=D>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="dc" <TMPL_IF NAME=D>checked="checked"</TMPL_IF>/></TMPL_IF></td>
-					</TMPL_LOOP>
-				</tr>
+						</select></TMPL_IF></TMPL_IF></td>
+					<TMPL_IF NAME=NATTRS><td>If</td><TMPL_LOOP NAME=FATTRS><td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=I>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="if" <TMPL_IF NAME=I>checked="checked"</TMPL_IF>/></TMPL_IF></td><TMPL_IF 0><TMPL_VAR NAME=U><TMPL_VAR NAME=D></TMPL_IF></TMPL_LOOP></tr>
+				<tr><td>Unless</td><TMPL_LOOP NAME=FATTRS><td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=U>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="unless" <TMPL_IF NAME=U>checked="checked"</TMPL_IF>/></TMPL_IF></td><TMPL_IF 0><TMPL_VAR NAME=I><TMPL_VAR NAME=D></TMPL_IF></TMPL_LOOP></tr>
+				<tr><td>Don&apos;t care</td><TMPL_LOOP NAME=FATTRS><td align="center"><TMPL_IF NAME=RO><TMPL_IF NAME=D>X</TMPL_IF><TMPL_ELSE><input type="radio" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=N>" value="dc" <TMPL_IF NAME=D>checked="checked"</TMPL_IF>/></TMPL_IF></td><TMPL_IF 0><TMPL_VAR NAME=I><TMPL_VAR NAME=U></TMPL_IF></TMPL_LOOP><TMPL_ELSE></tr><tr></tr><tr></TMPL_IF></tr>
 				</TMPL_LOOP>
 			</table>
 			<p>Attributes combine with a logical `AND&apos; sense</p>

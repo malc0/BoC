@@ -633,36 +633,34 @@ sub gen_edit_fee_tmpl
 	foreach my $cur (@{$ft{Unit}}) {
 		push (@allunits, $cur) if defined $cur and not grep (/^$cur$/, @allunits);
 	}
+	my @attrs = map ({ A => $_ }, query_pers_attrs);
 
 	$tmpl->param(FT_ID => $1) if ($file and $file =~ /\/([^\/]+)$/);
 	$tmpl->param(RO => $view_mode);
 	$tmpl->param(NAME => $ft{Name});
+	$tmpl->param(NATTRS => scalar @attrs);
 	$tmpl->param(CUROPTS => scalar @allunits > 1);
 
 	my @fees;
 	foreach my $row (0 .. $max_rows - 1) {
 		my $unk_cur = (not defined $ft{Unit}[$row] or not grep (/^$ft{Unit}[$row]$/, @units));
 		my @currencies = map ({ C => $_, S => ((defined $ft{Unit}[$row]) ? ($_ eq $ft{Unit}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
-		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies });
-	}
-	my @attrs;
-	foreach my $attr (query_pers_attrs) {
-		my @afees;
-		foreach my $row (0 .. $max_rows - 1) {
+		my @fattrs;
+		foreach (query_pers_attrs) {
 			my $cond = '';
 			($cond = $ft{Condition}[$row]) =~ s/\s*//g if defined $ft{Condition}[$row];
 			$cond =~ s/&amp;/&/g;
 			$cond = '&&' . $cond . '&&';
-			my $if = ($cond =~ /&&$attr&&/);
-			my $unless = ($cond =~ /&&!$attr&&/);
+			my $if = ($cond =~ /&&$_&&/);
+			my $unless = ($cond =~ /&&!$_&&/);
 			$unless = 0 if $if;
 			my $dc = !($if or $unless);
-			push (@afees, { N => $row, I => $if, U => $unless, D => $dc });
+			push (@fattrs, { A => $_, I => $if, U => $unless, D => $dc });
 		}
-		push (@attrs, { A => $attr, AFEES => \@afees });
+		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs });
 	}
-	$tmpl->param(FEES => \@fees, ATTRS => \@attrs);
 
+	$tmpl->param(ATTRS => \@attrs, FEES => \@fees);
 	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
 
 	return $tmpl;
