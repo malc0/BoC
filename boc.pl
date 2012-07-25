@@ -8,7 +8,7 @@ use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
 use File::Find;
-use List::Util qw(first min);
+use List::Util qw(first min sum);
 use Time::HiRes qw(usleep);
 
 # non core
@@ -868,6 +868,66 @@ sub gen_edit_meet
 	return $tmpl;
 }
 
+sub gen_edit_meet_ppl
+{
+	my ($mt_file, $etoken) = @_;
+
+	my $tmpl = load_template('edit_meet_ppl.html', $etoken);
+	my %meet = read_htsv($mt_file);
+
+	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my @ppl;
+	foreach my $user (sort_AoH(\%accts)) {
+		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (exists $meet{Person} and !!grep (/^$user$/, @{$meet{Person}})) });
+	}
+
+	$tmpl->param(MID => $1) if ($mt_file =~ /\/([^\/]+)$/);
+	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl);
+
+	return $tmpl;
+}
+
+sub get_ft_currency
+{
+	my (%ft) = @_;
+
+	return '' unless exists $ft{Unit};
+
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
+	my @curs = grep (!($units_cfg{Commodities} =~ /(^|;)$_($|;)/), known_units(%units_cfg));
+
+	foreach my $ft_unit (@{$ft{Unit}}) {
+		return $ft_unit if grep (/^$ft_unit$/, @curs);
+	}
+
+	return undef;
+}
+
+sub get_ft_fees
+{
+	my ($acct, %ft) = @_;
+
+	my %user = read_simp_cfg("$config{Root}/users/$acct");
+	my %def_fees;
+
+	foreach (0 .. $#{$ft{Fee}}) {
+		my $relevant = 1;
+
+		if (defined $ft{Condition}[$_]) {
+			$ft{Condition}[$_] =~ s/\s*//g;
+			$ft{Condition}[$_] =~ s/&amp;/&/g;
+			foreach (split (/&&/, $ft{Condition}[$_])) {
+				next unless /^(!?)(.+)$/;
+				$relevant = 0 if ($1 ? exists $user{$2} : not exists $user{$2});
+			}
+		}
+
+		$def_fees{$ft{Unit}[$_] ? $ft{Unit}[$_] : ''} += $ft{Fee}[$_] if $relevant;
+	}
+
+	return %def_fees;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -989,7 +1049,9 @@ sub despatch_admin
 		if ($edit_acct) {
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : 'Edit account cancelled', gen_manage_accts($person));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', gen_manage_accts($person));
+			$etoken = pop_session_data($sessid, $etoken);
+			my $tmpl = $etoken ? gen_edit_meet_ppl(pop_session_data($sessid, "${etoken}_mtfile"), $etoken) : gen_manage_accts($person);
+			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
 		}
 	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccts') {
@@ -1072,13 +1134,93 @@ sub despatch_admin
 
 		emit_with_status("No such meet \"$edit_id\"", gen_manage_meets) unless (defined $cgi->param('cancel') or ($edit_id and -r $mt_file));
 
-		if (defined $cgi->param('edit')) {
-			# FIXME
+		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
+			whinge("Couldn't get edit lock for meet \"$edit_id\"", gen_manage_meets) unless try_lock($mt_file, $sessid);
+			unless (-r $mt_file) {
+				unlock($mt_file);
+				whinge("Couldn't edit meet \"$edit_id\", file disappeared", gen_manage_meets);
+			}
+
+			if (defined $cgi->param('edit')) {
+				emit(gen_edit_meet($mt_file, 0, get_edit_token($sessid, "edit_$edit_id")));
+			} else {
+				emit(gen_edit_meet_ppl($mt_file, get_edit_token($sessid, "edit_$edit_id")));
+			}
 		}
 
 		my %meet = read_htsv($mt_file);
 
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\"" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
+	}
+	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
+		my $edit_id = clean_filename(scalar $cgi->param('m_id'), "$config{Root}/meets");
+		whinge('Invalid meet ID', gen_manage_meets) unless $edit_id;
+		my $mt_file = "$config{Root}/meets/$edit_id";
+
+		if (defined $cgi->param('new_user')) {
+			push_session_data($sessid, "${etoken}_mtfile", $mt_file);
+			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken)));
+		}
+
+		my %meet = read_htsv($mt_file);
+
+		if (defined $cgi->param('save')) {
+			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($mt_file, $etoken)) };
+			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+
+			my @ppl = grep ((defined $cgi->param($_)), sort keys %accts);
+			delete $meet{Headings} unless scalar @ppl;
+			if (exists $meet{Headings}) {
+				my %new_m;
+				foreach my $p_n (0 .. $#ppl) {
+					my $row = first { $meet{Person}[$_] eq $ppl[$p_n] } 0 .. $#{$meet{Person}};
+					next unless defined $row;
+					$new_m{$_}[$p_n] = $meet{$_}[$row] foreach (@{$meet{Headings}});
+				}
+				@{$meet{$_}} = @{$new_m{$_}} foreach (@{$meet{Headings}});
+			} elsif (scalar @ppl) {
+				@{$meet{Headings}} = ( 'Person' );
+			}
+			@{$meet{Person}} = @ppl;
+
+			my %rfts = reverse query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
+			if (exists $meet{Template} && exists $rfts{$meet{Template}}) {
+				my $cur = get_ft_currency(read_htsv("$config{Root}/fee_tmpls/$rfts{$meet{Template}}")) unless exists $meet{Currency};
+				$meet{Currency} = $cur if $cur && length $cur;
+			}
+			if (scalar @{$meet{Person}} && exists $meet{Template} && exists $rfts{$meet{Template}}) {
+				my %ft = read_htsv("$config{Root}/fee_tmpls/$rfts{$meet{Template}}");
+				my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
+				my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%units_cfg));
+
+				splice (@{$meet{Headings}}, 1, 0, 'BaseFee') if !grep (/^BaseFee$/, @{$meet{Headings}});
+				foreach my $commod (@commods) {
+					splice (@{$meet{Headings}}, 2, 0, $commod) if !grep (/^$commod$/, @{$meet{Headings}});
+				}
+
+				my $ft_curr = get_ft_currency(%ft);
+				foreach my $p_n (0 .. $#ppl) {
+					next if sum (map ((defined $meet{$_}[$p_n]), @{$meet{Headings}})) > 1;
+					my %def_fees = get_ft_fees($meet{Person}[$p_n], %ft);
+					$meet{BaseFee}[$p_n] = $def_fees{$ft_curr} if defined $ft_curr;
+					$meet{$_}[$p_n] = $def_fees{$_} foreach (@commods);
+				}
+			}
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			try_commit_and_unlock(sub {
+				write_htsv($mt_file, \%meet, 11);
+				my @split_mf = split('-', unroot($mt_file));
+				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
+			}, $mt_file);
+		} else {
+			unlock($mt_file) if $mt_file;
+			redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+		}
+
+		$mt_file =~ /\/([^\/]{4})[^\/]*$/;
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
