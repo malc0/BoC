@@ -853,6 +853,21 @@ sub gen_manage_meets
 	return $tmpl;
 }
 
+sub gen_edit_meet
+{
+	my ($mt_file, $view_mode, $etoken) = @_;
+
+	my $tmpl = load_template('edit_meet.html', $etoken);
+	my %meet = read_htsv($mt_file);
+
+	# FIXME just use view_mode, since duplicative of mt_file, really
+	$tmpl->param(MID => $1) if ($mt_file =~ /\/([^\/]+)$/);
+	$tmpl->param(RO => $view_mode);
+	$tmpl->param(NAME => $meet{Name}, DATE => $meet{Date}, DUR => $meet{Duration});
+
+	return $tmpl;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1041,6 +1056,29 @@ sub despatch_admin
 			});
 			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets());
 		}
+		if (defined $cgi->param('view')) {
+			my $mid = $cgi->param('view');
+			my $meet = "$config{Root}/meets/$mid";
+
+			emit_with_status("No such meet \"$mid\"", gen_manage_meets) unless ($mid and -r $meet);
+			emit(gen_edit_meet($meet, $mid, undef));
+		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_meet') {
+		emit(gen_manage_meets) if defined $cgi->param('manage_meets');
+
+		my $edit_id = clean_filename(scalar $cgi->param('m_id'), "$config{Root}/meets");
+		my $mt_file = "$config{Root}/meets/$edit_id";
+
+		emit_with_status("No such meet \"$edit_id\"", gen_manage_meets) unless (defined $cgi->param('cancel') or ($edit_id and -r $mt_file));
+
+		if (defined $cgi->param('edit')) {
+			# FIXME
+		}
+
+		my %meet = read_htsv($mt_file);
+
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\"" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
