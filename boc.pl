@@ -23,7 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname);
+use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_unitname);
 use HeadedTSV;
 use TG;
 use Units;
@@ -274,13 +274,6 @@ sub set_status
 {
 	$_[0]->param(STATUS => encode_for_html("Status: $_[1]"));
 	return;
-}
-
-sub clean_tgid
-{
-	return undef unless defined $_[0];
-	return undef unless -r "$config{Root}/transaction_groups/$_[0]";
-	return untaint($_[0]);
 }
 
 sub unroot
@@ -1573,7 +1566,7 @@ sub despatch_user
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
-		my $edit_id = clean_tgid($cgi->param('tg_id'));
+		my $edit_id = clean_filename(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups");
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		emit_with_status("No such TG \"$edit_id\"", gen_manage_tgs) if $edit_id && ! -r $tgfile;
