@@ -1542,7 +1542,7 @@ sub despatch_user
 			@{$tg{Headings}} = ( 'Creditor', 'Amount' );
 			push (@{$tg{Headings}}, 'Currency') if exists $tg{Currency};
 			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
-			push (@{$tg{Headings}}, $_) foreach sort_AoH(\%debts, 'Description');
+			push (@{$tg{Headings}}, sort_AoH(\%debts, 'Description'));
 
 			validate_tg(\%tg, $whinge);
 
@@ -1572,8 +1572,8 @@ sub despatch_user
 			my $tg;
 
 			if ($view) {
-				$tg = "$config{Root}/transaction_groups/" . $view;
-				emit(gen_manage_tgs) unless (-r $tg);
+				$tg = "$config{Root}/transaction_groups/$view";
+				emit_with_status("No such TG \"$view\"", gen_manage_tgs) unless (-r $tg);
 			}
 
 			my $tmpl = gen_tg($tg, $view, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
