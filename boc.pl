@@ -337,7 +337,7 @@ sub create_datastore
 	if (defined $cgi->param('tmpl') and $cgi->param('tmpl') eq 'create_ds_p') {
 		my $whinge = sub { whinge($_[0], gen_cds_p($reason)) };
 		my $user_path = "$config{Root}/users";
-		my $user = validate_acctname($cgi->param('user'), $whinge);
+		my $user = validate_acctname(scalar $cgi->param('user'), $whinge);
 
 		my $cracklib_rv = fascist_check($cgi->param('pass'));
 		$whinge->("Problem with password: $cracklib_rv") unless ($cracklib_rv eq 'ok');
@@ -714,7 +714,7 @@ sub despatch_admin
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
 
 		if (defined $cgi->param('save')) {
-			$new_acct = validate_acctname($cgi->param('account'), $whinge);
+			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
 			my $fullname = clean_words($cgi->param('fullname'));
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
@@ -1015,7 +1015,7 @@ sub despatch_admin
 					$row{$_} = ($rate != 0) ? $rate : undef;
 				}
 				if ($rate_found) {
-					$row{Date} = validate_date($cgi->param("Date_$row"), $whinge);
+					$row{Date} = validate_date(scalar $cgi->param("Date_$row"), $whinge);
 					push (@{$cfg{$_}}, $row{$_}) foreach (@{$cfg{Headings}});
 					$added++;
 				}
@@ -1446,8 +1446,8 @@ sub despatch_user
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my @units = known_units();
 
-			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
-			push (@{$tg{Creditor}}, validate_acct($cgi->param('Creditor'), \%acct_names, $whinge));
+			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
+			push (@{$tg{Creditor}}, validate_acct(scalar $cgi->param('Creditor'), \%acct_names, $whinge));
 			push (@{$tg{Amount}}, clean_word($cgi->param('Amount')));
 			push (@{$tg{Currency}}, (scalar @units > 1) ? clean_word($cgi->param('Currency')) : $units[0]) if (scalar @units);
 			push (@{$tg{Description}}, clean_words($cgi->param('Description')));
@@ -1455,7 +1455,7 @@ sub despatch_user
 			my $debtor;
 			if ($swap) {
 				$whinge->('Missing description') unless defined @{$tg{Description}}[0];
-				$debtor = validate_acct($cgi->param('Debtor'), \%acct_names, $whinge);
+				$debtor = validate_acct(scalar $cgi->param('Debtor'), \%acct_names, $whinge);
 				my @split_desc = split (' ', @{$tg{Description}}[0]);
 				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{@{$tg{Creditor}}[0]} for $split_desc[0]";
 				$tg{Name} .= ' [...]' if scalar @split_desc > 1;
@@ -1502,13 +1502,13 @@ sub despatch_user
 			my $whinge = sub { whinge($_[0], gen_add_split($session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
-			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
+			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my %creds;
 			foreach my $acct (map { /^Cred_(.*)/; $1 } grep (/^Cred_.+$/, $cgi->param)) {
 				validate_acct($acct, \%acct_names, $whinge);
-				my $amnt = validate_decimal($cgi->param("Cred_$acct"), 'Creditor amount', undef, $whinge);
+				my $amnt = validate_decimal(scalar $cgi->param("Cred_$acct"), 'Creditor amount', undef, $whinge);
 				$creds{$acct} = $amnt unless $amnt == 0;
 			}
 			$whinge->('No creditors?') unless scalar keys %creds;
@@ -1531,7 +1531,7 @@ sub despatch_user
 			my %debts;
 			foreach my $acct (map { /^Debt_(.*)/; $1 } grep (/^Debt_.+$/, $cgi->param)) {
 				validate_acct($acct, \%acct_names, $whinge);
-				my $amnt = validate_decimal($cgi->param("Debt_$acct"), 'Debt share', 1, $whinge);
+				my $amnt = validate_decimal(scalar $cgi->param("Debt_$acct"), 'Debt share', 1, $whinge);
 				$debts{$acct} = $amnt unless $amnt == 0;
 			}
 			push (@{$tg{$_}}, $debts{$_}) foreach (keys %debts);
@@ -1562,7 +1562,7 @@ sub despatch_user
 	}
 	if ($cgi->param('tmpl') eq 'accts_disp') {
 		if (defined $cgi->param('view')) {
-			emit(gen_ucp($session, $cgi->param('view')));
+			emit(gen_ucp($session, scalar $cgi->param('view')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
@@ -1600,7 +1600,7 @@ sub despatch_user
 			my $whinge = sub { whinge($_[0], gen_tg($tgfile, 0, $session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
-			$tg{Date} = validate_date($cgi->param('tg_date'), $whinge);
+			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 			(defined $cgi->param('omit')) ? $tg{Omit} = undef : delete $tg{Omit};
 
 			my $max_rows = -1;
