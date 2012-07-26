@@ -1580,8 +1580,7 @@ sub despatch_user
 				emit_with_status("No such TG \"$view\"", gen_manage_tgs) unless (-r $tg);
 			}
 
-			my $tmpl = gen_tg($tg, $view, $session, $view ? undef : get_edit_token($sessid, 'add_tg'));
-			$tmpl->param(DONE_TMPL => 'ucp') if $cgi->param('ucp_ret');
+			my $tmpl = gen_tg($tg, $view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken));
 			emit($tmpl);
 		}
 	}
@@ -1666,7 +1665,9 @@ sub despatch_user
 		if ($edit_id) {
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($tgfile, 1, $session, undef));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $cgi->param('done_tmpl') ? gen_ucp($session) : gen_manage_tgs);
+			$etoken = pop_session_data($sessid, $etoken);
+			redeem_edit_token($sessid, 'add_vacct_expense', $etoken) if $etoken;
+			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $etoken ? gen_ucp($session) : gen_manage_tgs);
 		}
 	}
 
