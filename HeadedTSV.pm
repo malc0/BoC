@@ -72,18 +72,14 @@ sub write_htsv
 	my ($file, $content, $given_ts, $hdg_key, $max_rows) = @_;
 	my $ts = $given_ts ? $given_ts : 8;
 	$hdg_key = 'Headings' unless defined $hdg_key;
-	my $heading_only = 1;
+	my $heading_only = not exists $content->{$hdg_key};
 
 	$write_encoder->($content) if ($write_encoder);
 
 	open (my $fh, '>', "$file.new") or confess "$file.new: $!";
 	foreach my $key (sort keys $content) {
-		unless (ref ($content->{$key})) {
-			# check if non-white exists (since trailing white killed on read anyway)
-			say $fh ((defined $content->{$key} and $content->{$key} =~ /\S/) ? "$key	$content->{$key}" : "$key");
-		} else {
-			$heading_only = 0;
-		}
+		# check if non-white exists (since trailing white killed on read anyway)
+		say $fh ((defined $content->{$key} and $content->{$key} =~ /\S/) ? "$key	$content->{$key}" : "$key") unless ref $content->{$key};
 	}
 
 	unless ($heading_only) {
