@@ -70,54 +70,73 @@ sub push_session_data
 	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
 
 	my ($fh, %data) = flock_and_read($file);
-	if (defined $data{$key} and first { $data{$key}[$_] eq $value } 0 .. $#{$data{$key}}) {
-		close ($fh);
-		return;
-	}
-
-	push (@{$data{$key}}, $value);
+	$data{$key} = $value;
 
 	return write_and_close($fh, %data);
 }
 
 sub pop_session_data
 {
-	my ($sessid, $key, $value) = @_;
+	my ($sessid, $key) = @_;
 
 	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
 
 	my ($fh, %data) = flock_and_read($file);
+
 	unless (defined $data{$key}) {
 		close ($fh);
 		return undef;
 	}
 
-	my $index = first { $data{$key}[$_] eq $value } 0 .. $#{$data{$key}};
-	unless (defined $index) {
-		close ($fh);
-		return undef;
-	}
-
-	splice(@{$data{$key}}, $index, 1);
+	my $value = $data{$key};
+	delete $data{$key};
 
 	write_and_close($fh, %data);
 
 	return $value;
 }
 
+sub peek_session_data
+{
+	my ($sessid, $key) = @_;
+
+	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
+
+	my ($fh, %data) = flock_and_read($file);
+	close ($fh);
+
+	return $data{$key};
+}
+
 sub get_edit_token
 {
 	my ($sessid, $add_obj_str) = @_;
 
-	my $pass = create_UUID_as_string(UUID_V4);
-	push_session_data($sessid, $add_obj_str, $pass);
+	my $tok_obj = peek_session_data(@_);
+	push (@{$tok_obj}, create_UUID_as_string(UUID_V4));
+	push_session_data($sessid, $add_obj_str, $tok_obj);
 
-	return $pass;
+	return @{$tok_obj}[-1];
 }
 
 sub redeem_edit_token
 {
-	my $rv = eval { pop_session_data(@_) };
+	my ($sessid, $add_obj_str, $etoken) = @_;
+
+	my $rv = eval {
+		my $tok_obj = peek_session_data($sessid, $add_obj_str);
+		return undef unless defined $tok_obj;
+
+		my $index = first { @{$tok_obj}[$_] eq $etoken } 0 .. $#{$tok_obj};
+		return undef unless defined $index;
+
+		return pop_session_data($sessid, $add_obj_str) if scalar @{$tok_obj} == 1;
+
+		splice (@{$tok_obj}, $index, 1);
+		push_session_data($sessid, $add_obj_str, $tok_obj);
+		return $etoken;
+	};
+
 	return ($@ or not $rv) ? undef : $rv;
 }
 
