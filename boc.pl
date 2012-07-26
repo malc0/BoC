@@ -110,10 +110,11 @@ sub peek_session_data
 
 sub get_edit_token
 {
-	my ($sessid, $add_obj_str) = @_;
+	my ($sessid, $add_obj_str, $nest) = @_;
 
 	my $tok_obj = peek_session_data(@_);
 	push (@{$tok_obj}, create_UUID_as_string(UUID_V4));
+	push_session_data($sessid, @{$tok_obj}[-1], $nest) if $nest;
 	push_session_data($sessid, $add_obj_str, $tok_obj);
 
 	return @{$tok_obj}[-1];
