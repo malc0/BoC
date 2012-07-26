@@ -2,6 +2,7 @@
 <html>
 	<head>
 		<title><TMPL_VAR NAME=SN> meet: <TMPL_VAR NAME=NAME></title>
+		<style type="text/css">.unknown { background-color: red }</style>
 	</head>
 	<body>
 		<h1>Meet: <TMPL_VAR NAME=NAME></h1>
@@ -13,6 +14,27 @@
 			<input type="hidden" name="tmpl" value="edit_meet"/>
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
 			<input type="hidden" name="m_id" value="<TMPL_VAR NAME=MID>"/>
+
+			<TMPL_IF NAME=CURS><p>All monetary values in <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=D></TMPL_IF></TMPL_LOOP><TMPL_ELSE><select name="Currency">
+				<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</option>
+				</TMPL_LOOP>
+			</select></TMPL_IF></p></TMPL_IF>
+			<table border=1>
+				<tr><th rowspan=2>Name</th><th rowspan=2>Base meet fee</th><TMPL_IF NAME=NFEES><th colspan=<TMPL_VAR NAME=NFEES>>Charges/Credits</th></TMPL_IF><TMPL_IF NAME=NEXPS><th colspan=<TMPL_VAR NAME=NEXPS>>Expenses</th></TMPL_IF><th rowspan=2>Notes (explain unusual values, payment status, etc.)</th></tr>
+				<tr><TMPL_LOOP NAME=FEESH><th><TMPL_VAR NAME=FEE></th></TMPL_LOOP><TMPL_LOOP NAME=EXPSH><th><TMPL_VAR NAME=EXP></th></TMPL_LOOP></tr>
+				<TMPL_LOOP NAME=PPL><tr class="<TMPL_VAR NAME=PER_CL>">
+					<!-- JS FIXME: confirm alteration of base meet fee -->
+					<td><TMPL_VAR NAME=NAME></td><td align="center"><TMPL_IF NAME=RO><TMPL_VAR NAME=BASEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=BASEV>" name="<TMPL_VAR NAME=A>_Base" size=10/></TMPL_IF></td>
+					<TMPL_LOOP NAME=FEES>
+					<td align="center"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
+					<TMPL_LOOP NAME=EXPS>
+					<td align="center"><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=E>" size=5/></TMPL_IF></td></TMPL_LOOP>
+					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=NOTEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=NOTEV>" name="<TMPL_VAR NAME=A>_Notes" size=60/></TMPL_IF></td>
+				</tr>
+				</TMPL_LOOP>
+			</table>
+
+			<!-- add swaps/splits? FIXME? -->
 
 			<p><TMPL_IF NAME=RO><input type="submit" name="edit_ppl" value="Add/Edit participants"/><TMPL_IF NAME=PPL><input type="submit" name="edit" value="Edit values"/></TMPL_IF><TMPL_ELSE>
 			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save"/></TMPL_IF></p>

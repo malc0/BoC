@@ -865,6 +865,40 @@ sub gen_edit_meet
 	$tmpl->param(RO => $view_mode);
 	$tmpl->param(NAME => $meet{Name}, DATE => $meet{Date}, DUR => $meet{Duration});
 
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
+
+	my %rfts = reverse query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
+	my $def_cur = (exists $meet{Template} && exists $rfts{$meet{Template}}) ? get_ft_currency(read_htsv("$config{Root}/fee_tmpls/$rfts{$meet{Template}}")) : $units_cfg{Default};
+	my $sel_cur = (exists $meet{Currency}) ? $meet{Currency} : $def_cur;
+
+	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
+	$tmpl->param(CURS => \@currencies);
+
+	my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
+	my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
+	my @fees;
+	foreach my $commod (@commods) {
+		push (@fees, $commod) if grep (/^$commod$/, @{$meet_cfg{Fee}});
+	}
+	my @feesh = map ({ FEE => $cds{$_} }, @fees);
+	my @expsh = map ({ EXP => $meet_cfg{$_} }, grep (/^Expense_.+$/, keys %meet_cfg));
+	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh);
+
+	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my @ppl;
+	foreach my $row (0 .. $#{$meet{Person}}) {
+		my @rfees;
+		foreach my $commod (@fees) {
+			my $mc_row = first { @{$meet_cfg{Fee}}[$_] eq $commod } 0 .. $#{$meet_cfg{Fee}};
+			push (@rfees, { F => $commod, V => $meet{$commod}[$row], BOOL => $meet_cfg{Boolean}[$mc_row] });
+		}
+		my @exps = map ({ E => $_, V => $meet{$_}[$row] }, map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %meet_cfg));
+		my $a = $meet{Person}[$row];
+		push (@ppl, { PER_CL => (exists $accts{$a}) ? '' : 'unknown', NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, BASEV => $meet{BaseFee}[$row], FEES => \@rfees, EXPS => \@exps, NOTEV => $meet{Notes}[$row] });
+	}
+        $tmpl->param(PPL => \@ppl);
+
 	return $tmpl;
 }
 
@@ -1150,7 +1184,54 @@ sub despatch_admin
 
 		my %meet = read_htsv($mt_file);
 
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\"" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
+		if (defined $cgi->param('save')) {
+			my $whinge = sub { whinge($_[0], gen_edit_meet($mt_file, 0, $etoken)) };
+
+			delete $meet{Currency};
+			my @ppl = @{$meet{Person}};
+			delete $meet{$_} foreach (grep (ref $meet{$_}, keys %meet));
+			@{$meet{Person}} = @ppl;
+
+			my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
+			my @units = known_units(%units_cfg);
+			$meet{Currency} = (scalar @units > 1) ? validate_unit(scalar $cgi->param('Currency'), \@units, $whinge) : $units[0] if scalar @units;
+
+			my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
+			my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
+			my @fees;
+			foreach my $commod (@commods) {
+				push (@fees, $commod) if grep (/^$commod$/, @{$meet_cfg{Fee}});
+			}
+			my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %meet_cfg);
+
+			foreach my $pers (@{$meet{Person}}) {
+				push (@{$meet{BaseFee}}, validate_decimal(scalar $cgi->param("${pers}_Base"), 'Base fee', 1, $whinge));
+				push (@{$meet{$_}}, validate_decimal(scalar $cgi->param("${pers}_$_"), "$units_cfg{$_} charge", 1, $whinge)) foreach (@fees);
+				push (@{$meet{$_}}, validate_decimal(scalar $cgi->param("${pers}_$_"), $meet_cfg{"Expense_$_"} . " expense", 1, $whinge)) foreach (@exps);
+				push (@{$meet{Notes}}, clean_words(scalar $cgi->param("${pers}_Notes")));
+			}
+
+			if (scalar @{$meet{Person}}) {
+				@{$meet{Headings}} = ( 'Person', 'BaseFee' );
+				push (@{$meet{Headings}}, @fees);
+				push (@{$meet{Headings}}, @exps);
+				push (@{$meet{Headings}}, 'Notes');
+			}
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			try_commit_and_unlock(sub {
+				write_htsv($mt_file, \%meet, 11);
+				my @split_mf = split('-', unroot($mt_file));
+				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
+			}, $mt_file);
+		} else {
+			unlock($mt_file) if $mt_file;
+			redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+		}
+
+		$mt_file =~ /\/([^\/]{4})[^\/]*$/;
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
 		my $edit_id = clean_filename(scalar $cgi->param('m_id'), "$config{Root}/meets");
