@@ -853,7 +853,7 @@ sub despatch_admin
 		my $cfg_file = "$config{Root}/config_simp_trans";
 
 		if (defined $cgi->param('save')) {
-			my %cfg = ( Headings => [ 'DebitAcct', 'Description' ] );
+			my %cfg;
 			my $whinge = sub { whinge($_[0], gen_edit_simp_trans($etoken)) };
 
 			my $max_rows = -1;
@@ -862,8 +862,6 @@ sub despatch_admin
 
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 
-			@{$cfg{Description}} = ();
-			@{$cfg{DebitAcct}} = ();
 			foreach my $row (0 .. $max_rows) {
 				my $desc = clean_words($cgi->param("Description_$row"));
 				my $acct = clean_username($cgi->param("DebitAcct_$row"));
@@ -874,6 +872,7 @@ sub despatch_admin
 				push (@{$cfg{Description}}, $desc);
 				push (@{$cfg{DebitAcct}}, $acct);
 			}
+			@{$cfg{Headings}} = ( 'DebitAcct', 'Description' ) if exists $cfg{DebitAcct};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
