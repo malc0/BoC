@@ -1,0 +1,49 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> meet form configuration</title>
+	</head>
+	<body>
+		<h1>Meet form configuration</h1>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="edit_meet_cfg"/>
+			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
+
+			<h3><label>Default meet account: <select name="MeetAcct">
+				<option value="">Select account</option>
+				<TMPL_LOOP NAME=ACCTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+				</TMPL_LOOP>
+			</select></label></h3>
+
+			<div style="float:left; margin-right:5%">
+			<h3>Charges and credits</h3>
+			<table border=1>
+				<tr><th>Charge/credit</th><th>Is boolean</th><th>Linked (credit/debit) account</th></tr>
+				<TMPL_LOOP NAME=FEEROWS><tr><td><TMPL_VAR NAME=FEED></td><td><input type="checkbox" name="Bool_<TMPL_VAR NAME=F>" value="" <TMPL_IF NAME=BOOL>checked="checked"</TMPL_IF>/></td>
+					<td><select name="Acct_<TMPL_VAR NAME=F>">
+						<option value="">Select account</option>
+						<TMPL_LOOP NAME=ACCTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+						</TMPL_LOOP>
+					</select></td></tr>
+				</TMPL_LOOP>
+			</table>
+			</div>
+
+			<div style="display:inline-block">
+			<h3>Expenses</h3>
+			<table border=1>
+				<tr><th>Expense ID (one word)</th><th>Expense display text</th></tr>
+				<TMPL_LOOP NAME=EXROWS><tr><td><input type="text" value="<TMPL_VAR NAME=EXID>" name="ExpenseID_<TMPL_VAR NAME=R>"/></td><td><input type="text" value="<TMPL_VAR NAME=EXD>" name="ExpenseDesc_<TMPL_VAR NAME=R>"/></td></tr>
+				</TMPL_LOOP>
+			</table>
+			</div>
+
+			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save changes"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>

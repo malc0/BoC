@@ -676,6 +676,36 @@ sub gen_edit_fee_tmpl
 	return $tmpl;
 }
 
+sub gen_edit_meet_cfg
+{
+	my $tmpl = load_template('edit_meet_cfg.html', $_[0]);
+
+	my %cfg = read_htsv("$config{Root}/config_meet_form", 1);
+
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my @sorted_vaccts = sort_AoH(\%vaccts);
+
+	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{MeetAccount} && $cfg{MeetAccount} eq $_) }, @sorted_vaccts);
+
+	my @feerows;
+	foreach my $commod (grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%units_cfg))) {
+		my $row = first { @{$cfg{Fee}}[$_] eq $commod } 0 .. $#{$cfg{Fee}};
+		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_vaccts);
+		push (@feerows, { FEED => $units_cfg{$commod}, F => $commod, BOOL => (defined $row && defined $cfg{Boolean}[$row] && !!($cfg{Boolean}[$row] =~ /^\s*[^fn0]/i)), ACCTS => \@rowoptions });
+	}
+
+	my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %cfg);
+	my $num_exrows = (scalar @exps) - 1;
+	$num_exrows = ($num_exrows >= 0) ? $num_exrows + min(3, 30 - $num_exrows) : 4;
+
+	my @exrows = map ({ EXID => $exps[$_], EXD => (defined $exps[$_]) ? $cfg{"Expense_$exps[$_]"} : '', R => $_ }, 0 .. $num_exrows);
+
+	$tmpl->param(ACCTS => \@accts, FEEROWS => \@feerows, EXROWS => \@exrows);
+
+	return $tmpl;
+}
+
 sub gen_edit_pers_attrs
 {
 	my $tmpl = load_template('edit_pers_attrs.html', $_[0]);
@@ -829,6 +859,10 @@ sub despatch_admin
 			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
 		}
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
+		if (defined $cgi->param('edit_meet_cfg')) {
+			$whinge->() unless try_lock("$config{Root}/config_meet_form", $sessid);
+			emit(gen_edit_meet_cfg(get_edit_token($sessid, 'edit_meet_cfg')));
+		}
 		if (defined $cgi->param('edit_pers_attrs')) {
 			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
 			emit(gen_edit_pers_attrs(get_edit_token($sessid, 'edit_pers_attrs')));
@@ -1119,6 +1153,54 @@ sub despatch_admin
 		} else {
 			emit_with_status((defined $cgi->param('save')) ? "Added fee template \"$ft{Name}\"" : 'Add fee template cancelled', gen_manage_fee_tmpls);
 		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_meet_cfg') {
+		my $cfg_file = "$config{Root}/config_meet_form";
+
+		if (defined $cgi->param('save')) {
+			my %cfg;
+			my $whinge = sub { whinge($_[0], gen_edit_meet_cfg($etoken)) };
+
+			my %units_cfg = read_units_cfg("$config{Root}/config_units");
+			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+
+			$whinge->('Missing account name') unless clean_username($cgi->param('MeetAcct'));
+			$cfg{MeetAccount} = validate_acct(scalar $cgi->param('MeetAcct'), \%vaccts, $whinge);
+
+			foreach (grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%units_cfg))) {
+				next unless defined $cgi->param("Acct_$_");
+				push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$_"), \%vaccts, $whinge));
+				push (@{$cfg{Fee}}, $_);
+				push (@{$cfg{Boolean}}, (defined $cgi->param("Bool_$_")));
+			}
+
+			my $max_exrows = -1;
+			$max_exrows++ while ($max_exrows < 30 and defined $cgi->param('ExpenseID_' . ($max_exrows + 1)));
+			$whinge->('No expenses?') unless $max_exrows >= 0;
+
+			foreach (0 .. $max_exrows) {
+				my $id = clean_word($cgi->param("ExpenseID_$_"));
+				my $desc = clean_words($cgi->param("ExpenseDesc_$_"));
+				next unless (defined $id) or (defined $desc);
+				$whinge->("Missing ID for \"$desc\"") unless defined $id;
+				$whinge->("Missing display text for \"$id\"") unless defined $desc;
+				$cfg{'Expense_' . lc ($id)} = $desc;
+			}
+
+			@{$cfg{Headings}} = ( 'Fee', 'Boolean', 'Account' ) if exists $cfg{Fee};
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_meet_cfg', $etoken);
+			try_commit_and_unlock(sub {
+				write_htsv($cfg_file, \%cfg);
+				add_commit($cfg_file, 'config_meet_form: meet form configuration modified', $session);
+			}, $cfg_file);
+		} else {
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_meet_cfg', $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to meet form config' : 'Edit meet form config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'edit_pers_attrs') {
 		my $cfg_file = "$config{Root}/config_pers_attrs";
