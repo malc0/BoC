@@ -592,9 +592,7 @@ sub gen_edit_rates
 
 	my @units = known_units(%cfg);
 	my %curs;
-	foreach (@units) {
-		$curs{$_} = 1 unless $cfg{Commodities} =~ /(^|;)$_($|;)/;
-	}
+	$curs{$_} = 1 foreach (grep (!($cfg{Commodities} =~ /(^|;)$_($|;)/), @units));
 
 	@units = grep (!/^$cfg{Anchor}$/, @units);	# exclude self-referencing rate henceforth
 
@@ -897,9 +895,7 @@ sub despatch_admin
 			$whinge->('No currencies?') unless scalar @rows;
 
 			my %cfg = read_units_cfg($cfg_file, 1);
-			foreach (keys %cfg) {
-				delete $cfg{$_} unless ref $cfg{$_};
-			}
+			delete $cfg{$_} foreach (grep (!ref $cfg{$_}, keys %cfg));
 
 			$cfg{Commodities} = '';
 			my $anchor_set = 0;
@@ -977,15 +973,11 @@ sub despatch_admin
 			$whinge->('No rates?') unless $max_rows >= 0;
 
 			my %cfg = read_units_cfg("$cfg_file.p1");	# presume we got here having successfully just defined units
-			foreach (keys %cfg) {
-				delete $cfg{$_} if ref $cfg{$_};
-			}
+			delete $cfg{$_} foreach (grep (ref $cfg{$_}, keys %cfg));
 
 			my @units = known_units(%cfg);
 			my %curs;
-			foreach (@units) {
-				$curs{$_} = 1 unless $cfg{Commodities} =~ /(^|;)$_($|;)/;
-			}
+			$curs{$_} = 1 foreach (grep (!($cfg{Commodities} =~ /(^|;)$_($|;)/), @units));
 
 			@{$cfg{Headings}} = ( 'Date' );
 			foreach (sort @units) {

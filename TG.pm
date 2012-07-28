@@ -65,9 +65,7 @@ sub validate_tg
 	my %tg = %$tgref;
 	$unset_cred = '' unless defined $unset_cred;
 
-	foreach (@{$tg{Headings}}) {
-		$whinge->("Unknown heading \"$_\"") unless exists $tg{$_};
-	}
+	$whinge->("Unknown heading \"$_\"") foreach (grep (!(exists $tg{$_}), @{$tg{Headings}}));
 	foreach my $key (keys %tg) {
 		next if $key eq 'Headings' or not ref $tg{$key};
 		$whinge->("Unlisted heading \"$key\"") unless scalar grep (/^$key$/, @{$tg{Headings}}) == 1;

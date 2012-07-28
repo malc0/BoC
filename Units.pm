@@ -57,9 +57,7 @@ sub write_units_cfg
 	delete $cfg->{Commodities} unless length $cfg->{Commodities};
 
 	unless (exists $cfg->{Anchor} or exists $cfg->{Commodities}) {
-		foreach (keys %$cfg) {
-			delete $cfg->{$_} if ref $cfg->{$_};
-		}
+		delete $cfg->{$_} foreach (grep (ref $cfg->{$_}, keys %$cfg));
 	}
 
 	return write_htsv($file, $cfg, 12);
@@ -102,9 +100,7 @@ sub validate_units
 	}
 	my @units = known_units(%cfg);
 	my $nunits = scalar @units;
-	foreach (@units) {
-		$whinge->("$_ unit has no description") unless defined $cfg{$_};
-	}
+	$whinge->("$_ unit has no description") foreach (grep (!(defined $cfg{$_}), @units));
 	$whinge->('No currency defined') if $nunits and $nunits - $ncommods == 0;
 	$whinge->('Anchor currency not set with multiple currencies defined') if $nunits - $ncommods > 1 and not exists $cfg{Anchor};
 	$whinge->('Presentation currency not set with multiple currencies defined') if $nunits - $ncommods > 1 and not exists $cfg{Default};
@@ -117,9 +113,7 @@ sub validate_units
 
 	$whinge->('Exchange rate section defined when less than two units') if $nunits < 2;
 
-	foreach (@{$cfg{Headings}}) {
-		$whinge->("Unknown heading \"$_\"") unless exists $cfg{$_};
-	}
+	$whinge->("Unknown heading \"$_\"") foreach (grep (!(exists $cfg{$_}), @{$cfg{Headings}}));
 	foreach my $key (keys %cfg) {
 		next if $key eq 'Headings' or not ref $cfg{$key};
 		$whinge->("Unlisted heading \"$key\"") unless scalar grep (/^$key$/, @{$cfg{Headings}}) == 1;
