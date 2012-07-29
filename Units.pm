@@ -147,7 +147,7 @@ sub validate_units
 		my $rate_found = 0;
 		foreach (@{$cfg{Headings}}) {
 			next if $_ eq 'Date';
-			my $rate = validate_decimal($cfg{$_}[$row], "Exchange rate (date $cfg{Date}[$row])", 1, $whinge);
+			my $rate = validate_decimal($cfg{$_}[$row], "Exchange rate (date $cfg{Date}[$row])", undef, $whinge);
 			$rate_found = 1 unless $rate == 0;
 		}
 		$whinge->("No valid rates found for $cfg{Date}[$row]") unless $rate_found;
@@ -156,7 +156,7 @@ sub validate_units
 		next if $ex eq 'Date';
 		my $rate_found = 0;
 		foreach (0 .. $#{$cfg{Date}}) {
-			my $rate = validate_decimal($cfg{$ex}[$_], "Exchange rate (date $cfg{Date}[$_])", 1, $whinge);
+			my $rate = validate_decimal($cfg{$ex}[$_], "Exchange rate (date $cfg{Date}[$_])", undef, $whinge);
 			$rate_found = 1 unless $rate == 0;
 		}
 		$whinge->("No valid rates found for $ex") unless $rate_found;

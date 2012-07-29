@@ -1002,7 +1002,7 @@ sub despatch_admin
 					(my $unit = $_) =~ s/.*\///;
 					($unit = $_) =~ s/\/.*// if $unit eq $cfg{Anchor};
 					my $ex = $cgi->param("Rate_${row}_$unit");	# I have precisely no idea why this intermediate is necessary
-					my $rate = validate_decimal($ex, 'Exchange rate', 1, $whinge);
+					my $rate = validate_decimal($ex, 'Exchange rate', undef, $whinge);
 					$rate_found = 1 unless $rate == 0;
 					$row{$_} = ($rate != 0) ? $rate : undef;
 				}
