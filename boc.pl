@@ -962,6 +962,59 @@ sub get_ft_fees
 	return %def_fees;
 }
 
+sub meet_to_tg
+{
+	my ($mt_file, $tg_file) = @_;
+	my %meet = read_htsv($mt_file);
+	my %tg = ( Date => $meet{Date}, Name => "Meet: $meet{Name}" );
+	my %colsum;
+
+	foreach my $row (0 .. $#{$meet{Person}}) {
+		foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
+			$colsum{$_} += $meet{$_}[$row] if defined $meet{$_}[$row];
+		}
+	}
+	foreach my $row (0 .. $#{$meet{Person}}) {
+		push (@{$tg{$meet{Person}[$row]}}, $meet{$_}[$row]) foreach (grep ($colsum{$_}, @{$meet{Headings}}));
+	}
+
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
+	my @units = known_units(%units_cfg);
+	my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
+	my %meet_cfg = read_htsv("$config{Root}/config_meet_form");	# world breaks if doesn't exist (need MeetAccount)
+
+	foreach my $hd (@{$meet{Headings}}) {
+		next if ($hd eq 'Person' || $hd eq 'Notes');
+		next unless $colsum{$hd};
+		if (grep (/^$hd$/, @commods)) {
+			my $mc_row = first { $meet_cfg{Fee}[$_] eq $hd } 0 .. $#{$meet_cfg{Fee}};
+			next unless defined $mc_row;
+			push (@{$tg{Creditor}}, $meet_cfg{Account}[$mc_row]);
+			push (@{$tg{Amount}}, $colsum{$hd});
+			push (@{$tg{Currency}}, $hd);
+			push (@{$tg{Description}}, $units_cfg{$hd});
+		} else {
+			push (@{$tg{Creditor}}, $meet_cfg{MeetAccount});
+			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
+			if ($hd eq 'BaseFee') {
+				push (@{$tg{Amount}}, $colsum{BaseFee});
+				push (@{$tg{Description}}, 'Meet fee');
+			} else {
+				push (@{$tg{Amount}}, -$colsum{$hd});
+				push (@{$tg{Description}}, $meet_cfg{"Expense_$hd"});
+			}
+		}
+	}
+
+	@{$tg{Headings}} = ( 'Creditor', 'Amount', @{$meet{Person}}, 'Description' );
+	splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
+
+	# FIXME: validate?
+
+	(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
+	return write_tg($tg_file, %tg);
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1222,7 +1275,10 @@ sub despatch_admin
 			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($mt_file, \%meet, 11);
+				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
+				meet_to_tg($mt_file, $tg_file);
 				my @split_mf = split('-', unroot($mt_file));
+				$git->add($tg_file);
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
 			}, $mt_file);
 		} else {
@@ -1292,7 +1348,10 @@ sub despatch_admin
 			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($mt_file, \%meet, 11);
+				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
+				meet_to_tg($mt_file, $tg_file) if scalar @{$meet{Person}};
 				my @split_mf = split('-', unroot($mt_file));
+				(scalar @{$meet{Person}}) ? $git->add($tg_file) : $git->rm($tg_file);
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
 			}, $mt_file);
 		} else {
