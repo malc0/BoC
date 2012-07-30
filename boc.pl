@@ -508,25 +508,31 @@ sub gen_manage_accts
 	my $tmpl = load_template('manage_accts.html');
 	my @accounts = $people ? glob("$config{Root}/users/*") : glob("$config{Root}/accounts/*");
 	my @acctlist;
+	my @attrs_list = query_pers_attrs;
 
 	foreach my $acct (@accounts) {
 		my %acctdetails = read_simp_cfg($acct);
 		my %outputdetails;
 		next unless $acct =~ /.*\/(.*)/;
 		if ($people) {
+			my @attrs = map ({ C => (exists $acctdetails{$_}) }, @attrs_list);
 			%outputdetails = (
 				ACCT => $1,
 				NAME => $acctdetails{Name},
 				EMAIL => $acctdetails{email},
+				ATTRS => \@attrs,
 			);
 		} else {
 			%outputdetails = (
 				ACCT => $1,
 				NAME => $acctdetails{Name},
+				IS_NEGATED => (exists $acctdetails{IsNegated}),
 			);
 		}
 		push (@acctlist, \%outputdetails);
 	}
+	my @attrsh = map ({ A => $_ }, @attrs_list);
+	$tmpl->param(ATTRSH => \@attrsh);
 	$tmpl->param(ACCTS => \@acctlist);
 	$tmpl->param(USER_ACCT => 1) if $people;
 
