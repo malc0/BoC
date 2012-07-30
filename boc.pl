@@ -344,6 +344,7 @@ sub create_datastore
 
 		my $cryptpass = unix_md5_crypt($cgi->param('pass'));
 		my %userdetails = (
+			Name => $user,	# FIXME could do a full "Add user" page/parse?
 			Password => $cryptpass,
 			IsAdmin => undef,
 		);
