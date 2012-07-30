@@ -21,7 +21,7 @@
 				<tr><TMPL_LOOP NAME=ATTRS><th><TMPL_VAR NAME=A></th></TMPL_LOOP><TMPL_ELSE><tr></tr></TMPL_IF></tr>
 
 				<TMPL_LOOP NAME=FEES>
-				<tr><td rowspan=3><TMPL_IF NAME=RO><TMPL_VAR NAME=F><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=F>" name="Fee_<TMPL_VAR NAME=N>" size=5/></TMPL_IF><TMPL_IF NAME=CUROPTS> <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+				<tr><td rowspan=3><TMPL_IF NAME=RO><TMPL_VAR NAME=F><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=F>" name="Fee_<TMPL_VAR NAME=N>" size=5 onclick="this.select()"/></TMPL_IF><TMPL_IF NAME=CUROPTS> <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="Unit_<TMPL_VAR NAME=N>">
 							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
 							</TMPL_LOOP>
