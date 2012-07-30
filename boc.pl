@@ -831,7 +831,7 @@ sub despatch_admin
 
 			foreach my $param ($cgi->param()) {
 				next if ($param eq 'tmpl' or $param eq 'etoken' or $param eq 'save');
-				$inst_cfg{$param} = clean_word($cgi->param($param));
+				$inst_cfg{$param} = clean_words($cgi->param($param));
 			}
 
 			whinge('Unable to get commit lock', gen_edit_inst_cfg($etoken)) unless try_commit_lock($sessid);
