@@ -1023,6 +1023,11 @@ sub despatch_admin
 	my $etoken = $cgi->param('etoken');
 
 	return if (defined $cgi->param('logout'));
+	if (defined $cgi->param('degrade')) {
+		$session->param('IsAdmin', 0);
+		$session->flush();
+		emit(gen_ucp($session));
+	}
 
 	emit(gen_tcp) if defined $cgi->param('to_cp');
 
