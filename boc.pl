@@ -1813,7 +1813,7 @@ sub gen_ucp
 			SUMMARY_CL => $tg_broken ? 'broken' : '',
 			SUMMARY => encode_for_html($tg_broken ? 'TG BROKEN' : ($computed{$user} > 0 ? '+' : '') . $computed{$user}),
 		);
-		push ((($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist), \%outputdetails);
+		push (@{($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist}, \%outputdetails);
 	}
 	my %acct_names = get_acct_name_map;
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
@@ -1888,7 +1888,7 @@ sub gen_accts_disp
 			R => $running{$_} <= 0 ? 0 : $pc,
 		);
 		if (exists $acct_names{$_}) {
-			push ((exists $ppl{$_}) ? \@ppllist : \@vacctslist, \%outputdetails);
+			push (@{(exists $ppl{$_}) ? \@ppllist : \@vacctslist}, \%outputdetails);
 		} else {
 			push (@unklist, \%outputdetails);
 		}
