@@ -14,7 +14,7 @@
 			<p><input type="submit" name="edit_units" value="Edit units (currencies)"/></p>
 			<p><input type="submit" name="edit_pers_attrs" value="Edit personal attribute list"/></p>
 
-			<p><input type="submit" name="edit_simp_trans" value="Edit simple transaction types"/></p>
+			<TMPL_IF NAME=VACCTS><p><input type="submit" name="edit_simp_trans" value="Edit simple transaction types"/></p></TMPL_IF>
 
 			<p><input type="submit" name="edit_inst_cfg" value="Edit installation configuration"/></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>

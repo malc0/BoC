@@ -496,6 +496,16 @@ sub get_new_session
 	return $session;
 }
 
+sub gen_tcp
+{
+	my $tmpl = load_template('treasurer_cp.html');
+
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	$tmpl->param(VACCTS => scalar keys %vaccts);
+
+	return $tmpl;
+}
+
 sub query_pers_attrs
 {
 	my %attr_cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
@@ -763,7 +773,7 @@ sub commit_config_units
 	my $cfg_file = "$config{Root}/config_units";
 
 	$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-	bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_units', $etoken);
+	bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_units', $etoken);
 	return try_commit_and_unlock(sub {
 		my $commit_msg = 'config_units: units/rates modified';
 
@@ -799,17 +809,15 @@ sub despatch_admin
 
 	return if (defined $cgi->param('logout'));
 
-	if (defined $cgi->param('to_cp')) {
-		emit(load_template('treasurer_cp.html'));
-	}
+	emit(gen_tcp) if defined $cgi->param('to_cp');
 
 	if ($cgi->param('tmpl') eq 'login') {
-		my $tmpl = load_template('treasurer_cp.html');
+		my $tmpl = gen_tcp;
 		print $tmpl->output;
 		exit;
 	}
 	if ($cgi->param('tmpl') eq 'tcp') {
-		my $whinge = sub { whinge('Couldn\'t get edit lock for configuration file', load_template('treasurer_cp.html')) };
+		my $whinge = sub { whinge('Couldn\'t get edit lock for configuration file', gen_tcp) };
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
 		if (defined $cgi->param('edit_inst_cfg')) {
@@ -961,7 +969,7 @@ sub despatch_admin
 			}
 
 			whinge('Unable to get commit lock', gen_edit_inst_cfg($etoken)) unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
+			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 			try_commit_and_unlock(sub {
 				write_simp_cfg($cfg_file, %inst_cfg);
 				add_commit($cfg_file, 'config: installation config modified', $session);
@@ -972,7 +980,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to installation config' : 'Edit installation config cancelled', load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to installation config' : 'Edit installation config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'edit_simp_trans') {
 		my $cfg_file = "$config{Root}/config_simp_trans";
@@ -1000,7 +1008,7 @@ sub despatch_admin
 			@{$cfg{Headings}} = ( 'DebitAcct', 'Description' ) if exists $cfg{DebitAcct};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
+			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($cfg_file, \%cfg, 11);
 				add_commit($cfg_file, 'config_simp_trans: simple transaction types modified', $session);
@@ -1010,7 +1018,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to transaction config' : 'Edit transaction config cancelled', load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to transaction config' : 'Edit transaction config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
@@ -1136,7 +1144,7 @@ sub despatch_admin
 			@{$cfg{Headings}} = ( 'Type', 'Attribute' ) if exists $cfg{Type};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(load_template('treasurer_cp.html')) unless redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
+			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($cfg_file, \%cfg);
 				add_commit($cfg_file, 'config_pers_attrs: personal attribute types modified', $session);
@@ -1146,7 +1154,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to attribute config' : 'Edit attribute config cancelled', load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to attribute config' : 'Edit attribute config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'edit_units') {
 		my $cfg_file = "$config{Root}/config_units";
@@ -1212,7 +1220,7 @@ sub despatch_admin
 
 			if ($nunits < 2) {
 				commit_config_units($whinge, $session, $etoken, \%rename, \%cfg);
-				emit_with_status('Saved edits to units config (rate setting inapplicable)', load_template('treasurer_cp.html'));
+				emit_with_status('Saved edits to units config (rate setting inapplicable)', gen_tcp);
 			} else {
 				write_units_cfg("$cfg_file.p1", \%cfg);
 				write_simp_cfg("$cfg_file.rename", %rename) if keys %rename;
@@ -1222,7 +1230,7 @@ sub despatch_admin
 		} else {
 			unlock($cfg_file);
 			redeem_edit_token($sessid, 'edit_units', $etoken);
-			emit_with_status('Edit units config cancelled', load_template('treasurer_cp.html'));
+			emit_with_status('Edit units config cancelled', gen_tcp);
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_rates') {
@@ -1289,7 +1297,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, 'edit_units', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to units config' : 'Edit units config cancelled', load_template('treasurer_cp.html'));
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to units config' : 'Edit units config cancelled', gen_tcp);
 	}
 
 	return;
