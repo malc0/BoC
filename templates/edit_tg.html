@@ -50,6 +50,14 @@
 					</TMPL_IF></td></TMPL_IF>
 					<TMPL_LOOP NAME=RC><td class="<TMPL_VAR NAME=D_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=D><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=D>" name="<TMPL_VAR NAME=N>" onclick="this.select()"/></TMPL_IF></td>
 					</TMPL_LOOP>
+					<td><TMPL_IF NAME=RO><TMPL_IF NAME=TP><TMPL_VAR NAME=TP><TMPL_ELSE>N/A</TMPL_IF><TMPL_ELSE>
+						<select name="TrnsfrPot_<TMPL_VAR NAME=R>">
+							<option value="">N/A</option>
+							<TMPL_LOOP NAME=TPS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=V></option>
+							</TMPL_LOOP>
+						</select>
+					</TMPL_IF></td>
+					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=DESC><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=DESC>" name="Description_<TMPL_VAR NAME=R>"/></TMPL_IF></td>
 				</tr>
 				</TMPL_LOOP>
 			</table>

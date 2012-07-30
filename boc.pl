@@ -2075,14 +2075,18 @@ sub gen_tg
 		my @creditors = map ({ O => $acct_names{$_}, V => $_, S => $tgdetails{Creditor}[$row] eq $_, CR_CL => (exists $tps{$_}) ? 'tp' : '' }, (@sorted_accts, sort_AoH(\%tps)));
 		my $unk_cur = (not defined $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units));
 		my @currencies = map ({ C => $_, S => ((defined $tgdetails{Currency}[$row]) ? ($_ eq $tgdetails{Currency}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
-		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => (exists $unknown{$_}) ? 'unknown_d' : '' }, ( @sorted_accts, 'TrnsfrPot', 'Description' ));
+		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => (exists $unknown{$_}) ? 'unknown_d' : '' }, @sorted_accts);
+		my @tps = map ({ V => $_, S => ($tgdetails{TrnsfrPot}[$row] ? $tgdetails{TrnsfrPot}[$row] eq $_ : undef) }, 1 .. 9);
 		push (@rows, { ROW_CL => (exists $unknown{@{$tgdetails{Creditor}}[$row]}) ? 'unknown_c' : '',
 			       R => $row,
 			       CREDS => \@creditors,
 			       CUR_CL => (not exists $tps{@{$tgdetails{Creditor}}[$row]} and (not $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units))) ? 'unknown_u' : '',
 			       CURS => \@currencies,
 			       A => $tgdetails{Amount}[$row],
-			       RC => \@rowcontents });
+			       RC => \@rowcontents,
+	      		       TP => $tgdetails{TrnsfrPot}[$row] ? $tgdetails{TrnsfrPot}[$row] : 'N/A',
+			       TPS => \@tps,
+			       DESC => $tgdetails{Description}[$row] });
 	}
 	$tmpl->param(ROWS => \@rows);
 	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
