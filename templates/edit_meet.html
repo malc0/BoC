@@ -9,7 +9,15 @@
 
 		<h2><TMPL_VAR NAME=DATE> for <TMPL_VAR NAME=DUR> days</h2>
 
-		<form action="boc.pl" method="post">
+		<form action="boc.pl" method="post" onsubmit="if ('save' in this && this.save.clicked) {
+				this.save.clicked = false;
+				var sub = true;
+				for (i = 0; i < this.elements.length; i++)
+					if (this.elements[i].name.search(/^(.+)_Base$/) >= 0 && this.elements[i].defaultValue.length && this.elements[i].defaultValue != this.elements[i].value)
+						if (!confirm('Really change base fee for participant \'' + RegExp.$1 + '\'?'))
+							sub = false;
+				return sub;
+			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="edit_meet"/>
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
@@ -23,12 +31,11 @@
 				<tr><th rowspan=2>Name</th><th rowspan=2>Base meet fee</th><TMPL_IF NAME=NFEES><th colspan=<TMPL_VAR NAME=NFEES>>Charges/Credits</th></TMPL_IF><TMPL_IF NAME=NEXPS><th colspan=<TMPL_VAR NAME=NEXPS>>Expenses</th></TMPL_IF><th rowspan=2>Notes (explain unusual values, payment status, etc.)</th></tr>
 				<tr><TMPL_LOOP NAME=FEESH><th><TMPL_VAR NAME=FEE></th></TMPL_LOOP><TMPL_LOOP NAME=EXPSH><th><TMPL_VAR NAME=EXP></th></TMPL_LOOP></tr>
 				<TMPL_LOOP NAME=PPL><tr class="<TMPL_VAR NAME=PER_CL>">
-					<!-- JS FIXME: confirm alteration of base meet fee -->
-					<td><TMPL_VAR NAME=NAME></td><td align="center"><TMPL_IF NAME=RO><TMPL_VAR NAME=BASEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=BASEV>" name="<TMPL_VAR NAME=A>_Base" size=10/></TMPL_IF></td>
+					<td><TMPL_VAR NAME=NAME></td><td align="center"><TMPL_IF NAME=RO><TMPL_VAR NAME=BASEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=BASEV>" name="<TMPL_VAR NAME=A>_Base" size=10 onclick="this.select()"/></TMPL_IF></td>
 					<TMPL_LOOP NAME=FEES>
-					<td align="center"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
+					<td align="center"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5 onclick="this.select()"/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
 					<TMPL_LOOP NAME=EXPS>
-					<td align="center"><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=E>" size=5/></TMPL_IF></td></TMPL_LOOP>
+					<td align="center"><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=E>" size=5 onclick="this.select()"/></TMPL_IF></td></TMPL_LOOP>
 					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=NOTEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=NOTEV>" name="<TMPL_VAR NAME=A>_Notes" size=60/></TMPL_IF></td>
 				</tr>
 				</TMPL_LOOP>
@@ -37,7 +44,7 @@
 			<!-- add swaps/splits? FIXME? -->
 
 			<p><TMPL_IF NAME=RO><input type="submit" name="edit_ppl" value="Add/Edit participants"/><TMPL_IF NAME=PPL><input type="submit" name="edit" value="Edit values"/></TMPL_IF><TMPL_ELSE>
-			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save"/></TMPL_IF></p>
+			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_cp" value="Return to control panel"/><input type="submit" name="manage_meets" value="See all meets"/></p></TMPL_UNLESS>
 			<p><input type="submit" name="logout" value="Logout"/></p>
