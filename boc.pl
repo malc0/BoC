@@ -1576,6 +1576,8 @@ sub despatch_user
 		my $edit_id = clean_tgid($cgi->param('tg_id'));
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
+		emit_with_status("No such TG \"$edit_id\"", gen_manage_tgs) if $edit_id && ! -r $tgfile;
+
 		if (defined $cgi->param('edit')) {
 			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
