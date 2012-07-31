@@ -64,7 +64,7 @@
 			<TMPL_IF NAME=DEFCUR><p>All transactions denominated in <TMPL_VAR NAME=DEFCUR></p></TMPL_IF>
 
 			<p><a href="boc.pl?serve=tg_help" onclick="window.open('boc.pl?serve=moo', 'foo','height=400,width=550,location=no,menubar=no,status=no,toolbar=no,resizeable=yes,scrollbars=yes')" target="foo" title="Opens in new window">Understanding the transaction group form</a></p>
-			<p><TMPL_IF NAME=RO><input type="submit" name="edit" value="Edit"/><TMPL_ELSE>
+			<p><TMPL_IF NAME=RO><TMPL_IF NAME=EDITOK><input type="submit" name="edit" value="Edit"/></TMPL_IF><TMPL_ELSE>
 			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p></TMPL_UNLESS>

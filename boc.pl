@@ -2061,6 +2061,7 @@ sub gen_tg
 
 	$tmpl->param(TG_ID => $1) if ($tg_file and $tg_file =~ /\/([^\/]+)$/);
 	$tmpl->param(RO => $view_mode);
+	$tmpl->param(EDITOK => !($1 =~ /^[A-Z]/)) if $1;
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
@@ -2311,6 +2312,8 @@ sub despatch_user
 		emit_with_status("No such TG \"$edit_id\"", gen_manage_tgs) if $edit_id && ! -r $tgfile;
 
 		if (defined $cgi->param('edit')) {
+			whinge('Editing of generated TGs not allowed', gen_tg($tgfile, 1, $session, undef)) if $edit_id =~ /^[A-Z]/;
+
 			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
