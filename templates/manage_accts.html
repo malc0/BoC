@@ -2,6 +2,7 @@
 <html>
 	<head>
 		<title><TMPL_VAR NAME=SN> <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> accounts</title>
+		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 	</head>
 	<body>
 		<h1><TMPL_IF NAME=USER_ACCT>User<TMPL_ELSE>Virtual</TMPL_IF> accounts</h1>

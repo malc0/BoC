@@ -307,6 +307,7 @@ sub load_template
 	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1, case_sensitive => 1) or die;
 	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
 	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
+	$tmpl->param(STYLE => $config{StyleURL}) if $tmpl->query(name => 'STYLE');
 	$tmpl->param(ETOKEN => $_[1]) if defined $_[1];
 	return $tmpl;
 }
