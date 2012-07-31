@@ -216,7 +216,7 @@ sub get_rates
 		$rate{$unit} *= $rate{$in};
 	}
 
-	my $pres_conv = 1 / $rate{$cfg{Default}};	# avoid accidently setting the presentation currency factor to 1 before using it
+	my $pres_conv = $cfg{Default} ? 1 / $rate{$cfg{Default}} : 1;	# avoid accidently setting the presentation currency factor to 1 before using it
 	$rate{$_} = $rate{$_} * $pres_conv foreach (@units);
 
 	return %rate;
