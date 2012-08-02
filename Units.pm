@@ -44,14 +44,23 @@ sub read_units_cfg
 
 	return %cfg if $nofix;
 
+	my @units = known_units_raw(%cfg);
+	return %cfg unless scalar @units;
+
+	# Commodities always exists and is valid if @units
 	$cfg{Commodities} = '' unless exists $cfg{Commodities} and defined $cfg{Commodities};
+	# Anchor exists and is valid only if one unit, or one or more currencies
 	unless ($cfg{Anchor} and exists $cfg{$cfg{Anchor}}) {
-		foreach (known_units_raw(%cfg)) {
+		if (scalar @units == 1) {
+			$cfg{Anchor} = $units[0];
+		} else {
 			# this will still work if more than one real currency -- it's up to the validator to fix that
-			$cfg{Anchor} = $_ unless $cfg{Commodities} =~ /(^|;)$_($|;)/;
+			my @currs = known_currs(%cfg);
+			(scalar @currs) ? $cfg{Anchor} = $currs[0] : delete $cfg{Anchor};
 		}
 	}
-	$cfg{Default} = $cfg{Anchor} unless ($cfg{Default} and exists $cfg{$cfg{Default}}) or not exists $cfg{Anchor};
+	# Default always exists and is valid if @units
+	$cfg{Default} = ((exists $cfg{Anchor}) ? $cfg{Anchor} : $units[0]) unless ($cfg{Default} and exists $cfg{$cfg{Default}});
 
 	return %cfg;
 }
