@@ -23,6 +23,13 @@ sub init_units_cfg
 	return;
 }
 
+sub known_units_raw
+{
+	my %cfg = @_;
+
+	return grep (!ref $cfg{$_} && !/^(Anchor|Default|Commodities)$/, keys %cfg);
+}
+
 sub read_units_cfg
 {
 	my ($file, $nofix) = @_;
@@ -32,8 +39,7 @@ sub read_units_cfg
 
 	$cfg{Commodities} = '' unless exists $cfg{Commodities} and defined $cfg{Commodities};
 	unless ($cfg{Anchor} and exists $cfg{$cfg{Anchor}}) {
-		foreach (keys %cfg) {
-			next if ref $cfg{$_} or $_ eq 'Anchor' or $_ eq 'Default' or $_ eq 'Commodities';
+		foreach (known_units_raw(%cfg)) {
 			# this will still work if more than one real currency -- it's up to the validator to fix that
 			$cfg{Anchor} = $_ unless $cfg{Commodities} =~ /(^|;)$_($|;)/;
 		}
@@ -48,8 +54,7 @@ sub write_units_cfg
 	my ($file, $cfg) = @_;
 
 	my $ncurr = 0;
-	foreach (keys %$cfg) {
-		next if ref $cfg->{$_} or $_ eq 'Anchor' or $_ eq 'Default' or $_ eq 'Commodities';
+	foreach (known_units_raw(%$cfg)) {
 		$ncurr++ if not $cfg->{Commodities} =~ /(^|;)$_($|;)/;
 	}
 	delete $cfg->{Anchor} if $ncurr < 2;
@@ -70,12 +75,7 @@ sub known_units
 
 	return unless $cfg{Default};
 
-	my @units;
-	foreach (keys %cfg) {
-		push (@units, $_) unless ref $cfg{$_} or $_ eq 'Anchor' or $_ eq 'Default' or $_ eq 'Commodities';
-	}
-
-	return ($cfg{Default}, sort grep (!/^$cfg{Default}$/, @units));	# presentation unit returned first
+	return ($cfg{Default}, sort grep (!/^$cfg{Default}$/, known_units_raw(%cfg)));	# presentation unit returned first
 }
 
 sub validate_units
