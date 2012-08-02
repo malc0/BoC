@@ -13,7 +13,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_units validate_units date_sort_rates get_rates);
+our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_currs known_units validate_units date_sort_rates get_rates);
 
 my $cfg_file;
 
@@ -28,6 +28,13 @@ sub known_units_raw
 	my %cfg = @_;
 
 	return grep (!ref $cfg{$_} && !/^(Anchor|Default|Commodities)$/, keys %cfg);
+}
+
+sub known_currs
+{
+	my %cfg = @_;
+
+	return grep (!(ref $cfg{$_} || /^(Anchor|Default|Commodities)$/ || $cfg{Commodities} =~ /(^|;)$_($|;)/), keys %cfg);
 }
 
 sub read_units_cfg
@@ -53,10 +60,8 @@ sub write_units_cfg
 {
 	my ($file, $cfg) = @_;
 
-	my $ncurr = 0;
-	foreach (known_units_raw(%$cfg)) {
-		$ncurr++ if not $cfg->{Commodities} =~ /(^|;)$_($|;)/;
-	}
+	my $ncurr = scalar known_currs(%$cfg);
+
 	delete $cfg->{Anchor} if $ncurr < 2;
 	delete $cfg->{Default} if $ncurr < 2;
 	delete $cfg->{Commodities} unless length $cfg->{Commodities};
@@ -193,9 +198,8 @@ sub get_rates
 	my %rate;
 	$rate{$cfg{Anchor}} = 1 if exists $cfg{Anchor};
 
-	foreach my $unit (@units) {
+	foreach my $unit (known_currs(%cfg)) {
 		next if $unit eq $cfg{Anchor};
-		next if $cfg{Commodities} =~ /(^|;)$unit($|;)/;
 
 		my $row = 0;
 		do {

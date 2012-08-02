@@ -755,7 +755,7 @@ sub gen_edit_rates
 
 	my @units = known_units(%cfg);
 	my %curs;
-	$curs{$_} = 1 foreach (grep (!($cfg{Commodities} =~ /(^|;)$_($|;)/), @units));
+	$curs{$_} = 1 foreach (known_currs(%cfg));
 
 	@units = grep (!/^$cfg{Anchor}$/, @units);	# exclude self-referencing rate henceforth
 
@@ -928,8 +928,7 @@ sub get_ft_currency
 
 	return '' unless exists $ft{Unit};
 
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
-	my @curs = grep (!($units_cfg{Commodities} =~ /(^|;)$_($|;)/), known_units(%units_cfg));
+	my @curs = known_currs(read_units_cfg("$config{Root}/config_units"));
 
 	foreach my $ft_unit (@{$ft{Unit}}) {
 		return $ft_unit if grep (/^$ft_unit$/, @curs);
@@ -1705,12 +1704,11 @@ sub despatch_admin
 			my %cfg = read_units_cfg("$cfg_file.p1");	# presume we got here having successfully just defined units
 			delete $cfg{$_} foreach (grep (ref $cfg{$_}, keys %cfg));
 
-			my @units = known_units(%cfg);
 			my %curs;
-			$curs{$_} = 1 foreach (grep (!($cfg{Commodities} =~ /(^|;)$_($|;)/), @units));
+			$curs{$_} = 1 foreach (known_currs(%cfg));
 
 			@{$cfg{Headings}} = ( 'Date' );
-			foreach (sort @units) {
+			foreach (sort (known_units(%cfg))) {
 				next if $_ eq $cfg{Anchor};
 				if (exists $curs{$_}) {
 					push (@{$cfg{Headings}}, "$_/$cfg{Anchor}");
