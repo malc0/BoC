@@ -70,9 +70,10 @@ sub write_units_cfg
 	my ($file, $cfg) = @_;
 
 	my $ncurr = scalar known_currs(%$cfg);
+	my $nunits = scalar known_units_raw(%$cfg);
 
 	delete $cfg->{Anchor} if $ncurr < 2;
-	delete $cfg->{Default} if $ncurr < 2;
+	delete $cfg->{Default} if $nunits < 2;
 	delete $cfg->{Commodities} unless length $cfg->{Commodities};
 
 	unless (exists $cfg->{Anchor} or exists $cfg->{Commodities}) {
@@ -115,7 +116,7 @@ sub validate_units
 	my @units = known_units(%cfg);
 	my $nunits = scalar @units;
 	$whinge->("$_ unit has no description") foreach (grep (!(defined $cfg{$_}), @units));
-	$whinge->('No currency defined') if $nunits and $nunits - $ncommods == 0;
+	$whinge->('No currency defined') if $nunits > 1 && $nunits - $ncommods == 0;
 	$whinge->('Anchor currency not set with multiple currencies defined') if $nunits - $ncommods > 1 and not exists $cfg{Anchor};
 	$whinge->('Presentation currency not set with multiple currencies defined') if $nunits - $ncommods > 1 and not exists $cfg{Default};
 
