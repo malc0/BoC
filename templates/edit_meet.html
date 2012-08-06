@@ -28,7 +28,7 @@
 				<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</option>
 				</TMPL_LOOP>
 			</select></TMPL_IF></p></TMPL_IF>
-			<table border=1>
+			<table border=1 class="widetable">
 				<tr><th rowspan=2>Name</th><th rowspan=2>Base meet fee</th><TMPL_IF NAME=NFEES><th colspan=<TMPL_VAR NAME=NFEES>>Charges/Credits</th></TMPL_IF><TMPL_IF NAME=NEXPS><th colspan=<TMPL_VAR NAME=NEXPS>>Expenses</th></TMPL_IF><th rowspan=2>Notes (explain unusual values, payment status, etc.)</th></tr>
 				<tr><TMPL_LOOP NAME=FEESH><th><TMPL_VAR NAME=FEE></th></TMPL_LOOP><TMPL_LOOP NAME=EXPSH><th><TMPL_VAR NAME=EXP></th></TMPL_LOOP></tr>
 				<TMPL_LOOP NAME=PPL><tr class="<TMPL_VAR NAME=PER_CL>">
