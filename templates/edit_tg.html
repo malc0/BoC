@@ -25,7 +25,9 @@
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
 			<TMPL_IF NAME=TG_ID><input type="hidden" name="tg_id" value="<TMPL_VAR NAME=TG_ID>"/></TMPL_IF>
 
-			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Transaction group name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="tg_name"/></label></h2></TMPL_IF>
+			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h1><TMPL_IF NAME=TG_ID>Edit<TMPL_ELSE>New</TMPL_IF> transaction group</h1>
+			
+			<h2><label>Transaction group name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="tg_name"/></label></h2></TMPL_IF>
 
 			<TMPL_IF NAME=RO><p>Date: <TMPL_VAR NAME=DATE></p><TMPL_ELSE><p><label>Date: <input type="text" value="<TMPL_VAR NAME=DATE>" name="tg_date"/></label></p></TMPL_IF>
 

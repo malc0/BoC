@@ -22,6 +22,8 @@
 			<input type="hidden" name="tmpl" value="view_acct"/>
 			</TMPL_UNLESS>
 
+			<h1>Transaction summary<TMPL_IF NAME=ACCT>: <TMPL_VAR NAME=ACCT></TMPL_IF></h1>
+
 			<h2><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> credits</h2>
 			<table border=1>
 				<tr><th>Name</th><th>Date</th><th>Value<TMPL_IF NAME=DEFCUR> (<TMPL_VAR NAME=DEFCUR>)</TMPL_IF></th></tr>
