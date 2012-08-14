@@ -1890,7 +1890,7 @@ sub gen_accts_disp
 		my %outputdetails = (
 			ACC => $_,
 			NAME => (exists $acct_names{$_}) ? $acct_names{$_} : $_,
-			VAL => ($running{$_} > 0 ? '+' : '') . $running{$_},
+			VAL => sprintf('%+.2f', $running{$_}),
 			C => sprintf('#%02x%02x%02x', $r, $g, $b),
 			L => $running{$_} > 0 ? 0 : $pc,
 			R => $running{$_} <= 0 ? 0 : $pc,
