@@ -2202,6 +2202,7 @@ sub despatch_user
 				validate_acct($debtor, \%vacct_names, $whinge);
 				$whinge->('Broken expense type') unless defined $type;
 				$tg{Name} = "Expense: $type";
+				$tg{Name} .= lc " ($tg{Description}[0])" if length $tg{Description}[0];
 			}
 			push (@{$tg{$debtor}}, 1);
 
