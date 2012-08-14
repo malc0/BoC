@@ -2270,7 +2270,7 @@ sub despatch_user
 			@{$tg{Headings}} = ( 'Creditor', 'Amount' );
 			push (@{$tg{Headings}}, 'Currency') if exists $tg{Currency};
 			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
-			push (@{$tg{Headings}}, sort_AoH(\%debts, 'Description'));
+			push (@{$tg{Headings}}, ((sort keys %debts), 'Description'));
 
 			validate_tg(\%tg, $whinge);
 
