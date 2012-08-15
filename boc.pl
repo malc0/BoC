@@ -684,17 +684,17 @@ sub gen_edit_meet_cfg
 
 	my %cfg = read_htsv("$config{Root}/config_meet_form", 1);
 
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my @sorted_vaccts = sort_AoH(\%vaccts);
 
 	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{MeetAccount} && $cfg{MeetAccount} eq $_) }, @sorted_vaccts);
 
+	my %cds = known_commod_descs;
 	my @feerows;
-	foreach my $commod (grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%units_cfg))) {
+	foreach my $commod (keys %cds) {
 		my $row = first { @{$cfg{Fee}}[$_] eq $commod } 0 .. $#{$cfg{Fee}};
 		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_vaccts);
-		push (@feerows, { FEED => $units_cfg{$commod}, F => $commod, BOOL => (defined $row && defined $cfg{Boolean}[$row] && !!($cfg{Boolean}[$row] =~ /^\s*[^fn0]/i)), ACCTS => \@rowoptions });
+		push (@feerows, { FEED => $cds{$commod}, F => $commod, BOOL => (defined $row && defined $cfg{Boolean}[$row] && !!($cfg{Boolean}[$row] =~ /^\s*[^fn0]/i)), ACCTS => \@rowoptions });
 	}
 
 	my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %cfg);
@@ -876,12 +876,9 @@ sub gen_edit_meet
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
 	$tmpl->param(CURS => \@currencies);
 
-	my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
 	my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
-	my @fees;
-	foreach my $commod (@commods) {
-		push (@fees, $commod) if grep (/^$commod$/, @{$meet_cfg{Fee}});
-	}
+	my %cds = known_commod_descs;
+	my @fees = grep (exists $cds{$_}, @{$meet_cfg{Fee}});
 	my @feesh = map ({ FEE => $cds{$_} }, @fees);
 	my @expsh = map ({ EXP => $meet_cfg{$_} }, grep (/^Expense_.+$/, keys %meet_cfg));
 	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh);
@@ -978,21 +975,20 @@ sub meet_to_tg
 		push (@{$tg{$meet{Person}[$row]}}, $meet{$_}[$row]) foreach (grep ($colsum{$_}, @{$meet{Headings}}));
 	}
 
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
-	my @units = known_units(%units_cfg);
-	my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
+	my @units = known_units;
+	my %cds = known_commod_descs;
 	my %meet_cfg = read_htsv("$config{Root}/config_meet_form");	# world breaks if doesn't exist (need MeetAccount)
 
 	foreach my $hd (@{$meet{Headings}}) {
 		next if ($hd eq 'Person' || $hd eq 'Notes');
 		next unless $colsum{$hd};
-		if (grep (/^$hd$/, @commods)) {
+		if (grep (/^$hd$/, keys %cds)) {
 			my $mc_row = first { $meet_cfg{Fee}[$_] eq $hd } 0 .. $#{$meet_cfg{Fee}};
 			next unless defined $mc_row;
 			push (@{$tg{Creditor}}, $meet_cfg{Account}[$mc_row]);
 			push (@{$tg{Amount}}, $colsum{$hd});
 			push (@{$tg{Currency}}, $hd);
-			push (@{$tg{Description}}, $units_cfg{$hd});
+			push (@{$tg{Description}}, $cds{$hd});
 		} else {
 			push (@{$tg{Creditor}}, $meet_cfg{MeetAccount});
 			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
@@ -1250,21 +1246,17 @@ sub despatch_admin
 			delete $meet{$_} foreach (grep (ref $meet{$_}, keys %meet));
 			@{$meet{Person}} = @ppl;
 
-			my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
-			my @units = known_units(%units_cfg);
+			my @units = known_units;
 			$meet{Currency} = (scalar @units > 1) ? validate_unit(scalar $cgi->param('Currency'), \@units, $whinge) : $units[0] if scalar @units;
 
-			my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
+			my %cds = known_commod_descs;
 			my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
-			my @fees;
-			foreach my $commod (@commods) {
-				push (@fees, $commod) if grep (/^$commod$/, @{$meet_cfg{Fee}});
-			}
+			my @fees = grep (exists $cds{$_}, @{$meet_cfg{Fee}});
 			my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %meet_cfg);
 
 			foreach my $pers (@{$meet{Person}}) {
 				push (@{$meet{BaseFee}}, validate_decimal(scalar $cgi->param("${pers}_Base"), 'Base fee', 1, $whinge));
-				push (@{$meet{$_}}, validate_decimal(scalar $cgi->param("${pers}_$_"), "$units_cfg{$_} charge", 1, $whinge)) foreach (@fees);
+				push (@{$meet{$_}}, validate_decimal(scalar $cgi->param("${pers}_$_"), "$cds{$_} charge", 1, $whinge)) foreach (@fees);
 				push (@{$meet{$_}}, validate_decimal(scalar $cgi->param("${pers}_$_"), $meet_cfg{"Expense_$_"} . " expense", 1, $whinge)) foreach (@exps);
 				push (@{$meet{Notes}}, clean_words(scalar $cgi->param("${pers}_Notes")));
 			}
@@ -1332,8 +1324,7 @@ sub despatch_admin
 			}
 			if (scalar @{$meet{Person}} && exists $meet{Template} && exists $rfts{$meet{Template}}) {
 				my %ft = read_htsv("$config{Root}/fee_tmpls/$rfts{$meet{Template}}");
-				my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
-				my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%units_cfg));
+				my @commods = keys %{{known_commod_descs}};
 
 				splice (@{$meet{Headings}}, 1, 0, 'BaseFee') if !grep (/^BaseFee$/, @{$meet{Headings}});
 				foreach my $commod (@commods) {
@@ -1476,9 +1467,8 @@ sub despatch_admin
 			$max_rows++ while ($max_rows < 10 and defined $cgi->param('Fee_' . ($max_rows + 1)));
 			$whinge->('No fees?') unless $max_rows >= 0;
 
-			my %units_cfg = read_units_cfg("$config{Root}/config_units");	# FIXME hilarity if not existing/no commods?
-			my @units = known_units(%units_cfg);
-			my @commods = grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, @units);
+			my @units = known_units;
+			my @commods = keys %{{known_commod_descs}};
 			my %curs;
 
 			foreach my $row (0 .. $max_rows) {
@@ -1537,13 +1527,12 @@ sub despatch_admin
 			my %cfg;
 			my $whinge = sub { whinge($_[0], gen_edit_meet_cfg($etoken)) };
 
-			my %units_cfg = read_units_cfg("$config{Root}/config_units");
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 
 			$whinge->('Missing account name') unless clean_username($cgi->param('MeetAcct'));
 			$cfg{MeetAccount} = validate_acct(scalar $cgi->param('MeetAcct'), \%vaccts, $whinge);
 
-			foreach (grep ($units_cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%units_cfg))) {
+			foreach (keys %{{known_commod_descs}}) {
 				next unless defined $cgi->param("Acct_$_");
 				push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$_"), \%vaccts, $whinge));
 				push (@{$cfg{Fee}}, $_);

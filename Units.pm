@@ -13,7 +13,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_currs known_units validate_units date_sort_rates get_rates);
+our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_currs known_units known_commod_descs validate_units date_sort_rates get_rates);
 
 my $cfg_file;
 
@@ -90,6 +90,16 @@ sub known_units
 	return unless $cfg{Default};
 
 	return ($cfg{Default}, sort grep (!/^$cfg{Default}$/, known_units_raw(%cfg)));	# presentation unit returned first
+}
+
+sub known_commod_descs
+{
+	my %cfg = read_units_cfg($cfg_file);
+
+	my %cdesc;
+	$cdesc{$_} = $cfg{$_} foreach (grep ($cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%cfg)));
+
+	return %cdesc;
 }
 
 sub validate_units
