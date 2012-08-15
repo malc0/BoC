@@ -673,7 +673,7 @@ sub gen_edit_fee_tmpl
 	}
 
 	$tmpl->param(ATTRS => \@attrs, FEES => \@fees);
-	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
+	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? ((scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : "$allunits[0] (UNKNOWN!)") : undef);
 
 	return $tmpl;
 }
@@ -2098,7 +2098,7 @@ sub gen_tg
 			       DESC => $tgdetails{Description}[$row] });
 	}
 	$tmpl->param(ROWS => \@rows);
-	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
+	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? ((scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : "$allunits[0] (UNKNOWN!)") : undef);
 
 	return $tmpl;
 }
