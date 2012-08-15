@@ -1067,7 +1067,7 @@ sub despatch_admin
 		my $root = $config{Root};
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
 
-		if (defined $cgi->param('save')) {
+		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
 			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
 			my $fullname = clean_words($cgi->param('fullname'));
 			my $email = clean_email($cgi->param('email'));
@@ -1138,7 +1138,13 @@ sub despatch_admin
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : 'Edit account cancelled', gen_manage_accts($person));
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
-			my $tmpl = $etoken ? gen_edit_meet_ppl(pop_session_data($sessid, "${etoken}_mtfile"), $etoken) : gen_manage_accts($person);
+			my $mt_file = $etoken ? pop_session_data($sessid, "${etoken}_mtfile") : undef;
+			if (defined $cgi->param('savenadd')) {
+				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct');
+				push_session_data($sessid, "${etoken}_mtfile", $mt_file) if $mt_file;
+				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken));
+			}
+			my $tmpl = $etoken ? gen_edit_meet_ppl($mt_file, $etoken) : gen_manage_accts($person);
 			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
 		}
 	}
