@@ -34,7 +34,10 @@ sub known_currs
 {
 	my %cfg = @_;
 
-	return grep (!(ref $cfg{$_} || /^(Anchor|Default|Commodities)$/ || $cfg{Commodities} =~ /(^|;)$_($|;)/), keys %cfg);
+	my @units = known_units_raw(%cfg);
+	return @units if scalar @units == 1;
+
+	return grep (!($cfg{Commodities} =~ /(^|;)$_($|;)/), @units);
 }
 
 sub read_units_cfg
@@ -51,13 +54,9 @@ sub read_units_cfg
 	$cfg{Commodities} = '' unless exists $cfg{Commodities} and defined $cfg{Commodities};
 	# Anchor exists and is valid only if one unit, or one or more currencies
 	unless ($cfg{Anchor} and exists $cfg{$cfg{Anchor}}) {
-		if (scalar @units == 1) {
-			$cfg{Anchor} = $units[0];
-		} else {
-			# this will still work if more than one real currency -- it's up to the validator to fix that
-			my @currs = known_currs(%cfg);
-			(scalar @currs) ? $cfg{Anchor} = $currs[0] : delete $cfg{Anchor};
-		}
+		# this will still work if more than one real currency -- it's up to the validator to fix that
+		my @currs = known_currs(%cfg);
+		(scalar @currs) ? $cfg{Anchor} = $currs[0] : delete $cfg{Anchor};
 	}
 	# Default always exists and is valid if @units
 	$cfg{Default} = ((exists $cfg{Anchor}) ? $cfg{Anchor} : $units[0]) unless ($cfg{Default} and exists $cfg{$cfg{Default}});
