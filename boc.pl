@@ -1673,6 +1673,10 @@ sub despatch_admin
 				}
 			}
 			$cfg{Commodities} =~ s/;$//;
+			if ($nunits < 2) {
+				delete $cfg{Anchor};
+				delete $cfg{Default};
+			}
 
 			validate_units(\%cfg, $whinge, 1);
 
