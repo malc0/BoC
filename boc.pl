@@ -961,7 +961,7 @@ sub get_ft_fees
 
 sub meet_to_tg
 {
-	my ($mt_file, $tg_file) = @_;
+	my ($mt_file) = @_;
 	my %meet = read_htsv($mt_file);
 	my %tg = ( Date => $meet{Date}, Name => "Meet: $meet{Name}" );
 	my %colsum;
@@ -1008,7 +1008,7 @@ sub meet_to_tg
 	# FIXME: validate?
 
 	(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
-	return write_tg($tg_file, %tg);
+	return %tg;
 }
 
 sub despatch_admin
@@ -1273,9 +1273,14 @@ sub despatch_admin
 			try_commit_and_unlock(sub {
 				write_htsv($mt_file, \%meet, 11);
 				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
-				meet_to_tg($mt_file, $tg_file);
+				my %tg = meet_to_tg($mt_file);
+				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
+					write_tg($tg_file, %tg);
+					$git->add($tg_file);
+				} else {
+				       	$git->rm($tg_file) if -e $tg_file;
+				}
 				my @split_mf = split('-', unroot($mt_file));
-				$git->add($tg_file);
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
 			}, $mt_file);
 		} else {
@@ -1345,9 +1350,15 @@ sub despatch_admin
 			try_commit_and_unlock(sub {
 				write_htsv($mt_file, \%meet, 11);
 				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
-				meet_to_tg($mt_file, $tg_file) if scalar @{$meet{Person}};
+				my %tg;
+				%tg = meet_to_tg($mt_file) if (scalar @{$meet{Person}});
+				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
+					write_tg($tg_file, %tg);
+					$git->add($tg_file);
+				} else {
+				       	$git->rm($tg_file) if -e $tg_file;
+				}
 				my @split_mf = split('-', unroot($mt_file));
-				(scalar @{$meet{Person}}) ? $git->add($tg_file) : $git->rm($tg_file);
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
 			}, $mt_file);
 		} else {
