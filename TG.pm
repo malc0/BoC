@@ -61,9 +61,8 @@ sub write_tg
 
 sub validate_tg
 {
-	my ($tgref, $whinge, $valid_accts, $unset_cred) = @_;
+	my ($tgref, $whinge, $valid_accts) = @_;
 	my %tg = %$tgref;
-	$unset_cred = '' unless defined $unset_cred;
 
 	$whinge->("Unknown heading \"$_\"") foreach (grep (!(exists $tg{$_}), @{$tg{Headings}}));
 	foreach my $key (keys %tg) {
@@ -113,7 +112,6 @@ sub validate_tg
 			$whinge->('Missing amount') if $amnt == 0 and $debtors == 1;
 			validate_unit($tg{Currency}[$row], \@valid_units, $whinge) if exists $tg{Currency};
 			if ($amnt == 0 and $debtors == 0) {
-				$whinge->('Creditor but no amount or debtor(s)') if $tg{Creditor}[$row] ne $unset_cred;
 				$whinge->('Description but no amount or debtor(s)') if clean_text($tg{Description}[$row]);
 				$compact_creds[$row] = undef;
 			}

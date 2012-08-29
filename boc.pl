@@ -2373,7 +2373,7 @@ sub despatch_user
 			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', 'TrnsfrPot', \%ppl, \%vaccts, 'Description');
 			splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
-			my @cred_accts = validate_tg(\%tg, $whinge, \%acct_names, $session->param('User'));
+			my @cred_accts = validate_tg(\%tg, $whinge, \%acct_names);
 
 			%tg = clean_tg(\%tg, \@cred_accts);
 			$whinge->('No transactions?') unless exists $tg{Creditor};
