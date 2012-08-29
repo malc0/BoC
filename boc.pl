@@ -40,6 +40,14 @@ sub update_global_config
 	return;
 }
 
+sub flock_only
+{
+	sysopen(my $fh, $_[0], O_RDWR|O_CREAT) or die;
+	flock ($fh, LOCK_EX) or die;
+
+	return $fh;
+}
+
 sub flock_and_read
 {
 	my $filename = $_[0];
@@ -300,6 +308,29 @@ sub unroot
 {
 	return undef unless $_[0] =~ /$config{Root}\/(.*)/;
 	return $1;
+}
+
+sub compute_tg_c
+{
+	my ($tg, $tgd, $omit, $valid_accts, $neg_accts, $die) = @_;
+
+	if (-e "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units")) {
+		my ($fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
+		close $fh;
+		return %computed;
+	} else {
+		my %tgdetails = $tgd ? %{$tgd} : read_tg("$config{Root}/transaction_groups/$tg");
+		return if $omit && exists $tgdetails{Omit};
+
+		my %computed = compute_tg(\%tgdetails, $valid_accts, $neg_accts, $die);
+
+		if (!(exists $tgdetails{Omit}) && $valid_accts) {
+			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
+			write_and_close($fh, %computed);
+		}
+
+		return %computed;
+	}
 }
 
 sub load_template
@@ -1810,13 +1841,12 @@ sub gen_ucp
 	my $tmpl = load_template('user_cp.html');
 	my $user = (defined $acct) ? $acct : $session->param('User');
 
-	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
 	my %acct_names = get_acct_name_map;
+	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
-		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-		my %computed = eval { compute_tg(\%tgdetails, \%acct_names, \%neg_accts) };
+		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts) };
 		my $tg_broken = ($@ ne '');
 		next unless exists $computed{$user} or $tg_broken;
 
@@ -1845,13 +1875,11 @@ sub gen_accts_disp
 	my $session = $_[0];
 	my $tmpl = load_template('accts_disp.html');
 
-	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
 	my %running;
+	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
-		my %tgdetails = read_tg($tg);
-		next if exists $tgdetails{Omit};
-		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-		my %computed = eval { compute_tg(\%tgdetails, undef, \%neg_accts) };
+		$tg = $1 if $tg =~ /([^\/]*)$/;
+		my %computed = eval { compute_tg_c($tg, undef, 1, undef, \%neg_accts) };
 		if ($@) {
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;
@@ -1968,7 +1996,7 @@ sub gen_manage_tgs
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
-		eval { compute_tg(\%tgdetails, \%acct_names, \%neg_accts, sub { $tg_fail = $_[0]; die }) };
+		eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, sub { $tg_fail = $_[0]; die }) };
 		my %rates = get_rates($tgdetails{Date}) unless $@;
 
 		my $sum_str = '';
