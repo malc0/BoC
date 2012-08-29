@@ -141,12 +141,13 @@ sub stround
 
 sub compute_tg
 {
-	my %tg = %{$_[0]};
-	my %neg_accts = %{$_[1]};
-	my $die = $_[2] ? $_[2] : sub { confess $_[0] };
+	my ($tgr, $valid_accts, $nar, $die) = @_;
+	my %tg = %{$tgr};
+	my %neg_accts = %{$nar};
+	$die = sub { confess $_[0] } unless $die;
 
-	my @cred_accts = validate_tg(\%tg, $die);
-	my %rates = get_rates($tg{Date}, $die);
+	my @cred_accts = validate_tg(\%tg, $die, $valid_accts);
+	my %rates = get_rates($tg{Date}, sub { $die->("Currency config: $_[0]"); });
 
 	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
 	my %relevant_accts;

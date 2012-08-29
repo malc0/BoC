@@ -1811,11 +1811,12 @@ sub gen_ucp
 	my $user = (defined $acct) ? $acct : $session->param('User');
 
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
+	my %acct_names = get_acct_name_map;
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-		my %computed = eval { compute_tg(\%tgdetails, \%neg_accts) };
+		my %computed = eval { compute_tg(\%tgdetails, \%acct_names, \%neg_accts) };
 		my $tg_broken = ($@ ne '');
 		next unless exists $computed{$user} or $tg_broken;
 
@@ -1829,7 +1830,6 @@ sub gen_ucp
 		);
 		push (@{($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist}, \%outputdetails);
 	}
-	my %acct_names = get_acct_name_map;
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
 	my @units = known_units();
 	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
@@ -1851,7 +1851,7 @@ sub gen_accts_disp
 		my %tgdetails = read_tg($tg);
 		next if exists $tgdetails{Omit};
 		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-		my %computed = eval { compute_tg(\%tgdetails, \%neg_accts) };
+		my %computed = eval { compute_tg(\%tgdetails, undef, \%neg_accts) };
 		if ($@) {
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;
@@ -1962,13 +1962,14 @@ sub gen_manage_tgs
 {
 	my $tmpl = load_template('manage_transactions.html');
 	my %acct_names = get_acct_name_map;
+	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 
 	my @tglist;
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
-		eval { validate_tg(\%tgdetails, sub { $tg_fail = $_[0]; die }, \%acct_names) };
-		my %rates = eval { get_rates($tgdetails{Date}, sub { $tg_fail = "Currency config: $_[0]"; die }) } unless $@;
+		eval { compute_tg(\%tgdetails, \%acct_names, \%neg_accts, sub { $tg_fail = $_[0]; die }) };
+		my %rates = get_rates($tgdetails{Date}) unless $@;
 
 		my $sum_str = '';
 		unless ($tg_fail) {
@@ -2379,7 +2380,7 @@ sub despatch_user
 			$whinge->('No transactions?') unless exists $tg{Creditor};
 
 			my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-			eval { compute_tg(\%tg, \%neg_accts, $whinge) };
+			eval { compute_tg(\%tg, undef, \%neg_accts, $whinge) };
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
