@@ -44,12 +44,20 @@
 							</TMPL_LOOP>
 						</select>
 					</TMPL_IF></td>
-					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=A><TMPL_ELSE><div style="white-space: nowrap"><input type="text" value="<TMPL_VAR NAME=A>" name="Amount_<TMPL_VAR NAME=R>" onclick="this.select()"/><input type="button" style="padding:0" value="&larr; &Sigma;" onclick="total = 0;
-						for (i = 0; i < document.forms[0].elements.length; i++)
-							if (document.forms[0].elements[i].name.search(/^[^A-Z].*_<TMPL_VAR NAME=R>$/) >= 0)
-								total += parseFloat(document.forms[0].elements[i].value);
-						document.forms[0].elements['Amount_<TMPL_VAR NAME=R>'].value = Math.round(total * 1000000) / 1000000; 
-						"/></div></TMPL_IF></td>
+					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=A><TMPL_ELSE><div style="white-space: nowrap"><input type="text" value="<TMPL_VAR NAME=A>" name="Amount_<TMPL_VAR NAME=R>" onclick="this.select()"/><script>
+						b = document.createElement('input');
+						b.setAttribute('type', 'button');
+						b.setAttribute('style', 'padding:0');
+						b.setAttribute('value', '\u2190 \u03A3');
+						b.onclick = function() {
+							total = 0;
+							for (i = 0; i < document.forms[0].elements.length; i++)
+								if (document.forms[0].elements[i].name.search(/^[^A-Z].*_<TMPL_VAR NAME=R>$/) >= 0)
+									total += parseFloat(document.forms[0].elements[i].value);
+							document.forms[0].elements['Amount_<TMPL_VAR NAME=R>'].value = Math.round(total * 1000000) / 1000000;
+						};
+						document.forms[0].elements['Amount_<TMPL_VAR NAME=R>'].parentNode.appendChild(b);
+						</script></div></TMPL_IF></td>
 					<TMPL_IF NAME=CURCOL><td class="<TMPL_VAR NAME=CUR_CL>"><TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="Currency_<TMPL_VAR NAME=R>">
 							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
