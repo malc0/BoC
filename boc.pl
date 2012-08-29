@@ -379,7 +379,7 @@ sub create_datastore
 
 sub validate_admins
 {
-	my @users = glob("$config{Root}/users/*");
+	my @users = glob ("$config{Root}/users/*");
 
 	my @valid_admins;
 	foreach my $user (@users) {
@@ -415,7 +415,7 @@ sub gen_login_nopw
 {
 	my $tmpl = load_template('login_nopw.html');
 
-	my @users = glob("$config{Root}/users/*");
+	my @users = glob ("$config{Root}/users/*");
 	my @userlist;
 
 	foreach my $user (@users) {
@@ -444,7 +444,7 @@ sub login_nopw
 sub clear_old_session_locks
 {
 	my $sessid = $_[0];
-	my @locks = glob("$config{Root}/*/.*.lock");
+	my @locks = glob ("$config{Root}/*/.*.lock");
 	push (@locks, "$config{Root}/.DSLOCK.lock");
 
 	no autodie qw(open);	# file may not exist
@@ -518,7 +518,7 @@ sub gen_manage_accts
 {
 	my $people = $_[0];
 	my $tmpl = load_template('manage_accts.html');
-	my @accounts = $people ? glob("$config{Root}/users/*") : glob("$config{Root}/accounts/*");
+	my @accounts = $people ? glob ("$config{Root}/users/*") : glob ("$config{Root}/accounts/*");
 	my @acctlist;
 	my @attrs_list = query_pers_attrs;
 
@@ -810,7 +810,7 @@ sub commit_config_units
 		my $commit_msg = 'config_units: units/rates modified';
 
 		if (keys %$rename) {
-			my @tgs = glob("$config{Root}/transaction_groups/*");
+			my @tgs = glob ("$config{Root}/transaction_groups/*");
 			foreach my $tg (@tgs) {
 				$tg = untaint($tg);
 				my %tgdetails = read_tg($tg);
@@ -1096,7 +1096,7 @@ sub despatch_admin
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			if ($rename and glob("$config{Root}/transaction_groups/.*.lock")) {
+			if ($rename and glob ("$config{Root}/transaction_groups/.*.lock")) {
 				un_commit_lock;
 				$whinge->('Cannot perform account rename at present: transaction groups busy');
 			}
@@ -1108,7 +1108,7 @@ sub despatch_admin
 			}
 			try_commit_and_unlock(sub {
 				if ($rename) {
-					my @tgs = glob("$config{Root}/transaction_groups/*");
+					my @tgs = glob ("$config{Root}/transaction_groups/*");
 					foreach my $tg (@tgs) {
 						$tg = untaint($tg);
 						my %tgdetails = read_tg($tg);
@@ -1774,7 +1774,7 @@ sub query_all_htsv_in_path
 {
 	my ($path, $key, $all) = @_;
 
-	my @accts = glob("$path/*");
+	my @accts = glob ("$path/*");
 	my %response;
 
 	foreach my $acct (@accts) {
@@ -1847,7 +1847,7 @@ sub gen_accts_disp
 
 	# I'm prepared to believe this could get horribly slow.  Caching FIXME?
 	my %running;
-	foreach my $tg (glob("$config{Root}/transaction_groups/*")) {
+	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 		my %tgdetails = read_tg($tg);
 		next if exists $tgdetails{Omit};
 		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
