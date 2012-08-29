@@ -1,7 +1,7 @@
 <!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 	<head>
-		<title><TMPL_VAR NAME=LN> landing</title>
+		<title><TMPL_IF NAME=ACCT><TMPL_VAR NAME=ACCT>'s </TMPL_IF><TMPL_VAR NAME=LN> transaction summary</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 		<style type="text/css">tr.omitted { background-color: grey } td.broken { background-color: red }</style>
 	</head>
