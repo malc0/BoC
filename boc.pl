@@ -333,6 +333,24 @@ sub compute_tg_c
 	}
 }
 
+sub drained_accts
+{
+	my $exempt = $_[0] ? $_[0] : '';
+	my %drained;
+
+	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
+		my %tgdetails = read_tg($tg);
+		next if exists $tgdetails{Omit};
+
+		$tg = $1 if $tg =~ /([^\/]*)$/;
+		foreach (0 .. $#{$tgdetails{Creditor}}) {
+			push (@{$drained{$tgdetails{Creditor}[$_]}}, $tg) if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/)) && $tg ne $exempt;
+		}
+	}
+
+	return %drained;
+}
+
 sub load_template
 {
 	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1, case_sensitive => 1) or die;
@@ -2403,7 +2421,7 @@ sub despatch_user
 			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', 'TrnsfrPot', \%ppl, \%vaccts, 'Description');
 			splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
-			my @cred_accts = validate_tg(\%tg, $whinge, \%acct_names);
+			my @cred_accts = validate_tg(\%tg, $whinge, \%acct_names, \%{{drained_accts($edit_id)}});
 
 			%tg = clean_tg(\%tg, \@cred_accts);
 			$whinge->('No transactions?') unless exists $tg{Creditor};

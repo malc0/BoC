@@ -61,7 +61,7 @@ sub write_tg
 
 sub validate_tg
 {
-	my ($tgref, $whinge, $valid_accts) = @_;
+	my ($tgref, $whinge, $valid_accts, $drained_accts) = @_;
 	my %tg = %$tgref;
 
 	$whinge->("Unknown heading \"$_\"") foreach (grep (!(exists $tg{$_}), @{$tg{Headings}}));
@@ -88,6 +88,7 @@ sub validate_tg
 	my @valid_units = known_units();
 	$whinge->('No currency data') if scalar @valid_units > 1 and not exists $tg{Currency};
 
+	my %drained;
 	foreach my $row (0 .. $#cred_accts) {
 		my $debtors = 0;
 		foreach my $head (@all_head_accts) {
@@ -102,16 +103,25 @@ sub validate_tg
 			}
 		}
 
+		my $amnt = $tg{Amount}[$row];
 		if ($tg{Creditor}[$row] =~ /^TrnsfrPot[1-9]$/) {
-			my $amnt = $tg{Amount}[$row];
 			$whinge->('Amount must be empty or \'*\' for a transfer pot creditor') unless (not defined $amnt) or $amnt =~ /^\s*[*]?\s*$/;
 			$whinge->('Transfer pot creditor lacks debtor(s)') if $debtors == 0;
 		} else {
-			my $amnt = validate_decimal($tg{Amount}[$row], 'Amount', undef, $whinge);
-			$whinge->('Missing debtor(s)') if $amnt != 0 and $debtors == 0;
-			$whinge->('Missing amount') if $amnt == 0 and $debtors == 1;
+			if (defined clean_decimal($amnt)) {
+				$amnt = clean_decimal($amnt);
+			} elsif ($amnt =~ /^\s*[*]\s*$/) {
+				$whinge->("Account $tg{Creditor}[$row] drained more than once in this TG") if exists $drained{$tg{Creditor}[$row]};
+				$drained{$tg{Creditor}[$row]} = 1;
+				$whinge->("Account $tg{Creditor}[$row] already drained by TG(s): " . join (',', @{$drained_accts->{$tg{Creditor}[$row]}})) if exists $drained_accts->{$tg{Creditor}[$row]};
+			} else {
+				$whinge->('Amount must be a decimal value or \'*\'');
+			}
+
+			$whinge->('Missing debtor(s)') if ($amnt =~ /^\s*[*]\s*$/ || $amnt != 0) && $debtors == 0;
+			$whinge->('Missing amount') if !($amnt =~ /^\s*[*]\s*$/) && $amnt == 0 && $debtors == 1;
 			validate_unit($tg{Currency}[$row], \@valid_units, $whinge) if exists $tg{Currency};
-			if ($amnt == 0 and $debtors == 0) {
+			if (!($amnt =~ /^\s*[*]\s*$/) && $amnt == 0 and $debtors == 0) {
 				$whinge->('Description but no amount or debtor(s)') if clean_text($tg{Description}[$row]);
 				$compact_creds[$row] = undef;
 			}
@@ -171,7 +181,12 @@ sub compute_tg
 	foreach my $row (0 .. $#cred_accts) {
 		next unless defined $cred_accts[$row];
 
-		my $amnt = $tg{Amount}[$row] * ((scalar keys %rates < 2) ? 1 : $rates{$tg{Currency}[$row]}) unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
+		my $amnt;
+		if ($tg{Amount}[$row] =~ /^\s*[*]\s*$/ && !($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
+			$die->('Account draining not yet implemented');
+		} elsif (!($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
+			$amnt = $tg{Amount}[$row] * ((scalar keys %rates < 2) ? 1 : $rates{$tg{Currency}[$row]});
+		}
 
 		$relevant_accts{$tg{Creditor}[$row]} += $amnt unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
 		if (exists $neg_accts{$tg{Creditor}[$row]}) {
