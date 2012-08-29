@@ -2081,7 +2081,7 @@ sub gen_tg
 	foreach (@sorted_accts) {
 		my $class = (exists $negated{$_}) ? 'negated' : '';
 		$class .= ' unknown_d' if exists $unknown{$_};
-		push (@heads, { H => $acct_names{$_}, HEAD_CL => $class });
+		push (@heads, { H => $acct_names{$_}, A => $_, HEAD_CL => $class });
 	}
 	$tmpl->param(HEADINGS => \@heads);
 

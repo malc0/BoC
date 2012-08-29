@@ -35,10 +35,10 @@
 
 			<table border=1 class="widetable">
 				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><TMPL_IF NAME=CURCOL><th rowspan=2>Currency</th></TMPL_IF><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Transfer Pot</th><th rowspan=2>Description</th></tr>
-				<tr><TMPL_LOOP NAME=HEADINGS><th class="<TMPL_VAR NAME=HEAD_CL>"><TMPL_VAR NAME=H></th></TMPL_LOOP></tr>
+				<tr><TMPL_LOOP NAME=HEADINGS><th class="<TMPL_VAR NAME=HEAD_CL>"><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=H></a><TMPL_ELSE><TMPL_VAR NAME=H></TMPL_IF></th></TMPL_LOOP></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr class="<TMPL_VAR NAME=ROW_CL>">
-					<td><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><TMPL_VAR NAME=O></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+					<td><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="Creditor_<TMPL_VAR NAME=R>">
 							<TMPL_LOOP NAME=CREDS><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 							</TMPL_LOOP>
