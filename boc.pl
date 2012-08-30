@@ -1923,7 +1923,8 @@ sub gen_ucp
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, \%resolved) };
-		my $tg_broken = $@ ne '' || nonfinite(values %computed) || exists $dds{$tg};
+		my $tg_indet = nonfinite(values %computed);
+		my $tg_broken = $@ ne '' || (%resolved && $tg_indet) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
 		my %outputdetails = (
@@ -1931,8 +1932,8 @@ sub gen_ucp
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
-			SUMMARY_CL => $tg_broken ? 'broken' : '',
-			SUMMARY => encode_for_html($tg_broken ? 'TG BROKEN' : ($computed{$user} > 0 ? '+' : '') . $computed{$user}),
+			SUMMARY_CL => $tg_broken ? 'broken' : $tg_indet ? 'indet' : '',
+			SUMMARY => encode_for_html($tg_broken ? 'TG BROKEN' : $tg_indet ? 'incalculable' : ($computed{$user} > 0 ? '+' : '') . $computed{$user}),
 		);
 		push (@{($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist}, \%outputdetails);
 	}
@@ -2085,11 +2086,12 @@ sub gen_manage_tgs
 		my $tg_fail;
 		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, \%resolved, sub { $tg_fail = $_[0]; die }) };
 		my %rates = get_rates($tgdetails{Date}) unless $@;
-		$tg_fail = 'TGs drain in a loop!' if nonfinite(values %computed) && $tg_fail eq '';
+		my $tg_indet = nonfinite(values %computed) ? 'TG depends on broken TG' : '';
+		$tg_fail = 'TGs drain in a loop!' if %resolved && $tg_indet && $tg_fail eq '';
 		$tg_fail = "Multiple drains of '$dds{$tg}'" if exists $dds{$tg};
 
 		my $sum_str = '';
-		unless ($tg_fail) {
+		unless ($tg_fail || $tg_indet) {
 			my %summary;
 			foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
 				my $acct = $tgdetails{Creditor}[$i];
@@ -2112,8 +2114,8 @@ sub gen_manage_tgs
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
-			SUMMARY_CL => $tg_fail ? 'broken' : '',
-			SUMMARY => encode_for_html($tg_fail ? $tg_fail : substr($sum_str, 0, -2)),
+			SUMMARY_CL => $tg_fail ? 'broken' : $tg_indet ? 'indet' : '',
+			SUMMARY => encode_for_html($tg_fail ? $tg_fail : $tg_indet ? $tg_indet : substr($sum_str, 0, -2)),
 		);
 		push (@tglist, \%outputdetails);
 	}
