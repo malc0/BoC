@@ -209,7 +209,7 @@ sub compute_tg
 	}
 
 	my $imbalance = $neg_error - sum values %relevant_accts;
-	$die->('TG does not compute -- probably due to impossible transfer pot') if abs ($imbalance) > .000000001;
+	$die->("TG does not compute -- probably due to impossible transfer pot (imbalance $imbalance)") if abs ($imbalance) > .000000001;
 
 	my (%pennies, %resid);
 	@pennies{keys %relevant_accts} = map (stround($_, 2), values %relevant_accts);
