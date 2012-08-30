@@ -1887,6 +1887,7 @@ sub gen_accts_disp
 		foreach (keys %computed) {
 			$running{$_} = 0 unless exists $running{$_};
 			$running{$_} += $computed{$_};
+			$running{$_} = 0 if abs $running{$_} < .000000001;
 		}
 	}
 
