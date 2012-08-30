@@ -310,9 +310,18 @@ sub unroot
 	return $1;
 }
 
+sub nonfinite
+{
+	my $infinite = 0;
+	foreach (@_) {
+		$infinite++ if $_ == 0+'inf' || $_ == 0-'inf';
+	}
+	return $infinite;
+}
+
 sub compute_tg_c
 {
-	my ($tg, $tgd, $omit, $valid_accts, $neg_accts, $die) = @_;
+	my ($tg, $tgd, $omit, $valid_accts, $neg_accts, $resolved, $die) = @_;
 
 	if (-e "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units")) {
 		my ($fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
@@ -322,9 +331,15 @@ sub compute_tg_c
 		my %tgdetails = $tgd ? %{$tgd} : read_tg("$config{Root}/transaction_groups/$tg");
 		return if $omit && exists $tgdetails{Omit};
 
-		my %computed = compute_tg(\%tgdetails, $valid_accts, $neg_accts, $die);
+		my %computed = compute_tg(\%tgdetails, $valid_accts, $neg_accts, $resolved, $die);
 
-		if (!(exists $tgdetails{Omit}) && $valid_accts) {
+		# check for drains directly; this means resolution can be done without account validation,
+		# and account validation can be done separately from resolution
+		my $is_drain = 0;
+		foreach (0 .. $#{$tgdetails{Creditor}}) {
+			$is_drain = 1 if $tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/);
+		}
+		if (!(exists $tgdetails{Omit}) && $valid_accts && !$is_drain) {
 			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
 			write_and_close($fh, %computed);
 		}
@@ -349,6 +364,46 @@ sub drained_accts
 	}
 
 	return %drained;
+}
+
+sub double_drainers
+{
+	my %drained = drained_accts;
+	my %bad;
+
+	foreach my $acct (grep (scalar @{$drained{$_}} > 1, keys %drained)) {
+		$bad{$_} = $acct foreach (@{$drained{$acct}});
+	}
+
+	return %bad;
+}
+
+sub resolve_accts
+{
+	my %neg_accts = %{$_[0]};
+	my %resolved;
+
+	while (1) {
+		my %running;
+
+		foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
+			$tg = $1 if $tg =~ /([^\/]*)$/;
+			my %computed = eval { compute_tg_c($tg, undef, 1, undef, \%neg_accts, \%resolved) };
+			return if $@;
+			foreach (keys %computed) {
+				$running{$_} = 0 unless exists $running{$_};
+				$running{$_} += $computed{$_};
+			}
+		}
+
+		my $unresolved = nonfinite(values %resolved);
+
+		foreach (keys %running) {
+			$resolved{$_} = $running{$_} if !exists $resolved{$_} || nonfinite($resolved{$_});
+		}
+
+		return %resolved if nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved;
+	}
 }
 
 sub load_template
@@ -1861,11 +1916,14 @@ sub gen_ucp
 
 	my %acct_names = get_acct_name_map;
 	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %resolved = resolve_accts(\%neg_accts);
+
+	my %dds = double_drainers;
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
-		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts) };
-		my $tg_broken = ($@ ne '');
+		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, \%resolved) };
+		my $tg_broken = $@ ne '' || nonfinite(values %computed) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
 		my %outputdetails = (
@@ -1893,15 +1951,22 @@ sub gen_accts_disp
 	my $session = $_[0];
 	my $tmpl = load_template('accts_disp.html');
 
-	my %running;
 	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %resolved = resolve_accts(\%neg_accts);
+	if ($@ || !%resolved || nonfinite(values %resolved)) {
+		$tmpl->param(BROKEN => 1);
+		return $tmpl;
+	}
+
+	my %dds = double_drainers;
+	my %running;
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 		$tg = $1 if $tg =~ /([^\/]*)$/;
-		my %computed = eval { compute_tg_c($tg, undef, 1, undef, \%neg_accts) };
-		if ($@) {
+		if (exists $dds{$tg}) {
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;
 		}
+		my %computed = compute_tg_c($tg, undef, 1, undef, \%neg_accts, \%resolved);
 		foreach (keys %computed) {
 			$running{$_} = 0 unless exists $running{$_};
 			$running{$_} += $computed{$_};
@@ -2010,28 +2075,35 @@ sub gen_manage_tgs
 	my $tmpl = load_template('manage_transactions.html');
 	my %acct_names = get_acct_name_map;
 	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %resolved = resolve_accts(\%neg_accts);
 
 	my @tglist;
+	my %dds = double_drainers;
+	my %daterates;
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
-		eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, sub { $tg_fail = $_[0]; die }) };
+		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, \%resolved, sub { $tg_fail = $_[0]; die }) };
 		my %rates = get_rates($tgdetails{Date}) unless $@;
+		$tg_fail = 'TGs drain in a loop!' if nonfinite(values %computed) && $tg_fail eq '';
+		$tg_fail = "Multiple drains of '$dds{$tg}'" if exists $dds{$tg};
 
 		my $sum_str = '';
 		unless ($tg_fail) {
 			my %summary;
 			foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
 				my $acct = $tgdetails{Creditor}[$i];
+				my $drained = 0;
 				next if $acct =~ /^TrnsfrPot\d$/;
 				next if exists $summary{$acct};
 				$summary{$acct} = 0;
 				foreach my $_ ($i .. $#{$tgdetails{Creditor}}) {
 					next if $tgdetails{Creditor}[$_] ne $acct;
+					$drained = 1 if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/);
 					my $rate = (scalar keys %rates < 2) ? 1 : $rates{$tgdetails{Currency}[$_]};
-					$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate);
+					$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate) if !$drained;
 				}
-				$sum_str .= "$acct_names{$acct} " . (($summary{$acct} < 0) ? '' : '+') . $summary{$acct} . ', ';
+				$sum_str .= "$acct_names{$acct} " . ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . $summary{$acct}) . ', ';
 			}
 		}
 
@@ -2427,7 +2499,8 @@ sub despatch_user
 			$whinge->('No transactions?') unless exists $tg{Creditor};
 
 			my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-			eval { compute_tg(\%tg, undef, \%neg_accts, $whinge) };
+			eval { compute_tg(\%tg, undef, \%neg_accts, undef, $whinge) };
+			# FIXME ought to check we're not creating a drain loop.  problem is, if other TGs are errorful, resolve_accts can't be expected to work fully.  without this, we have no loop checker.  disabling editing until TGs are fixed is self defeating...
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);

@@ -27,7 +27,7 @@
 		<p>Typically each row describes one transaction, with the following fields:</p>
 
 		<p><b>Creditor:</b> to whom (/what [*]) the Amount column applies</p>
-		<p><b>Amount:</b> the amount to credit to (or, for a negative value, debit from) the Creditor</p>
+		<p><b>Amount:</b> the amount to credit to (or, for a negative value, debit from) the Creditor.  &apos;*&apos; uses the negated balance of the Creditor account, thereby draining it.</p>
 		<p><b>Currency:</b> the currency in which the Amount is expressed</p>
 		<p><b>Debt shares:</b> the proportions to allocate to each of the accounts to finance the Amount.  Must be positive.  Shares are calculated by taking the ratio of an account's share to the sum of all shares.  This allows true monetary values to be used if so desired, assuming they sum to the Amount.  Accounts with italicised headings are <em>Negated</em> accounts, where the account change happens in the same sense (credit/debit) as that of the Creditor.</p>
 		<p><b>Transfer pot:</b> see below</p>

@@ -151,9 +151,10 @@ sub stround
 
 sub compute_tg
 {
-	my ($tgr, $valid_accts, $nar, $die) = @_;
+	my ($tgr, $valid_accts, $nar, $rsr, $die) = @_;
 	my %tg = %{$tgr};
 	my %neg_accts = %{$nar};
+	my %resolved = $rsr ? %{$rsr} : ();
 	$die = sub { confess $_[0] } unless $die;
 
 	my @cred_accts = validate_tg(\%tg, $die, $valid_accts);
@@ -183,12 +184,12 @@ sub compute_tg
 
 		my $amnt;
 		if ($tg{Amount}[$row] =~ /^\s*[*]\s*$/ && !($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
-			$die->('Account draining not yet implemented');
+			$amnt = (exists $resolved{$tg{Creditor}[$row]}) ? -$resolved{$tg{Creditor}[$row]} : 0+'inf';
 		} elsif (!($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
 			$amnt = $tg{Amount}[$row] * ((scalar keys %rates < 2) ? 1 : $rates{$tg{Currency}[$row]});
 		}
 
-		$relevant_accts{$tg{Creditor}[$row]} += $amnt unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
+		$relevant_accts{$tg{Creditor}[$row]} += $amnt unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/ || $amnt == 0+'inf';
 		if (exists $neg_accts{$tg{Creditor}[$row]}) {
 			$neg_error += 2 * $amnt;
 			$amnt *= -1;
@@ -201,7 +202,11 @@ sub compute_tg
 			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
 			my $share_sum = sum @shares;
 			foreach (0 .. $#head_accts) {
-				my $samnt = $amnt * $shares[$_] / $share_sum;
+				# inf * 0 = nan, not 0
+				my $samnt = $shares[$_] ? $amnt * $shares[$_] / $share_sum : 0;
+				# allow self-draining accts.  not exporting inf is ok, since other shares will still cause drain detection,
+				# and if there are no other shares self-draining is a no-op
+				$samnt = 0 if $tg{Creditor}[$row] eq $head_accts[$_] && abs $amnt == 0+'inf';
 				if (exists $neg_accts{$head_accts[$_]}) {
 					$neg_error += 2 * $samnt;
 					$samnt *= -1;
@@ -224,6 +229,9 @@ sub compute_tg
 	}
 
 	my $imbalance = $neg_error - sum values %relevant_accts;
+
+	return %relevant_accts if abs $imbalance == 0+'inf';
+
 	$die->("TG does not compute -- probably due to impossible transfer pot (imbalance $imbalance)") if abs ($imbalance) > .000000001;
 
 	my (%pennies, %resid);
