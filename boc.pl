@@ -350,7 +350,8 @@ sub compute_tg_c
 
 sub drained_accts
 {
-	my $exempt = $_[0] ? $_[0] : '';
+	my ($exempt, $to_zero_only) = @_;
+	$exempt = '' unless $exempt;
 	my %drained;
 
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
@@ -359,7 +360,7 @@ sub drained_accts
 
 		$tg = $1 if $tg =~ /([^\/]*)$/;
 		foreach (0 .. $#{$tgdetails{Creditor}}) {
-			push (@{$drained{$tgdetails{Creditor}[$_]}}, $tg) if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/)) && $tg ne $exempt;
+			push (@{$drained{$tgdetails{Creditor}[$_]}}, $tg) if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/)) && $tg ne $exempt && !($to_zero_only && $tgdetails{$tgdetails{Creditor}[$_]}[$_]);
 		}
 	}
 
@@ -378,8 +379,18 @@ sub double_drainers
 	return %bad;
 }
 
+sub stround
+{
+	my ($n, $places) = @_;
+	my $sign = ($n < 0) ? '-' : '';
+	my $abs = abs $n;
+
+	return $sign . substr ($abs + ('0.' . '0' x $places . '5'), 0, $places + length (int ($abs)) + 1);
+}
+
 sub resolve_accts
 {
+	my %das = drained_accts(undef, 1);
 	my %neg_accts = %{$_[0]};
 	my %resolved;
 
@@ -397,6 +408,15 @@ sub resolve_accts
 		}
 
 		my $unresolved = nonfinite(values %resolved);
+
+		my $again = 0;
+		foreach (keys %resolved) {
+			if (exists $das{$_} && $running{$_} != $resolved{$_} && abs $resolved{$_} != 0+'inf' && abs $running{$_} >= .005) {
+				$resolved{$_} += stround($running{$_}, 2);
+				$again = 1;
+			}
+		}
+		next if $again;
 
 		foreach (keys %running) {
 			$resolved{$_} = $running{$_} if !exists $resolved{$_} || nonfinite($resolved{$_});
