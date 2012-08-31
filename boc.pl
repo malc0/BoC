@@ -1988,6 +1988,8 @@ sub gen_ucp
 		);
 		push (@{($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist}, \%outputdetails);
 	}
+	my %cst = read_htsv("$config{Root}/config_simp_trans", 1);
+	$tmpl->param(SIMPTRANS => (exists $cst{DebitAcct} && scalar @{$cst{DebitAcct}}));
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
 	my @units = known_units();
 	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
@@ -2097,7 +2099,7 @@ sub gen_add_swap
 	if ($swap) {
 		@debtaccts = map ({ O => $accts{$_}, V => $_ }, @sorted_accts);
 	} else {
-		my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
+		my %cfg = read_htsv("$config{Root}/config_simp_trans");
 		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, 0 .. $#{$cfg{Description}});
 	}
 
