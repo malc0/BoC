@@ -30,6 +30,7 @@ use Units;
 
 my %config;
 my $git;
+my %tgds;
 
 sub update_global_config
 {
@@ -321,14 +322,14 @@ sub nonfinite
 
 sub compute_tg_c
 {
-	my ($tg, $tgd, $omit, $valid_accts, $neg_accts, $resolved, $die) = @_;
+	my ($tg, $omit, $valid_accts, $neg_accts, $resolved, $die) = @_;
 
 	if (-e "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units")) {
 		my ($fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
 		close $fh;
 		return %computed;
 	} else {
-		my %tgdetails = $tgd ? %{$tgd} : read_tg("$config{Root}/transaction_groups/$tg");
+		my %tgdetails = %{$tgds{$tg}};
 		return if $omit && exists $tgdetails{Omit};
 
 		my %computed = compute_tg(\%tgdetails, $valid_accts, $neg_accts, $resolved, $die);
@@ -355,10 +356,11 @@ sub drained_accts
 	my %drained;
 
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
-		my %tgdetails = read_tg($tg);
+		$tg = $1 if $tg =~ /([^\/]*)$/;
+		$tgds{$tg} = \%{{read_tg("$config{Root}/transaction_groups/$tg")}} unless exists $tgds{$tg};
+		my %tgdetails = %{$tgds{$tg}};
 		next if exists $tgdetails{Omit};
 
-		$tg = $1 if $tg =~ /([^\/]*)$/;
 		foreach (0 .. $#{$tgdetails{Creditor}}) {
 			push (@{$drained{$tgdetails{Creditor}[$_]}}, $tg) if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/)) && $tg ne $exempt && !($to_zero_only && $tgdetails{$tgdetails{Creditor}[$_]}[$_]);
 		}
@@ -399,7 +401,7 @@ sub resolve_accts
 
 		foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 			$tg = $1 if $tg =~ /([^\/]*)$/;
-			my %computed = eval { compute_tg_c($tg, undef, 1, undef, \%neg_accts, \%resolved) };
+			my %computed = eval { compute_tg_c($tg, 1, undef, \%neg_accts, \%resolved) };
 			return if $@;
 			foreach (keys %computed) {
 				$running{$_} = 0 unless exists $running{$_};
@@ -944,8 +946,7 @@ sub commit_config_units
 		my $commit_msg = 'config_units: units/rates modified';
 
 		if (keys %$rename) {
-			my @tgs = glob ("$config{Root}/transaction_groups/*");
-			foreach my $tg (@tgs) {
+			foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 				$tg = untaint($tg);
 				my %tgdetails = read_tg($tg);
 
@@ -1246,8 +1247,7 @@ sub despatch_admin
 			}
 			try_commit_and_unlock(sub {
 				if ($rename) {
-					my @tgs = glob ("$config{Root}/transaction_groups/*");
-					foreach my $tg (@tgs) {
+					foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 						$tg = untaint($tg);
 						my %tgdetails = read_tg($tg);
 
@@ -1932,9 +1932,10 @@ sub query_all_htsv_in_path
 	my %response;
 
 	foreach my $acct (@accts) {
-		my %acctdetails = read_htsv($acct);
 		next unless $acct =~ /.*\/(.*)/;
-		$response{$1} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
+		$acct = $1;
+		my %acctdetails = ($path =~ /transaction_groups$/) ? %{$tgds{$acct}} : read_htsv("$path/$acct");
+		$response{$acct} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
 	}
 
 	return %response;
@@ -1971,12 +1972,12 @@ sub gen_ucp
 	my %dds = double_drainers;
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
-		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
-		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, \%resolved) };
+		my %computed = eval { compute_tg_c($tg, undef, \%acct_names, \%neg_accts, \%resolved) };
 		my $tg_indet = nonfinite(values %computed);
 		my $tg_broken = $@ ne '' || (%resolved && $tg_indet) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
+		my %tgdetails = %{$tgds{$tg}};
 		my %outputdetails = (
 			ACC => $tg,
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
@@ -2017,7 +2018,7 @@ sub gen_accts_disp
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;
 		}
-		my %computed = compute_tg_c($tg, undef, 1, undef, \%neg_accts, \%resolved);
+		my %computed = compute_tg_c($tg, 1, undef, \%neg_accts, \%resolved);
 		foreach (keys %computed) {
 			$running{$_} = 0 unless exists $running{$_};
 			$running{$_} += $computed{$_};
@@ -2132,9 +2133,9 @@ sub gen_manage_tgs
 	my %dds = double_drainers;
 	my %daterates;
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
-		my %tgdetails = read_tg("$config{Root}/transaction_groups/$tg");
 		my $tg_fail;
-		my %computed = eval { compute_tg_c($tg, \%tgdetails, undef, \%acct_names, \%neg_accts, \%resolved, sub { $tg_fail = $_[0]; die }) };
+		my %computed = eval { compute_tg_c($tg, undef, \%acct_names, \%neg_accts, \%resolved, sub { $tg_fail = $_[0]; die }) };
+		my %tgdetails = %{$tgds{$tg}};
 		my %rates = get_rates($tgdetails{Date}) unless $@;
 		my $tg_indet = nonfinite(values %computed) ? 'TG depends on broken TG' : '';
 		$tg_fail = 'TGs drain in a loop!' if %resolved && $tg_indet && $tg_fail eq '';
