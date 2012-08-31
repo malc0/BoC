@@ -120,7 +120,7 @@ sub validate_tg
 
 			$whinge->('Missing debtor(s)') if ($amnt =~ /^\s*[*]\s*$/ || $amnt != 0) && $debtors == 0;
 			$whinge->('Missing amount') if !($amnt =~ /^\s*[*]\s*$/) && $amnt == 0 && $debtors == 1;
-			validate_unit($tg{Currency}[$row], \@valid_units, $whinge) if exists $tg{Currency};
+			validate_unit($tg{Currency}[$row], \@valid_units, $whinge) if exists $tg{Currency} && !($amnt =~ /^\s*[*]\s*$/);
 			if (!($amnt =~ /^\s*[*]\s*$/) && $amnt == 0 and $debtors == 0) {
 				$whinge->('Description but no amount or debtor(s)') if clean_text($tg{Description}[$row]);
 				$compact_creds[$row] = undef;

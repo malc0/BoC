@@ -2151,9 +2151,12 @@ sub gen_manage_tgs
 				$summary{$acct} = 0;
 				foreach my $_ ($i .. $#{$tgdetails{Creditor}}) {
 					next if $tgdetails{Creditor}[$_] ne $acct;
-					$drained = 1 if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/);
-					my $rate = (scalar keys %rates < 2) ? 1 : $rates{$tgdetails{Currency}[$_]};
-					$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate) if !$drained;
+					if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/) {
+						$drained = 1;
+					} else {
+						my $rate = (scalar keys %rates < 2) ? 1 : $rates{$tgdetails{Currency}[$_]};
+						$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate);
+					}
 				}
 				$sum_str .= "$acct_names{$acct} " . ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . $summary{$acct}) . ', ';
 			}
@@ -2267,7 +2270,7 @@ sub gen_tg
 		push (@rows, { ROW_CL => (exists $unknown{@{$tgdetails{Creditor}}[$row]}) ? 'unknown_c' : '',
 			       R => $row,
 			       CREDS => \@creditors,
-			       CUR_CL => (not exists $tps{@{$tgdetails{Creditor}}[$row]} and (not $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units))) ? 'unknown_u' : '',
+			       CUR_CL => (!(exists $tps{@{$tgdetails{Creditor}}[$row]}) && !($tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/) && (!$tgdetails{Currency}[$row] || !grep (/^$tgdetails{Currency}[$row]$/, @units))) ? 'unknown_u' : '',
 			       CURS => \@currencies,
 			       A => $tgdetails{Amount}[$row],
 			       RC => \@rowcontents,
