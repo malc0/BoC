@@ -332,7 +332,7 @@ sub compute_tg_c
 		my %tgdetails = %{$tgds{$tg}};
 		return if $omit && exists $tgdetails{Omit};
 
-		my %computed = compute_tg(\%tgdetails, $valid_accts, $neg_accts, $resolved, $die);
+		my %computed = compute_tg($tg, \%tgdetails, $valid_accts, $neg_accts, $resolved, $die);
 
 		# check for drains directly; this means resolution can be done without account validation,
 		# and account validation can be done separately from resolution
@@ -2385,7 +2385,7 @@ sub despatch_user
 			@{$tg{Headings}} = ( 'Creditor', 'Amount', $debtor, 'Description' );
 			splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
-			validate_tg(\%tg, $whinge);
+			validate_tg(undef, \%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
@@ -2455,7 +2455,7 @@ sub despatch_user
 			push (@{$tg{Headings}}, 'TrnsfrPot') if scalar keys %creds > 1;
 			push (@{$tg{Headings}}, ((sort keys %debts), 'Description'));
 
-			validate_tg(\%tg, $whinge);
+			validate_tg(undef, \%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, 'add_split', $etoken);
@@ -2549,13 +2549,13 @@ sub despatch_user
 			@{$tg{Headings}} = sort_AoH('Creditor', 'Amount', 'TrnsfrPot', \%ppl, \%vaccts, 'Description');
 			splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
-			my @cred_accts = validate_tg(\%tg, $whinge, \%acct_names, \%{{drained_accts($edit_id)}});
+			my @cred_accts = validate_tg($edit_id, \%tg, $whinge, \%acct_names, \%{{drained_accts($edit_id)}});
 
 			%tg = clean_tg(\%tg, \@cred_accts);
 			$whinge->('No transactions?') unless exists $tg{Creditor};
 
 			my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-			eval { compute_tg(\%tg, undef, \%neg_accts, undef, $whinge) };
+			eval { compute_tg($edit_id, \%tg, undef, \%neg_accts, undef, $whinge) };
 			# FIXME ought to check we're not creating a drain loop.  problem is, if other TGs are errorful, resolve_accts can't be expected to work fully.  without this, we have no loop checker.  disabling editing until TGs are fixed is self defeating...
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);

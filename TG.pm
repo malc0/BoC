@@ -17,6 +17,8 @@ use base 'Exporter';
 
 our @EXPORT = qw(read_tg write_tg validate_tg compute_tg);
 
+my (%valid, %vavalid);
+
 sub read_tg
 {
 	my %content = read_htsv($_[0]);
@@ -61,8 +63,13 @@ sub write_tg
 
 sub validate_tg
 {
-	my ($tgref, $whinge, $valid_accts, $drained_accts) = @_;
+	my ($id, $tgref, $whinge, $valid_accts, $drained_accts) = @_;
 	my %tg = %$tgref;
+
+	if ($id) {
+		return @{$vavalid{$id}} if exists $vavalid{$id};
+		return @{$valid{$id}} if exists $valid{$id} && !$valid_accts;
+	}
 
 	$whinge->("Unknown heading \"$_\"") foreach (grep (!(exists $tg{$_}), @{$tg{Headings}}));
 	foreach my $key (keys %tg) {
@@ -137,6 +144,11 @@ sub validate_tg
 		$whinge->("Missing debtor(s) for transfer pot $1") unless grep (($_ and /^TrnsfrPot$1$/), @{$tg{Creditor}}) or scalar grep (($_ and /^\s*$1\s*$/), @{$tg{TrnsfrPot}}) > 1;
 	}
 
+	if ($id) {
+		$vavalid{$id} = \@compact_creds if $valid_accts;
+		$valid{$id} = \@compact_creds;
+	}
+
 	return @compact_creds;
 }
 
@@ -151,13 +163,13 @@ sub stround
 
 sub compute_tg
 {
-	my ($tgr, $valid_accts, $nar, $rsr, $die) = @_;
+	my ($id, $tgr, $valid_accts, $nar, $rsr, $die) = @_;
 	my %tg = %{$tgr};
 	my %neg_accts = %{$nar};
 	my %resolved = $rsr ? %{$rsr} : ();
 	$die = sub { confess $_[0] } unless $die;
 
-	my @cred_accts = validate_tg(\%tg, $die, $valid_accts);
+	my @cred_accts = validate_tg($id, \%tg, $die, $valid_accts);
 	my %rates = get_rates($tg{Date}, sub { $die->("Currency config: $_[0]"); });
 
 	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
