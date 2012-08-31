@@ -21,8 +21,8 @@
 			<div style="float:left; margin-right:5%; margin-bottom:1em">
 			<h3>Charges and credits</h3>
 			<table border=1>
-				<tr><th>Charge/credit</th><th>Is boolean</th><th>Linked (credit/debit) account</th></tr>
-				<TMPL_LOOP NAME=FEEROWS><tr><td><TMPL_VAR NAME=FEED></td><td><input type="checkbox" name="Bool_<TMPL_VAR NAME=F>" value="" <TMPL_IF NAME=BOOL>checked="checked"</TMPL_IF>/></td>
+				<tr><th>Charge/credit code (one word)</th><th>Display text</th><th>Is boolean</th><th>Linked (credit/debit) account</th></tr>
+				<TMPL_LOOP NAME=FEEROWS><tr><td><TMPL_IF NAME=DRAIN><input type="text" value="<TMPL_VAR NAME=FEEID>" name="FeeID_<TMPL_VAR NAME=F>"/></td><td><input type="text" value="<TMPL_VAR NAME=FEED>" name="FeeDesc_<TMPL_VAR NAME=F>"/><TMPL_ELSE><TMPL_VAR NAME=F></td><td><TMPL_VAR NAME=FEED></TMPL_IF></td><td><input type="checkbox" name="Bool_<TMPL_VAR NAME=F>" value="" <TMPL_IF NAME=BOOL>checked="checked"</TMPL_IF>/></td>
 					<td><select name="Acct_<TMPL_VAR NAME=F>">
 						<option value="">None (disabled)</option>
 						<TMPL_LOOP NAME=ACCTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
