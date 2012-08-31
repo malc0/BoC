@@ -24,7 +24,7 @@
 				<tr><th>Charge/credit</th><th>Is boolean</th><th>Linked (credit/debit) account</th></tr>
 				<TMPL_LOOP NAME=FEEROWS><tr><td><TMPL_VAR NAME=FEED></td><td><input type="checkbox" name="Bool_<TMPL_VAR NAME=F>" value="" <TMPL_IF NAME=BOOL>checked="checked"</TMPL_IF>/></td>
 					<td><select name="Acct_<TMPL_VAR NAME=F>">
-						<option value="">Select account</option>
+						<option value="">None (disabled)</option>
 						<TMPL_LOOP NAME=ACCTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 						</TMPL_LOOP>
 					</select></td></tr>

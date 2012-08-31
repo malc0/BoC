@@ -1674,7 +1674,7 @@ sub despatch_admin
 			$cfg{MeetAccount} = validate_acct(scalar $cgi->param('MeetAcct'), \%vaccts, $whinge);
 
 			foreach (keys %{{known_commod_descs}}) {
-				next unless defined $cgi->param("Acct_$_");
+				next unless defined $cgi->param("Acct_$_") && length $cgi->param("Acct_$_");
 				push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$_"), \%vaccts, $whinge));
 				push (@{$cfg{Fee}}, $_);
 				push (@{$cfg{Boolean}}, (defined $cgi->param("Bool_$_")));
