@@ -17,6 +17,7 @@ our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_currs known
 
 my $cfg_file;
 my $units_valid;
+my %rates;
 
 sub init_units_cfg
 {
@@ -212,6 +213,9 @@ sub get_rates
 {
 	my $date = clean_date($_[0]);
 	my $die = $_[1] ? $_[1] : sub { confess $_[0] };
+
+	return %{$rates{$date}} if exists $rates{$date};
+
 	my %cfg = read_units_cfg($cfg_file);
 
 	validate_units(\%cfg, $die);
@@ -246,6 +250,8 @@ sub get_rates
 
 	my $pres_conv = $cfg{Default} ? 1 / $rate{$cfg{Default}} : 1;	# avoid accidently setting the presentation currency factor to 1 before using it
 	$rate{$_} = $rate{$_} * $pres_conv foreach (@units);
+
+	$rates{$date} = \%rate;
 
 	return %rate;
 }
