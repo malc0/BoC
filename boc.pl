@@ -1910,12 +1910,12 @@ sub gen_accts_disp
 	foreach ((sort @unknown), sort_AoH(\%ppl, \%vaccts)) {
 		next unless exists $running{$_};
 
-		my $pc;
-		if (exists $ppl{$_}) {
+		my $pc = 0;
+		if (exists $ppl{$_} && $maxp) {
 			$pc = 100 / $maxp * abs $running{$_};
-		} elsif (exists $vaccts{$_}) {
+		} elsif (exists $vaccts{$_} && $maxv) {
 			$pc = 100 / $maxv * abs $running{$_};
-		} else {
+		} elsif ($maxu) {
 			$pc = 100 / $maxu * abs $running{$_};
 		}
 		my ($r, $g, $b) = (255, 255, 0);
