@@ -1,11 +1,11 @@
 <!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 	<head>
-		<title><TMPL_VAR NAME=SN>: Add split event</title>
+		<title><TMPL_VAR NAME=SN>: Add split <TMPL_IF NAME=VACCT>expense<TMPL_ELSE>event</TMPL_IF></title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 	</head>
 	<body>
-		<h1>Add a set of expenses to be split across a number of people</h1>
+		<h1>Add a set of expenses to be split across a number of <TMPL_IF NAME=VACCT>categories<TMPL_ELSE>people</TMPL_IF></h1>
 
 		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
 				this.save.clicked = false;
@@ -17,10 +17,10 @@
 					return confirm('Really submit with negative credits (funds will be taken from accounts with negative amounts)?');
 			} return true">
 		<div>
-			<input type="hidden" name="tmpl" value="add_split"/>
+			<input type="hidden" name="tmpl" value="add_<TMPL_IF NAME=VACCT>vacct_</TMPL_IF>split"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
 
-			<h2>Step 1: give a short descriptive name (e.g. &quot;Purchase of bees&quot;, or &quot;Session at Hilde&apos;s&quot;)</h2>
+			<h2>Step 1: give a short descriptive name (e.g. &quot;Purchase of bees&quot;, or &quot;<TMPL_IF NAME=VACCT>John at Tesco<TMPL_ELSE>Session at Hilde&apos;s</TMPL_IF>&quot;)</h2>
 			<p><input type="text" name="tg_name" size=40/></p>
 
 			<h2>Step 2: when did it happen (enter as dd/mm/yy or 'today', 'last Friday', etc.)?</h2>
@@ -37,10 +37,10 @@
 				</TMPL_LOOP>
 			</div>
 
-			<h2>Step 4: distribute shares of debt to the relevant accounts below</h2>
-			<h3>Shares must be non-negative and can be monetary amounts, or simple proportions -- put &quot;1&quot; in two accounts and each pays one half</h3>
+			<h2>Step 4: distribute shares of debt to the relevant <TMPL_IF NAME=VACCT>categories<TMPL_ELSE>accounts</TMPL_IF> below</h2>
+			<h3>Shares must be non-negative and can be monetary amounts, or simple proportions<TMPL_UNLESS NAME=VACCT> -- put &quot;1&quot; in two accounts and each pays one half</TMPL_UNLESS></h3>
 			<div>
-				<TMPL_LOOP NAME=PPL><p><label><TMPL_VAR NAME=NAME>: <input type="text" value=0 name="Debt_<TMPL_VAR NAME=A>" onclick="this.select()"/></label></p>
+				<TMPL_LOOP NAME=DEBTACCTS><p><label><TMPL_VAR NAME=NAME>: <input type="text" value=0 name="Debt_<TMPL_VAR NAME=A>" onclick="this.select()"/></label></p>
 				</TMPL_LOOP>
 			</div>
 
