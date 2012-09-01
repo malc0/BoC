@@ -13,7 +13,7 @@
 					return confirm('Really submit with negative amount (take funds from ' + this.Creditor.options[this.Creditor.selectedIndex].text + ' account)?');
 			} return true">
 		<div>
-			<input type="hidden" name="tmpl" value="<TMPL_IF NAME=SWAP>add_swap<TMPL_ELSE>add_vacct_expense</TMPL_IF>"/>
+			<input type="hidden" name="tmpl" value="add_<TMPL_UNLESS NAME=SWAP>vacct_</TMPL_UNLESS>swap"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
 
 			<h2>Step 1: who's incurred the expense?</h2>

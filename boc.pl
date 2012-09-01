@@ -2340,15 +2340,15 @@ sub despatch_user
 		exit;
 	}
 	if ($cgi->param('tmpl') eq 'ucp') {
-		if (defined $cgi->param('add_swap') or defined $cgi->param('add_vacct_expense')) {
+		if (defined $cgi->param('add_swap') or defined $cgi->param('add_vacct_swap')) {
 			my $swap = defined $cgi->param('add_swap');
-			emit(gen_add_swap($swap, $session, get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense')));
+			emit(gen_add_swap($swap, $session, get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap')));
 		}
 		if (defined $cgi->param('add_split')) {
 			emit(gen_add_split($session, get_edit_token($sessid, 'add_split')));
 		}
 	}
-	if ($cgi->param('tmpl') eq 'add_swap' or $cgi->param('tmpl') eq 'add_vacct_expense') {
+	if ($cgi->param('tmpl') eq 'add_swap' or $cgi->param('tmpl') eq 'add_vacct_swap') {
 		my $swap = ($cgi->param('tmpl') eq 'add_swap');
 		my $tgfile;
 
@@ -2390,7 +2390,7 @@ sub despatch_user
 			validate_tg(undef, \%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
+			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap', $etoken);
 			try_commit_and_unlock(sub {
 				$tgfile = new_uuidfile("$config{Root}/transaction_groups");
 				write_tg($tgfile, %tg);
@@ -2398,7 +2398,7 @@ sub despatch_user
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
 			});
 		} else {
-			redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_expense', $etoken);
+			redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap', $etoken);
 		}
 
 		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
@@ -2578,7 +2578,7 @@ sub despatch_user
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($tgfile, 1, $session, undef));
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
-			redeem_edit_token($sessid, 'add_vacct_expense', $etoken) if $etoken;
+			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;
 			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $etoken ? gen_ucp($session) : gen_manage_tgs);
 		}
 	}
