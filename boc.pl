@@ -2415,7 +2415,7 @@ sub despatch_user
 			my %tg;
 			my $whinge = sub { whinge($_[0], gen_add_split($session, $etoken)) };
 
-			$tg{Name} = clean_words($cgi->param('tg_name'));
+			$tg{Name} = 'Split: ' . clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
