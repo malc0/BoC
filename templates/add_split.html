@@ -3,6 +3,7 @@
 	<head>
 		<title><TMPL_VAR NAME=SN>: Add split <TMPL_IF NAME=VACCT>expense<TMPL_ELSE>event</TMPL_IF></title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
+		<style type="text/css">.outerp { display:inline-block; margin:2px 20px } .innerp { display:inline-block; width:22ex } .outerv { display:block; margin:2px 20px } .innerv { display:inline-block; width:40ex }</style>
 	</head>
 	<body>
 		<h1>Add a set of expenses to be split across a number of <TMPL_IF NAME=VACCT>categories<TMPL_ELSE>people</TMPL_IF></h1>
@@ -27,20 +28,19 @@
 			<p><input type="text" name="tg_date"/></p>
 
 			<h2>Step 3: who's incurred what expenses?</h2>
-			<!-- FIXME layout needs love -->
 			<TMPL_IF NAME=CUR><h4><label>Currency: <select name="Currency">
 				<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</option>
 				</TMPL_LOOP>
 			</select></label></h4></TMPL_IF>
 			<div>
-				<TMPL_LOOP NAME=PPL><p><label><TMPL_VAR NAME=NAME>: <input type="text" value=0 name="Cred_<TMPL_VAR NAME=A>" onclick="this.select()"/></label></p>
+				<TMPL_LOOP NAME=PPL><span class="outerp"><label><span class="innerp"><TMPL_VAR NAME=NAME>: </span><input type="text" value=0 name="Cred_<TMPL_VAR NAME=A>" style="width:6ex" onclick="this.select()"/></label></span>
 				</TMPL_LOOP>
 			</div>
 
 			<h2>Step 4: distribute shares of debt to the relevant <TMPL_IF NAME=VACCT>categories<TMPL_ELSE>accounts</TMPL_IF> below</h2>
 			<h3>Shares must be non-negative and can be monetary amounts, or simple proportions<TMPL_UNLESS NAME=VACCT> -- put &quot;1&quot; in two accounts and each pays one half</TMPL_UNLESS></h3>
 			<div>
-				<TMPL_LOOP NAME=DEBTACCTS><p><label><TMPL_VAR NAME=NAME>: <input type="text" value=0 name="Debt_<TMPL_VAR NAME=A>" onclick="this.select()"/></label></p>
+				<TMPL_LOOP NAME=DEBTACCTS><TMPL_IF NAME=VACCT><span class="outerv"><label><span class="innerv"><TMPL_ELSE><span class="outerp"><label><span class="innerp"></TMPL_IF><TMPL_VAR NAME=NAME>: </span><input type="text" value=0 name="Debt_<TMPL_VAR NAME=A>" style="width:6ex" onclick="this.select()"/></label></span>
 				</TMPL_LOOP>
 			</div>
 
