@@ -16,7 +16,7 @@
 				<tr>
 					<th>Date</th>
 					<TMPL_LOOP NAME=HEADINGS><th><TMPL_IF NAME=COMMOD><TMPL_IF NAME=ONECUR><TMPL_VAR NAME=ANCHOR>/<TMPL_ELSE>
-						<select name="Denom_<TMPL_VAR NAME=U>">
+						<select name="Denom_<TMPL_VAR NAME=U>" style="padding:1px 0">
 							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
 							</TMPL_LOOP>
 						</select>/
@@ -26,7 +26,7 @@
 
 				<TMPL_LOOP NAME=ROWS><tr>
 					<td><input type="text" value="<TMPL_VAR NAME=DATE>" name="Date_<TMPL_VAR NAME=R>"/></td>
-					<TMPL_LOOP NAME=RATES><td><input type="text" value="<TMPL_VAR NAME=X>" name="Rate_<TMPL_VAR NAME=R>_<TMPL_VAR NAME=U>"/></td>
+					<TMPL_LOOP NAME=RATES><td><input type="text" value="<TMPL_VAR NAME=X>" name="Rate_<TMPL_VAR NAME=R>_<TMPL_VAR NAME=U>" style="width:6ex"/></td>
 					</TMPL_LOOP>
 				</tr>
 				</TMPL_LOOP>

@@ -3,6 +3,7 @@
 	<head>
 		<title><TMPL_VAR NAME=SN> currencies</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
+		 <style type="text/css">td { text-align: center }</style>
 	</head>
 	<body>
 		<h1>Currency configuration</h1>
@@ -31,8 +32,8 @@
 				<tr><th>Currency description</th><th>Short code</th><th>Commodity</th><th>Anchor currency</th><th>Presentation default</th></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr>
-					<td><input type="text" value="<TMPL_VAR NAME=D>" name="Description_<TMPL_VAR NAME=R>"/></td>
-					<td><input type="text" value="<TMPL_VAR NAME=C>" name="Code_<TMPL_VAR NAME=R>"/></td>
+					<td style="text-align:left"><input type="text" value="<TMPL_VAR NAME=D>" name="Description_<TMPL_VAR NAME=R>"/></td>
+					<td><input type="text" value="<TMPL_VAR NAME=C>" name="Code_<TMPL_VAR NAME=R>" style="width:6ex"/></td>
 					<td><input type="checkbox" value="" name="Commodity_<TMPL_VAR NAME=R>" <TMPL_IF NAME=A>checked="checked"</TMPL_IF>/></td>
 					<td><input type="radio" value="<TMPL_VAR NAME=R>" name="Anchor" <TMPL_IF NAME=B>checked="checked"</TMPL_IF>/></td>
 					<td><input type="radio" value="<TMPL_VAR NAME=R>" name="Default" <TMPL_IF NAME=P>checked="checked"</TMPL_IF>/></td>
