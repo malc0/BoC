@@ -3,16 +3,14 @@
 	<head>
 		<title><TMPL_VAR NAME=LN> login</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
+		<style type="text/css">span { padding: 5px; display: inline-block }</style>
 	</head>
 	<body>
 		<h1><TMPL_VAR NAME=SN></h1>
 
-		<p>The following users are known to this system:
-		<table>
-			<tr>
-				<TMPL_LOOP NAME=PPL><td><TMPL_VAR NAME=USER></td></TMPL_LOOP>
-			</tr>
-		</table>
+		<p>The following users are known to this system:</p>
+		<p><TMPL_LOOP NAME=PPL><span><TMPL_VAR NAME=USER></span> </TMPL_LOOP></p>
+
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="login_nopw"/>
