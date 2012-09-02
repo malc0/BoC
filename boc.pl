@@ -2100,7 +2100,8 @@ sub gen_add_swap
 		@debtaccts = map ({ O => $accts{$_}, V => $_ }, @sorted_accts);
 	} else {
 		my %cfg = read_htsv("$config{Root}/config_simp_trans");
-		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, 0 .. $#{$cfg{Description}});
+		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], 0 .. $#{$cfg{Description}}));	# Schwartzian transform ftw
+		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, @sorteddescs);
 	}
 
 	$tmpl->param(SWAP => $swap, PPL => \@pploptions, CUR => (scalar @units > 1), CURS => \@currencies, DEBTACCTS => \@debtaccts);
@@ -2122,7 +2123,8 @@ sub gen_add_split
 	my @debtaccts;
 	if ($vacct) {
 		my %cfg = read_htsv("$config{Root}/config_simp_trans");
-		@debtaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, 0 .. $#{$cfg{Description}});
+		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], 0 .. $#{$cfg{Description}}));	# Schwartzian transform ftw
+		@debtaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, @sorteddescs);
 	} else {
 		@debtaccts = @pploptions;
 	}
