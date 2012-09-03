@@ -2417,9 +2417,9 @@ sub despatch_user
 			if ($swap) {
 				$whinge->('Missing description') unless defined @{$tg{Description}}[0];
 				$debtor = validate_acct(scalar $cgi->param('Debtor'), \%acct_names, $whinge);
-				my @split_desc = split (' ', @{$tg{Description}}[0]);
-				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{@{$tg{Creditor}}[0]} for $split_desc[0]";
-				$tg{Name} .= ' [...]' if scalar @split_desc > 1;
+				my $namedesc = @{$tg{Description}}[0];
+				$namedesc = substr ($namedesc, 0, rindex ($namedesc, ' ', 14)) . ' [...]' if (length $namedesc > 20);
+				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{@{$tg{Creditor}}[0]} for $namedesc";
 			} else {
 				my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 				my $type = clean_words($cgi->param('Debtor'));
