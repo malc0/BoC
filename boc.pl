@@ -2253,12 +2253,20 @@ sub gen_tg
 
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	my %unknown;
+	my %acct_names = (%ppl, %vaccts);
+	my (%unknown, %in_use);
 	my @tps_in_use;
 	foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
 		next if $acct eq 'Currency';
-		$unknown{$acct} = $acct unless $acct =~ /^TrnsfrPot\d?$/ or exists $ppl{$acct} or exists $vaccts{$acct};
+		$unknown{$acct} = $acct unless $acct =~ /^TrnsfrPot\d?$/ || exists $acct_names{$acct};
 		$tps_in_use[$1] = 1 if ($acct =~ /^TrnsfrPot(\d)$/);
+		next if exists $unknown{$acct} || !$view_mode;
+		my $has_data = 0;
+		foreach (@{$tgdetails{$acct}}) {
+			$has_data = 1 if defined $_ && $_ != 0;
+			last if $has_data;
+		}
+		$in_use{$acct} = $acct_names{$acct} if $has_data && !($acct =~ /^TrnsfrPot\d?$/);
 	}
 	my %tps;
 	my $tps_to_add = 3;
@@ -2269,12 +2277,13 @@ sub gen_tg
 		}
 		$tps{"TrnsfrPot$i"} = "Transfer Pot $i" if $tps_in_use[$i];
 	}
-	my %acct_names = (%unknown, %ppl, %vaccts, %tps);
+	%acct_names = (%unknown, %ppl, %vaccts, %tps);
 	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
+	my @sorted_in_use = $view_mode ? sort_AoH(\%unknown, \%in_use) : @sorted_accts;
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 
-	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_accts);
+	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_in_use);
 	push (@{$tgdetails{Currency}}, ('') x ($init_creds - scalar @{$tgdetails{Currency}})) if scalar @units > 1;
 	push (@{$tgdetails{Currency}}, ($units_cfg{Default}) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{Currency}})) if scalar @units;
 
@@ -2290,10 +2299,10 @@ sub gen_tg
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
 	$tmpl->param(CURCOL => scalar @allunits > 1);
-	$tmpl->param(NOACCTS => scalar @sorted_accts);
+	$tmpl->param(NOACCTS => scalar @sorted_in_use);
 	my %negated = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 	my @heads;
-	foreach (@sorted_accts) {
+	foreach (@sorted_in_use) {
 		my $class = (exists $negated{$_}) ? 'negated' : '';
 		$class .= ' unknown_d' if exists $unknown{$_};
 		push (@heads, { H => $acct_names{$_}, A => $_, HEAD_CL => $class });
@@ -2305,7 +2314,7 @@ sub gen_tg
 		my @creditors = map ({ O => $acct_names{$_}, V => $_, S => $tgdetails{Creditor}[$row] eq $_, CR_CL => (exists $tps{$_}) ? 'tp' : '' }, (@sorted_accts, sort_AoH(\%tps)));
 		my $unk_cur = (not defined $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units));
 		my @currencies = map ({ C => $_, S => ((defined $tgdetails{Currency}[$row]) ? ($_ eq $tgdetails{Currency}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
-		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => (exists $unknown{$_}) ? 'unknown_d' : '' }, @sorted_accts);
+		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => (exists $unknown{$_}) ? 'unknown_d' : '' }, @sorted_in_use);
 		my @tps = map ({ V => $_, S => ($tgdetails{TrnsfrPot}[$row] ? $tgdetails{TrnsfrPot}[$row] eq $_ : undef) }, 1 .. 9);
 		push (@rows, { ROW_CL => (exists $unknown{@{$tgdetails{Creditor}}[$row]}) ? 'unknown_c' : '',
 			       R => $row,
