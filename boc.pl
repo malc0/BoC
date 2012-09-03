@@ -2159,8 +2159,10 @@ sub gen_manage_tgs
 		$tg_fail = 'TGs drain in a loop!' if %resolved && $tg_indet && $tg_fail eq '';
 		$tg_fail = "Multiple drains of '$dds{$tg}'" if exists $dds{$tg};
 
-		my $sum_str = '';
-		unless ($tg_fail || $tg_indet) {
+		my @sum_str;
+		if ($tg_fail || $tg_indet) {
+			push (@sum_str, { FIRST => 1, VAL => encode_for_html($tg_fail ? $tg_fail : $tg_indet) });
+		} else {
 			my %summary;
 			foreach my $i (0 .. $#{$tgdetails{Creditor}}) {
 				my $acct = $tgdetails{Creditor}[$i];
@@ -2177,7 +2179,7 @@ sub gen_manage_tgs
 						$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate);
 					}
 				}
-				$sum_str .= "$acct_names{$acct} " . ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . $summary{$acct}) . ', ';
+				push (@sum_str, { FIRST => !(scalar @sum_str), N => $acct_names{$acct}, A => $acct, VAL => ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . $summary{$acct}) });
 			}
 		}
 
@@ -2187,7 +2189,7 @@ sub gen_manage_tgs
 			NAME => $tgdetails{Name},
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_fail ? 'broken' : $tg_indet ? 'indet' : '',
-			SUMMARY => encode_for_html($tg_fail ? $tg_fail : $tg_indet ? $tg_indet : substr($sum_str, 0, -2)),
+			SUMMARY => \@sum_str,
 		);
 		push (@tglist, \%outputdetails);
 	}
