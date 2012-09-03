@@ -1983,11 +1983,30 @@ sub gen_ucp
 		my $tg_broken = $@ ne '' || (%resolved && $tg_indet) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
+		my @to;
+		my $to_extra;
+		unless ($tg_broken) {
+			if (($computed{$user} < 0 && exists $neg_accts{$user}) || ($computed{$user} > 0 && !(exists $neg_accts{$user}))) {
+				@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep (exists $neg_accts{$_} ? $computed{$_} > 0 : $computed{$_} < 0, keys %computed));
+			} elsif (($computed{$user} > 0 && exists $neg_accts{$user}) || ($computed{$user} < 0 && !(exists $neg_accts{$user}))) {
+				@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep (exists $neg_accts{$_} ? $computed{$_} < 0 : $computed{$_} > 0, keys %computed));
+			}
+			$to[0]->{SEP} = '';
+			$to[-1]->{SEP} = ' and ' if scalar @to > 1;
+			if (scalar @to > 5) {
+				$to_extra .= "$to[$_]->{N}, " foreach (4 .. $#to);
+				$to_extra = substr($to_extra, 0, -2);
+				$#to = 3;
+			}
+		}
+
 		my %tgdetails = %{$tgds{$tg}};
 		my %outputdetails = (
 			ACC => $tg,
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
+			TO => \@to,
+			TO_EXTRA => $to_extra,
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_broken ? 'broken' : $tg_indet ? 'indet' : '',
 			SUMMARY => encode_for_html($tg_broken ? 'TG BROKEN' : $tg_indet ? 'incalculable' : ($computed{$user} > 0 ? '+' : '') . $computed{$user}),
