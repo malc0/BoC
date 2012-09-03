@@ -392,8 +392,10 @@ sub stround
 
 sub resolve_accts
 {
+	my ($ddsr, $nar) = @_;
+	my %dds = %{$ddsr};
+	my %neg_accts = %{$nar};
 	my %das = drained_accts(undef, 1);
-	my %neg_accts = %{$_[0]};
 	my %resolved;
 
 	while (1) {
@@ -401,6 +403,7 @@ sub resolve_accts
 
 		foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 			$tg = $1 if $tg =~ /([^\/]*)$/;
+			next if exists $dds{$tg};
 			my %computed = eval { compute_tg_c($tg, 1, undef, \%neg_accts, \%resolved) };
 			return if $@;
 			foreach (keys %computed) {
@@ -1972,10 +1975,10 @@ sub gen_ucp
 	my $user = (defined $acct) ? $acct : $session->param('User');
 
 	my %acct_names = get_acct_name_map;
-	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-	my %resolved = resolve_accts(\%neg_accts);
-
 	my %dds = double_drainers;
+	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %resolved = resolve_accts(\%dds, \%neg_accts);
+
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %computed = eval { compute_tg_c($tg, undef, \%acct_names, \%neg_accts, \%resolved) };
@@ -2030,14 +2033,14 @@ sub gen_accts_disp
 	my $session = $_[0];
 	my $tmpl = load_template('accts_disp.html');
 
+	my %dds = double_drainers;
 	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-	my %resolved = resolve_accts(\%neg_accts);
+	my %resolved = resolve_accts(\%dds, \%neg_accts);
 	if ($@ || !%resolved || nonfinite(values %resolved)) {
 		$tmpl->param(BROKEN => 1);
 		return $tmpl;
 	}
 
-	my %dds = double_drainers;
 	my %running;
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 		$tg = $1 if $tg =~ /([^\/]*)$/;
@@ -2163,11 +2166,11 @@ sub gen_manage_tgs
 {
 	my $tmpl = load_template('manage_transactions.html');
 	my %acct_names = get_acct_name_map;
+	my %dds = double_drainers;
 	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
-	my %resolved = resolve_accts(\%neg_accts);
+	my %resolved = resolve_accts(\%dds, \%neg_accts);
 
 	my @tglist;
-	my %dds = double_drainers;
 	my %daterates;
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my $tg_fail;
