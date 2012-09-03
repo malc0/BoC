@@ -414,7 +414,7 @@ sub resolve_accts
 		my $again = 0;
 		foreach (keys %resolved) {
 			if (exists $das{$_} && $running{$_} != $resolved{$_} && abs $resolved{$_} != 0+'inf' && abs $running{$_} >= .005) {
-				$resolved{$_} += stround($running{$_}, 2);
+				$resolved{$_} = stround($resolved{$_} + $running{$_}, 2);
 				$again = 1;
 			}
 		}
