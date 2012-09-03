@@ -815,11 +815,15 @@ sub gen_edit_meet_cfg
 
 	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{MeetAccount} && $cfg{MeetAccount} eq $_) }, @sorted_vaccts);
 
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %acct_names = (%vaccts, %ppl);
+	my @sorted_accts = (@sorted_vaccts, sort_AoH(\%ppl));
+
 	my %cds = known_commod_descs;
 	my @feerows;
 	foreach my $commod (keys %cds) {
 		my $row = first { @{$cfg{Fee}}[$_] eq $commod } 0 .. $#{$cfg{Fee}};
-		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_vaccts);
+		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
 		push (@feerows, { FEED => $cds{$commod}, F => $commod, BOOL => (defined $row && defined $cfg{Boolean}[$row] && !!($cfg{Boolean}[$row] =~ /^\s*[^fn0]/i)), ACCTS => \@rowoptions });
 	}
 	my $n_fees = scalar @feerows;
@@ -829,7 +833,7 @@ sub gen_edit_meet_cfg
 
 	foreach my $drain (@drains) {
 		my $row = first { @{$cfg{Fee}}[$_] eq $drain } 0 .. $#{$cfg{Fee}};
-		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_vaccts);
+		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
 		push (@feerows, { DRAIN => 1, FEED => (defined $row) ? @{$cfg{Description}}[$row] : '', FEEID => $drain, F => scalar @feerows - $n_fees, BOOL => (defined $row && defined $cfg{Boolean}[$row] && !!($cfg{Boolean}[$row] =~ /^\s*[^fn0]/i)), ACCTS => \@rowoptions });
 	}
 
@@ -1682,13 +1686,15 @@ sub despatch_admin
 			my $whinge = sub { whinge($_[0], gen_edit_meet_cfg($etoken)) };
 
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %acct_names = (%vaccts, %ppl);
 
 			$whinge->('Missing account name') unless clean_username($cgi->param('MeetAcct'));
 			$cfg{MeetAccount} = validate_acct(scalar $cgi->param('MeetAcct'), \%vaccts, $whinge);
 
 			foreach (keys %{{known_commod_descs}}) {
 				next unless defined $cgi->param("Acct_$_") && length $cgi->param("Acct_$_");
-				push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$_"), \%vaccts, $whinge));
+				push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$_"), \%acct_names, $whinge));
 				push (@{$cfg{Fee}}, $_);
 				push (@{$cfg{Boolean}}, (defined $cgi->param("Bool_$_")));
 				push (@{$cfg{Description}}, '');
@@ -1704,7 +1710,7 @@ sub despatch_admin
 				$whinge->("Missing ID for distribution of \"$desc\"") unless defined $id;
 				$whinge->("Missing display text for distribution of \"$id\"") unless defined $desc;
 				$whinge->("Missing drain account for \"$desc\"") unless defined $acct && length $acct;
-				push (@{$cfg{Account}}, validate_acct(scalar $acct, \%vaccts, $whinge));
+				push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
 				push (@{$cfg{Fee}}, lc $id);
 				push (@{$cfg{Boolean}}, (defined $cgi->param("Bool_$_")));
 				push (@{$cfg{Description}}, $desc);
