@@ -76,7 +76,6 @@ table {
   background: #fff;
   width: 100%;
 }
-
 table, th, td {
   border: 1px solid #008787;
   padding: 5px;
@@ -97,6 +96,9 @@ table tr.omitted {
       table tr.omitted a:hover {
       color:#fff;
     }
+table.unknown_accts {
+  background: salmon;
+}
 table.widetable,
 table.widetable th,
 table.widetable td {
@@ -105,11 +107,18 @@ table.widetable td {
   border-left: 0;
   border-right: 0;
 }
-table.widetable {
-  border: 1px solid #008787;
-}
-table.widetable input[type="text"], 
-table.widetable select {
-  max-width: 58px;
-  padding: 0;
-}
+  table.widetable {
+    border: 1px solid #008787;
+  }
+  table.widetable th {
+    padding: 5px 2px;
+  }
+  table.widetable input[type="text"], 
+  table.widetable select {
+    max-width: 58px;
+    padding: 0;
+  }
+  table.widetable input[name="description"],
+  table.widetable td:first-child  select{
+    max-width: 140px;
+  }
