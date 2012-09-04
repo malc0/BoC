@@ -43,7 +43,7 @@ h1 {
 }
 h2 {
   font-size: 1.2em;
-  margin-top: 50px;
+  margin-top: 40px;
 }
 h3, h4 {
   font-size: 1.0em;
@@ -86,6 +86,9 @@ th {
   font-weight: bold;
   font-size: 0.8em;
 }
+th a {
+  color: #fff;
+}
 table tr.omitted {
   background: #aaa;
   color:#555;
@@ -111,14 +114,9 @@ table.widetable td {
     border: 1px solid #008787;
   }
   table.widetable th {
-    padding: 5px 2px;
+    padding: 3px 2px;
   }
   table.widetable input[type="text"], 
   table.widetable select {
-    max-width: 58px;
     padding: 0;
-  }
-  table.widetable input[name="description"],
-  table.widetable td:first-child  select{
-    max-width: 140px;
   }
