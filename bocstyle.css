@@ -37,9 +37,9 @@ h1 {
   width: 93%;
   border-top-left-radius: 1em;
   border-bottom-left-radius: 1em;
+  color: white;
   padding: 6px 20px;
   margin: 30px 0px;
-  color: #fff;
 }
 h2 {
   font-size: 1.2em;
@@ -97,3 +97,19 @@ table tr.omitted {
       table tr.omitted a:hover {
       color:#fff;
     }
+table.widetable,
+table.widetable th,
+table.widetable td {
+  padding: 5px 0;
+  text-align: center;
+  border-left: 0;
+  border-right: 0;
+}
+table.widetable {
+  border: 1px solid #008787;
+}
+table.widetable input[type="text"], 
+table.widetable select {
+  max-width: 58px;
+  padding: 0;
+}
