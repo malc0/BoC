@@ -397,8 +397,9 @@ sub resolve_accts
 	my %neg_accts = %{$nar};
 	my %das = drained_accts(undef, 1);
 	my %resolved;
+	my $loops = 50;
 
-	while (1) {
+	while ($loops--) {
 		my %running;
 
 		foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
@@ -429,6 +430,8 @@ sub resolve_accts
 
 		return %resolved if nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved;
 	}
+
+	return;
 }
 
 sub load_template
