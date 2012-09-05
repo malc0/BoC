@@ -1168,6 +1168,19 @@ sub meet_to_tg
 	return %tg;
 }
 
+sub valid_edit_id
+{
+	my ($id, $path, $type, $whinge_tmpl, $id_required) = @_;
+
+	whinge("No $type ID defined", $whinge_tmpl) if $id_required && !(defined $id);
+
+	my $edit_id = clean_filename($id, $path);
+
+	whinge("No such $type \"$id\"", $whinge_tmpl) if (defined $id || $id_required) && !$edit_id;
+
+	return $edit_id;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1217,21 +1230,21 @@ sub despatch_admin
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_acct') {
-		my $edit_acct = clean_username($cgi->param('eacct'));
 		my $person = defined $cgi->param('email');
-		my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
-		my $new_acct;
 		my $root = $config{Root};
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
+		my $edit_acct = valid_edit_id(scalar $cgi->param('eacct'), $acct_path, 'account', gen_manage_accts($person));
+		my $new_acct;
 
 		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
+			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
+
 			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
 			my $fullname = clean_words($cgi->param('fullname'));
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
 			my $rename = ($edit_acct and $edit_acct ne $new_acct);
 
-			whinge('Account to be edited not found (resubmission after rename?)', gen_manage_accts($person)) if $edit_acct and not -r ("$acct_path/$edit_acct");
 			$whinge->('Short name is already taken') if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
 			$whinge->('Full name too short') unless defined $fullname;
 			$whinge->('Full name too long') if length $fullname > 100;
@@ -1371,20 +1384,17 @@ sub despatch_admin
 			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets());
 		}
 		if (defined $cgi->param('view')) {
-			my $mid = $cgi->param('view');
+			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 			my $meet = "$config{Root}/meets/$mid";
 
-			emit_with_status("No such meet \"$mid\"", gen_manage_meets) unless ($mid and -r $meet);
 			emit(gen_edit_meet($meet, $mid, undef));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet') {
 		emit(gen_manage_meets) if defined $cgi->param('manage_meets');
 
-		my $edit_id = clean_filename(scalar $cgi->param('m_id'), "$config{Root}/meets");
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
-
-		emit_with_status("No such meet \"$edit_id\"", gen_manage_meets) unless (defined $cgi->param('cancel') or ($edit_id and -r $mt_file));
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
 			whinge("Couldn't get edit lock for meet \"$edit_id\"", gen_manage_meets) unless try_lock($mt_file, $sessid);
@@ -1447,7 +1457,7 @@ sub despatch_admin
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
 			}, $mt_file);
 		} else {
-			unlock($mt_file) if $mt_file;
+			unlock($mt_file);
 			redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 		}
 
@@ -1455,8 +1465,7 @@ sub despatch_admin
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
-		my $edit_id = clean_filename(scalar $cgi->param('m_id'), "$config{Root}/meets");
-		whinge('Invalid meet ID', gen_manage_meets) unless $edit_id;
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
 
 		if (defined $cgi->param('new_user')) {
@@ -1597,13 +1606,8 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
-			my $view = $cgi->param('view');
-			my $ft;
-
-			if ($view) {
-				$ft = "$config{Root}/fee_tmpls/$view";
-				emit_with_status("No such FT \"$view\"", gen_manage_fee_tmpls) unless (-r $ft);
-			}
+			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls);
+			my $ft = $view ? "$config{Root}/fee_tmpls/$view" : undef;
 
 			emit(gen_edit_fee_tmpl($ft, $view, $session, $view ? undef : get_edit_token($sessid, 'add_ft')));
 		}
@@ -1611,10 +1615,8 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'edit_fee_tmpl') {
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
 
-		my $edit_id = clean_filename(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls");
+		my $edit_id = valid_edit_id(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls, (defined $cgi->param('edit')));
 		my $file = $edit_id ? "$config{Root}/fee_tmpls/$edit_id" : undef;
-
-		emit_with_status("No such fee template \"$edit_id\"", gen_manage_fee_tmpls) if $edit_id and ! -r $file;
 
 		if (defined $cgi->param('edit')) {
 			whinge("Couldn't get edit lock for fee template \"$edit_id\"", gen_manage_fee_tmpls) unless try_lock($file, $sessid);
@@ -1682,7 +1684,7 @@ sub despatch_admin
 				write_htsv($file, \%ft);
 				my @split_f = split('-', unroot($file));
 				add_commit($file, "$split_f[0]...: Fee template \"$ft{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
-			}, $edit_id ? $file : undef);
+			}, $file);
 		} else {
 			unlock($file) if $file;
 			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_fee_tmpl', $etoken);
@@ -2568,23 +2570,15 @@ sub despatch_user
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
-			my $view = $cgi->param('view');
-			my $tg;
+			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs);
+			my $tg = $view ? "$config{Root}/transaction_groups/$view" : undef;
 
-			if ($view) {
-				$tg = "$config{Root}/transaction_groups/$view";
-				emit_with_status("No such TG \"$view\"", gen_manage_tgs) unless (-r $tg);
-			}
-
-			my $tmpl = gen_tg($tg, $view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken));
-			emit($tmpl);
+			emit(gen_tg($tg, $view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
-		my $edit_id = clean_filename(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups");
+		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs, (defined $cgi->param('edit')));
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
-
-		emit_with_status("No such TG \"$edit_id\"", gen_manage_tgs) if $edit_id && ! -r $tgfile;
 
 		if (defined $cgi->param('edit')) {
 			whinge('Editing of generated TGs not allowed', gen_tg($tgfile, 1, $session, undef)) if $edit_id =~ /^[A-Z]/;
@@ -2654,7 +2648,7 @@ sub despatch_user
 				write_tg($tgfile, %tg);
 				my @split_tgf = split('-', unroot($tgfile));
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
-			}, $edit_id ? $tgfile : undef);
+			}, $tgfile);
 		} else {
 			unlock($tgfile) if $tgfile;
 			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
