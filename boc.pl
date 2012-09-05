@@ -299,12 +299,6 @@ sub bad_token_whinge
 	return whinge('Invalid edit token (double submission?)', $_[0]);
 }
 
-sub set_status
-{
-	$_[0]->param(STATUS => encode_for_html("Status: $_[1]"));
-	return;
-}
-
 sub unroot
 {
 	return undef unless $_[0] =~ /$config{Root}\/(.*)/;
@@ -453,7 +447,7 @@ sub emit
 sub emit_with_status
 {
 	my ($status, $tmpl) = @_;
-	set_status($tmpl, $status);
+	$tmpl->param(STATUS => encode_for_html("Status: $status"));
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
