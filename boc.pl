@@ -1181,6 +1181,14 @@ sub valid_edit_id
 	return $edit_id;
 }
 
+sub ft_name_to_file
+{
+	my $file = encode_for_file($_[0]);
+	$file =~ tr/ \//_/;
+
+	return $file;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1634,13 +1642,17 @@ sub despatch_admin
 		my %ft;
 
 		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_edit_fee_tmpl($file, 0, $session, $etoken)) };
+			# copy value of $file, as it may be changed before $whinge is used, and perl closures close over variables, not values!
+			# http://www.perlmonks.org/?node_id=737848
+			my $whinge = do { my $stored_file = $file; sub { whinge($_[0], gen_edit_fee_tmpl($stored_file, 0, $session, $etoken)) } };
 
 			$ft{Name} = clean_words($cgi->param('name'));
 			$whinge->('Missing fee template name') unless $ft{Name};
-			my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
-			delete $fts{$edit_id} if $edit_id;	# remove self!
-			$whinge->('Template name already taken') if grep (/^$ft{Name}$/, values %fts);
+			my $new_id = ft_name_to_file($ft{Name});
+			my $old_file = $file;
+			$file = "$config{Root}/fee_tmpls/$new_id";
+			my $rename = ($edit_id && $edit_id ne $new_id);
+			$whinge->('Fee template name is already in use') if (-e $file && (!(defined $edit_id) || $rename));
 
 			my $max_rows = -1;
 			$max_rows++ while ($max_rows < 10 and defined $cgi->param('Fee_' . ($max_rows + 1)));
@@ -1681,13 +1693,32 @@ sub despatch_admin
 			splice (@{$ft{Headings}}, 1, 0, 'Unit') if exists $ft{Unit};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			if ($rename && scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
+				un_commit_lock;
+				$whinge->('Cannot perform FT rename at present: meets busy');
+			}
 			bad_token_whinge(gen_manage_fee_tmpls) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken);
 			try_commit_and_unlock(sub {
-				$file = new_uuidfile("$config{Root}/fee_tmpls") unless ($file);
+				if ($rename) {
+					foreach my $mt_file (glob ("$config{Root}/meets/*")) {
+						$mt_file = untaint($mt_file);
+						my %meet = read_htsv($mt_file);
+
+						if (defined $meet{Template} && $meet{Template} eq $edit_id) {
+							$meet{Template} = $new_id;
+							write_htsv($mt_file, \%meet, 11);
+							$git->add($mt_file);
+						}
+					}
+					$git->mv($old_file, $file);
+				}
 				write_htsv($file, \%ft);
-				my @split_f = split('-', unroot($file));
-				add_commit($file, "$split_f[0]...: Fee template \"$ft{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
-			}, $file);
+				if ($rename) {
+					add_commit($file, 'Rename FT ' . unroot($old_file) . ' to ' . unroot($file), $session);
+				} else {
+					add_commit($file, unroot($file) . ": FT \"$ft{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
+				}
+			}, $rename ? $old_file : ($edit_id) ? $file : undef);
 		} else {
 			unlock($file) if $file;
 			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_fee_tmpl', $etoken);
