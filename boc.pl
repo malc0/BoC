@@ -214,6 +214,20 @@ sub try_tg_lock
 	return $rv;
 }
 
+sub clear_locks
+{
+	my ($path, $sessid) = @_;
+
+	foreach (glob ("$path/.*.lock")) {
+		$_ = untaint($_);
+		(my $file = $_) =~ s/(.*)\/\.([^\/]*).lock/$1\/$2/;
+		return 1 unless try_lock($file, $sessid);
+		unlink $_;
+	}
+
+	return undef;
+}
+
 sub read_simp_cfg
 {
 	return read_htsv(@_);
@@ -1239,9 +1253,11 @@ sub despatch_admin
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			if ($rename and glob ("$config{Root}/transaction_groups/.*.lock")) {
-				un_commit_lock;
-				$whinge->('Cannot perform account rename at present: transaction groups busy');
+			if ($rename && scalar glob ("$config{Root}/transaction_groups/.*.lock")) {
+				if (clear_locks("$config{Root}/transaction_groups", $sessid)) {
+					un_commit_lock;
+					$whinge->('Cannot perform account rename at present: transaction groups busy');
+				}
 			}
 			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 			if (defined $edit_acct and $edit_acct eq $session->param('User')) {
