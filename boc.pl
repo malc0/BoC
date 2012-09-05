@@ -1234,6 +1234,7 @@ sub despatch_admin
 		my $root = $config{Root};
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
 		my $edit_acct = valid_edit_id(scalar $cgi->param('eacct'), $acct_path, 'account', gen_manage_accts($person));
+		my $file = $edit_acct ? "$acct_path/$edit_acct" : undef;
 		my $new_acct;
 
 		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
@@ -1244,6 +1245,8 @@ sub despatch_admin
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
 			my $rename = ($edit_acct and $edit_acct ne $new_acct);
+			my $old_file = $file;
+			$file = "$acct_path/$new_acct";
 
 			$whinge->('Short name is already taken') if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
 			$whinge->('Full name too short') unless defined $fullname;
@@ -1254,7 +1257,7 @@ sub despatch_admin
 			}
 
 			my %userdetails;
-			%userdetails = read_simp_cfg("$acct_path/$edit_acct") if ($edit_acct);
+			%userdetails = read_simp_cfg($old_file) if ($edit_acct);
 			$userdetails{Name} = $fullname;
 			if ($person) {
 				$userdetails{email} = $email;
@@ -1291,17 +1294,17 @@ sub despatch_admin
 						write_tg($tg, %tgdetails);
 						$git->add($tg);
 					}
-					$git->mv("$acct_path/$edit_acct", "$acct_path/$new_acct") if $rename;
+					$git->mv($old_file, $file);
 				}
-				write_simp_cfg("$acct_path/$new_acct", %userdetails);
+				write_simp_cfg($file, %userdetails);
 				if ($rename) {
-					add_commit("$acct_path/$new_acct", 'Rename ' . unroot("$acct_path/$edit_acct") . ' to ' . unroot("$acct_path/$new_acct"), $session);
+					add_commit($file, 'Rename ' . unroot($old_file) . ' to ' . unroot($file), $session);
 				} else {
-					add_commit("$acct_path/$new_acct", unroot("$acct_path/$new_acct") . ': ' . ($edit_acct ? 'modified' : 'created'), $session);
+					add_commit($file, unroot($file) . ': ' . ($edit_acct ? 'modified' : 'created'), $session);
 				}
-			}, $edit_acct ? "$acct_path/$edit_acct" : undef);
+			}, $rename ? $old_file : ($edit_acct) ? $file : undef);
 		} else {
-			unlock("$acct_path/$edit_acct") if ($edit_acct and -r "$acct_path/$edit_acct");
+			unlock($file) if ($file);
 			redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 		}
 
