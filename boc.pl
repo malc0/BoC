@@ -23,7 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+use CleanData qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use HeadedTSV;
 use TG;
 use Units;
@@ -750,8 +750,7 @@ sub gen_manage_fee_tmpls
 {
 	my $tmpl = load_template('manage_fee_tmpls.html');
 
-	my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
-	my @list = map ({ TMPL => $_, NAME => $fts{$_} }, keys %fts);
+	my @list = map ({ TMPL => $_, NAME => transcode_uri_for_html($_) }, map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/fee_tmpls/*"));
 	$tmpl->param(TMPLS => \@list);
 
 	return $tmpl;
@@ -787,9 +786,8 @@ sub gen_edit_fee_tmpl
 	}
 	my @attrs = map ({ A => $_ }, query_pers_attrs);
 
-	$tmpl->param(FT_ID => $1) if ($file and $file =~ /\/([^\/]+)$/);
 	$tmpl->param(RO => $view_mode);
-	$tmpl->param(NAME => $ft{Name});
+	$tmpl->param(NAME => (($file && $file =~ /\/([^\/]+)$/) ? transcode_uri_for_html($1) : undef));
 	$tmpl->param(NATTRS => scalar @attrs);
 	$tmpl->param(CUROPTS => scalar @allunits > 1);
 
@@ -989,18 +987,18 @@ sub gen_manage_meets
 {
 	my $tmpl = load_template('manage_meets.html');
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
+	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } glob ("$config{Root}/fee_tmpls/*");
 
 	my @meetlist;
 	foreach my $mid (date_sorted_htsvs('meets')) {
 		my %meet = read_htsv("$config{Root}/meets/$mid");
 		my $leader = (exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader};
-		my $ft_state = (not exists $meet{Template} or !!grep (/^$meet{Template}$/, values %fts));
+		my $ft_state = (!(exists $meet{Template}) || !!grep (/^$meet{Template}$/, @fts));
 
 		push (@meetlist, { MID => $mid, NAME => $meet{Name}, DATE => $meet{Date}, LEN => $meet{Duration}, LDR_CL => (exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => (exists $meet{Template}) ? $meet{Template} : 'None' });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, keys %ppl);
-	my @ftlist = map ({ FTID => $_, FTN => $fts{$_} }, keys %fts);
+	my @ftlist = map ({ FTN => $_ }, @fts);
 
 	$tmpl->param(MEETS => \@meetlist, PPL => \@people, FTS => \@ftlist);
 
@@ -1022,8 +1020,8 @@ sub gen_edit_meet
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 
-	my %rfts = reverse query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
-	my $def_cur = (exists $meet{Template} && exists $rfts{$meet{Template}}) ? get_ft_currency(read_htsv("$config{Root}/fee_tmpls/$rfts{$meet{Template}}")) : $units_cfg{Default};
+	my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
+	my $def_cur = ($ft_file && -e $ft_file) ? get_ft_currency(read_htsv($ft_file)) : $units_cfg{Default};
 	my $sel_cur = (exists $meet{Currency}) ? $meet{Currency} : $def_cur;
 
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
@@ -1174,19 +1172,11 @@ sub valid_edit_id
 
 	whinge("No $type ID defined", $whinge_tmpl) if $id_required && !(defined $id);
 
-	my $edit_id = clean_filename($id, $path);
+	my $edit_id = transcode_uri_for_html(clean_filename(encode_for_filename($id), $path));
 
 	whinge("No such $type \"$id\"", $whinge_tmpl) if (defined $id || $id_required) && !$edit_id;
 
 	return $edit_id;
-}
-
-sub ft_name_to_file
-{
-	my $file = encode_for_file($_[0]);
-	$file =~ tr/ \//_/;
-
-	return $file;
 }
 
 sub despatch_admin
@@ -1373,14 +1363,13 @@ sub despatch_admin
 			my $whinge = sub { whinge($_[0], gen_manage_meets()) };
 			my %meet;
 			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-			my %fts = query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
 
 			$meet{Name} = clean_words($cgi->param('name'));
 			$meet{Date} = validate_date(scalar $cgi->param('date'), $whinge);
 			$meet{Duration} = validate_int(scalar $cgi->param('len'), 'Duration', 1, $whinge);
 			$meet{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
-			$whinge->('Bad fee template') unless $cgi->param('fee_tmpl') eq 'none' or exists $fts{$cgi->param('fee_tmpl')};
-			$meet{Template} = $fts{$cgi->param('fee_tmpl')}  if exists $fts{$cgi->param('fee_tmpl')};
+			my $ft = ($cgi->param('fee_tmpl') eq 'none') ? undef : valid_edit_id(scalar $cgi->param('fee_tmpl'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_meets, 1);
+			$meet{Template} = $ft if $ft;
 
 			$whinge->('No meet name given') unless length $meet{Name};
 			$whinge->('Zero duration?') unless $meet{Duration} > 0;
@@ -1505,13 +1494,13 @@ sub despatch_admin
 			}
 			@{$meet{Person}} = @ppl;
 
-			my %rfts = reverse query_all_htsv_in_path("$config{Root}/fee_tmpls", 'Name');
-			if (exists $meet{Template} && exists $rfts{$meet{Template}}) {
-				my $cur = get_ft_currency(read_htsv("$config{Root}/fee_tmpls/$rfts{$meet{Template}}")) unless exists $meet{Currency};
+			my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
+			if ($ft_file && -e $ft_file) {
+				my $cur = get_ft_currency(read_htsv($ft_file)) unless exists $meet{Currency};
 				$meet{Currency} = $cur if $cur && length $cur;
 			}
-			if (scalar @{$meet{Person}} && exists $meet{Template} && exists $rfts{$meet{Template}}) {
-				my %ft = read_htsv("$config{Root}/fee_tmpls/$rfts{$meet{Template}}");
+			if (scalar @{$meet{Person}} && $ft_file && -e $ft_file) {
+				my %ft = read_htsv($ft_file);
 				my @commods = keys %{{known_commod_descs}};
 
 				splice (@{$meet{Headings}}, 1, 0, 'BaseFee') if !grep (/^BaseFee$/, @{$meet{Headings}});
@@ -1618,7 +1607,7 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls);
-			my $ft = $view ? "$config{Root}/fee_tmpls/$view" : undef;
+			my $ft = $view ? "$config{Root}/fee_tmpls/" . encode_for_filename($view) : undef;
 
 			emit(gen_edit_fee_tmpl($ft, $view, $session, $view ? undef : get_edit_token($sessid, 'add_ft')));
 		}
@@ -1627,7 +1616,7 @@ sub despatch_admin
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
 
 		my $edit_id = valid_edit_id(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls, (defined $cgi->param('edit')));
-		my $file = $edit_id ? "$config{Root}/fee_tmpls/$edit_id" : undef;
+		my $file = $edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef;
 
 		if (defined $cgi->param('edit')) {
 			whinge("Couldn't get edit lock for fee template \"$edit_id\"", gen_manage_fee_tmpls) unless try_lock($file, $sessid);
@@ -1639,19 +1628,18 @@ sub despatch_admin
 		}
 
 		# only left with save and cancel now
-		my %ft;
+		my $new_id = clean_words($cgi->param('name'));
 
 		if (defined $cgi->param('save')) {
+			my %ft;
 			# copy value of $file, as it may be changed before $whinge is used, and perl closures close over variables, not values!
 			# http://www.perlmonks.org/?node_id=737848
 			my $whinge = do { my $stored_file = $file; sub { whinge($_[0], gen_edit_fee_tmpl($stored_file, 0, $session, $etoken)) } };
 
-			$ft{Name} = clean_words($cgi->param('name'));
-			$whinge->('Missing fee template name') unless $ft{Name};
-			my $new_id = ft_name_to_file($ft{Name});
+			$whinge->('Missing fee template name') unless $new_id;
 			my $old_file = $file;
-			$file = "$config{Root}/fee_tmpls/$new_id";
-			my $rename = ($edit_id && $edit_id ne $new_id);
+			$file = "$config{Root}/fee_tmpls/" . encode_for_filename($new_id);
+			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
 			$whinge->('Fee template name is already in use') if (-e $file && (!(defined $edit_id) || $rename));
 
 			my $max_rows = -1;
@@ -1716,7 +1704,7 @@ sub despatch_admin
 				if ($rename) {
 					add_commit($file, 'Rename FT ' . unroot($old_file) . ' to ' . unroot($file), $session);
 				} else {
-					add_commit($file, unroot($file) . ": FT \"$ft{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
+					add_commit($file, unroot($file) . ": FT \"$new_id\" " . ($edit_id ? 'modified' : 'created'), $session);
 				}
 			}, $rename ? $old_file : ($edit_id) ? $file : undef);
 		} else {
@@ -1725,9 +1713,9 @@ sub despatch_admin
 		}
 
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$ft{Name}\" fee template" : 'Edit cancelled', gen_edit_fee_tmpl($file, 1, $session, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$new_id\" fee template" : 'Edit cancelled', gen_edit_fee_tmpl($file, 1, $session, undef));
 		} else {
-			emit_with_status((defined $cgi->param('save')) ? "Added fee template \"$ft{Name}\"" : 'Add fee template cancelled', gen_manage_fee_tmpls);
+			emit_with_status((defined $cgi->param('save')) ? "Added fee template \"$new_id\"" : 'Add fee template cancelled', gen_manage_fee_tmpls);
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_cfg') {

@@ -11,7 +11,7 @@
 		<div>
 			<input type="hidden" name="tmpl" value="edit_fee_tmpl"/>
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
-			<TMPL_IF NAME=FT_ID><input type="hidden" name="ft_id" value="<TMPL_VAR NAME=FT_ID>"/></TMPL_IF>
+			<TMPL_IF NAME=NAME><input type="hidden" name="ft_id" value="<TMPL_VAR NAME=NAME>"/></TMPL_IF>
 
 			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Template name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="name"/></label></h2></TMPL_IF>
 
