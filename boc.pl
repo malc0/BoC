@@ -1646,9 +1646,10 @@ sub despatch_admin
 			$max_rows++ while ($max_rows < 10 and defined $cgi->param('Fee_' . ($max_rows + 1)));
 			$whinge->('No fees?') unless $max_rows >= 0;
 
-			my @units = known_units;
-			my @commods = keys %{{known_commod_descs}};
-			my %curs;
+			my %units_cfg = read_units_cfg("$config{Root}/config_units");
+			my @units = known_units(%units_cfg);
+			my @curs = known_currs(%units_cfg);
+			my @are_curs;
 
 			foreach my $row (0 .. $max_rows) {
 				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
@@ -1670,12 +1671,12 @@ sub despatch_admin
 				push (@{$ft{Fee}}, $amnt);
 				if (scalar @units) {
 					push (@{$ft{Unit}}, $cur);
-					$curs{$cur} = 1 unless grep (/^$cur$/, @commods);
+					push (@are_curs, $cur) if grep (/^$cur$/, @curs) && !grep (/^$cur$/, @are_curs);
 				}
 				push (@{$ft{Condition}}, $cond);
 			}
 			$whinge->('No fees?') unless exists $ft{Fee};
-			$whinge->('More than one currency in use') if scalar keys %curs > 1;
+			$whinge->('More than one currency in use') if scalar @are_curs > 1;
 
 			@{$ft{Headings}} = ( 'Fee', 'Condition' );
 			splice (@{$ft{Headings}}, 1, 0, 'Unit') if exists $ft{Unit};
