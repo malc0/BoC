@@ -767,16 +767,16 @@ sub gen_manage_fee_tmpls
 
 sub gen_edit_fee_tmpl
 {
-	my ($file, $view_mode, $session, $etoken) = @_;
+	my ($edit_id, $etoken) = @_;
 
 	my %ft;
 	my $init_rows = 0;
 	my $max_rows = 5;
 
-	if ($file) {
-		%ft = read_htsv($file);
+	if ($edit_id) {
+		%ft = read_htsv("$config{Root}/fee_tmpls/$edit_id");
 		$init_rows = scalar @{$ft{Fee}};
-		$max_rows = $init_rows + ($view_mode ? 0 : min(2, 10 - $init_rows));
+		$max_rows = $init_rows + ($etoken ? min(2, 10 - $init_rows) : 0);
 	}
 
 	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
@@ -795,8 +795,8 @@ sub gen_edit_fee_tmpl
 	}
 	my @attrs = map ({ A => $_ }, query_pers_attrs);
 
-	$tmpl->param(RO => $view_mode);
-	$tmpl->param(NAME => (($file && $file =~ /\/([^\/]+)$/) ? transcode_uri_for_html($1) : undef));
+	$tmpl->param(RO => !$etoken);
+	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
 	$tmpl->param(NATTRS => scalar @attrs);
 	$tmpl->param(CUROPTS => scalar @allunits > 1);
 
@@ -1076,14 +1076,13 @@ sub gen_manage_meets
 
 sub gen_edit_meet
 {
-	my ($mt_file, $view_mode, $etoken) = @_;
+	my ($edit_id, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet.html', $etoken);
-	my %meet = read_htsv($mt_file);
+	my %meet = read_htsv("$config{Root}/meets/$edit_id");
 
-	# FIXME just use view_mode, since duplicative of mt_file, really
-	$tmpl->param(MID => $1) if ($mt_file =~ /\/([^\/]+)$/);
-	$tmpl->param(RO => $view_mode);
+	$tmpl->param(MID => $edit_id);
+	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => $meet{Name}, DATE => $meet{Date}, DUR => $meet{Duration});
 
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
@@ -1121,10 +1120,10 @@ sub gen_edit_meet
 
 sub gen_edit_meet_ppl
 {
-	my ($mt_file, $etoken) = @_;
+	my ($edit_id, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet_ppl.html', $etoken);
-	my %meet = read_htsv($mt_file);
+	my %meet = read_htsv("$config{Root}/meets/$edit_id");
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @ppl;
@@ -1132,7 +1131,7 @@ sub gen_edit_meet_ppl
 		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (exists $meet{Person} and !!grep (/^$user$/, @{$meet{Person}})) });
 	}
 
-	$tmpl->param(MID => $1) if ($mt_file =~ /\/([^\/]+)$/);
+	$tmpl->param(MID => $edit_id);
 	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl);
 
 	return $tmpl;
@@ -1379,13 +1378,13 @@ sub despatch_admin
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : 'Edit account cancelled', gen_manage_accts($person));
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
-			my $mt_file = $etoken ? pop_session_data($sessid, "${etoken}_mtfile") : undef;
+			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
 			if (defined $cgi->param('savenadd')) {
 				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct');
-				push_session_data($sessid, "${etoken}_mtfile", $mt_file) if $mt_file;
+				push_session_data($sessid, "${etoken}_editid", $edit_id) if $edit_id;
 				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken));
 			}
-			my $tmpl = $etoken ? gen_edit_meet_ppl($mt_file, $etoken) : gen_manage_accts($person);
+			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $etoken) : gen_manage_accts($person);
 			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
 		}
 	}
@@ -1454,9 +1453,8 @@ sub despatch_admin
 		}
 		if (defined $cgi->param('view')) {
 			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
-			my $meet = "$config{Root}/meets/$mid";
 
-			emit(gen_edit_meet($meet, $mid, undef));
+			emit(gen_edit_meet($mid, undef));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet') {
@@ -1473,16 +1471,16 @@ sub despatch_admin
 			}
 
 			if (defined $cgi->param('edit')) {
-				emit(gen_edit_meet($mt_file, 0, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_meet($edit_id, get_edit_token($sessid, "edit_$edit_id")));
 			} else {
-				emit(gen_edit_meet_ppl($mt_file, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_meet_ppl($edit_id, get_edit_token($sessid, "edit_$edit_id")));
 			}
 		}
 
 		my %meet = read_htsv($mt_file);
 
 		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_edit_meet($mt_file, 0, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_edit_meet($edit_id, $etoken)) };
 
 			delete $meet{Currency};
 			my @ppl = @{$meet{Person}};
@@ -1531,21 +1529,21 @@ sub despatch_admin
 		}
 
 		$mt_file =~ /\/([^\/]{4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
 		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
 
 		if (defined $cgi->param('new_user')) {
-			push_session_data($sessid, "${etoken}_mtfile", $mt_file);
+			push_session_data($sessid, "${etoken}_editid", $edit_id);
 			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken)));
 		}
 
 		my %meet = read_htsv($mt_file);
 
 		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($mt_file, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $etoken)) };
 			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 
 			my @ppl = grep ((defined $cgi->param($_)), sort keys %accts);
@@ -1608,7 +1606,7 @@ sub despatch_admin
 		}
 
 		$mt_file =~ /\/([^\/]{4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($mt_file, 1, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
@@ -1676,9 +1674,8 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls);
-			my $ft = $view ? "$config{Root}/fee_tmpls/" . encode_for_filename($view) : undef;
 
-			emit(gen_edit_fee_tmpl($ft, $view, $session, $view ? undef : get_edit_token($sessid, 'add_ft')));
+			emit(gen_edit_fee_tmpl($view, $view ? undef : get_edit_token($sessid, 'add_ft')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_fee_tmpl') {
@@ -1693,7 +1690,7 @@ sub despatch_admin
 				unlock($file);
 				whinge("Couldn't edit fee template \"$edit_id\", file disappeared", gen_manage_fee_tmpls);
 			}
-			emit(gen_edit_fee_tmpl($file, 0, $session, get_edit_token($sessid, "edit_$edit_id")));
+			emit(gen_edit_fee_tmpl($edit_id, get_edit_token($sessid, "edit_$edit_id")));
 		}
 
 		# only left with save and cancel now
@@ -1701,9 +1698,7 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my %ft;
-			# copy value of $file, as it may be changed before $whinge is used, and perl closures close over variables, not values!
-			# http://www.perlmonks.org/?node_id=737848
-			my $whinge = do { my $stored_file = $file; sub { whinge($_[0], gen_edit_fee_tmpl($stored_file, 0, $session, $etoken)) } };
+			my $whinge = sub { whinge($_[0], gen_edit_fee_tmpl($edit_id, $etoken)) };
 
 			$whinge->('Missing fee template name') unless $new_id;
 			my $old_file = $file;
@@ -1783,7 +1778,7 @@ sub despatch_admin
 		}
 
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$new_id\" fee template" : 'Edit cancelled', gen_edit_fee_tmpl($file, 1, $session, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$new_id\" fee template" : 'Edit cancelled', gen_edit_fee_tmpl((defined $cgi->param('save')) ? $new_id : $edit_id, undef));
 		} else {
 			emit_with_status((defined $cgi->param('save')) ? "Added fee template \"$new_id\"" : 'Add fee template cancelled', gen_manage_fee_tmpls);
 		}
@@ -2347,12 +2342,13 @@ sub sort_AoH
 
 sub gen_tg
 {
-	my ($tg_file, $view_mode, $session, $etoken) = @_;
+	my ($edit_id, $session, $etoken) = @_;
+
 	my %tgdetails;
 	my $init_creds = 0;
 
-	if ($tg_file) {
-		%tgdetails = read_tg($tg_file);
+	if ($edit_id) {
+		%tgdetails = read_tg("$config{Root}/transaction_groups/$edit_id");
 		$init_creds = scalar @{$tgdetails{Creditor}};
 		push (@{$tgdetails{Creditor}}, ($session->param('User')) x min(5, 100 - scalar @{$tgdetails{Creditor}})) unless $view_mode;
 	} else {
@@ -2370,7 +2366,7 @@ sub gen_tg
 		next if $acct eq 'Currency';
 		$unknown{$acct} = $acct unless $acct =~ /^TrnsfrPot\d?$/ || exists $acct_names{$acct};
 		$tps_in_use[$1] = 1 if ($acct =~ /^TrnsfrPot(\d)$/);
-		next if exists $unknown{$acct} || !$view_mode;
+		next if exists $unknown{$acct} || $etoken;
 		my $has_data = 0;
 		foreach (@{$tgdetails{$acct}}) {
 			$has_data = 1 if defined $_ && $_ != 0;
@@ -2389,7 +2385,7 @@ sub gen_tg
 	}
 	%acct_names = (%unknown, %ppl, %vaccts, %tps);
 	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
-	my @sorted_in_use = $view_mode ? sort_AoH(\%unknown, \%in_use) : @sorted_accts;
+	my @sorted_in_use = $etoken ? @sorted_accts : sort_AoH(\%unknown, \%in_use);
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 
@@ -2402,9 +2398,9 @@ sub gen_tg
 		push (@allunits, $cur) if defined $cur and not grep (/^$cur$/, @allunits);
 	}
 
-	$tmpl->param(TG_ID => $1) if ($tg_file and $tg_file =~ /\/([^\/]+)$/);
-	$tmpl->param(RO => $view_mode);
-	$tmpl->param(EDITOK => !($1 =~ /^[A-Z]/)) if $1;
+	$tmpl->param(TG_ID => $edit_id);
+	$tmpl->param(RO => !$etoken);
+	$tmpl->param(EDITOK => !($edit_id =~ /^[A-Z]/));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
@@ -2663,9 +2659,8 @@ sub despatch_user
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs);
-			my $tg = $view ? "$config{Root}/transaction_groups/$view" : undef;
 
-			emit(gen_tg($tg, $view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
+			emit(gen_tg($view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
@@ -2673,21 +2668,21 @@ sub despatch_user
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('edit')) {
-			whinge('Editing of generated TGs not allowed', gen_tg($tgfile, 1, $session, undef)) if $edit_id =~ /^[A-Z]/;
+			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, $session, undef)) if $edit_id =~ /^[A-Z]/;
 
 			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs);
 			}
-			emit(gen_tg($tgfile, 0, $session, get_edit_token($sessid, "edit_$edit_id")));
+			emit(gen_tg($edit_id, $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
 
 		# only left with save and cancel now
 		my %tg;
 
 		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_tg($tgfile, 0, $session, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_tg($edit_id, $session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
@@ -2748,7 +2743,7 @@ sub despatch_user
 
 		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($tgfile, 1, $session, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($edit_id, $session, undef));
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;
