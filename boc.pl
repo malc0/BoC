@@ -214,15 +214,24 @@ sub try_tg_lock
 	return $rv;
 }
 
+sub clear_lock
+{
+	my ($lf, $sessid) = @_;
+
+	(my $file = $lf) =~ s/(.*)\/\.([^\/]*).lock/$1\/$2/;
+	return 1 unless try_lock($file, $sessid);
+	unlink $lf;
+
+	return undef;
+}
+
 sub clear_locks
 {
 	my ($path, $sessid) = @_;
 
 	foreach (glob ("$path/.*.lock")) {
 		$_ = untaint($_);
-		(my $file = $_) =~ s/(.*)\/\.([^\/]*).lock/$1\/$2/;
-		return 1 unless try_lock($file, $sessid);
-		unlink $_;
+		return 1 if clear_lock($_, $sessid);
 	}
 
 	return undef;
@@ -957,6 +966,24 @@ sub commit_config_units
 	my $cfg_file = "$config{Root}/config_units";
 
 	$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+	if (keys %$rename) {
+		if (scalar glob ("$config{Root}/transaction_groups/.*.lock") && clear_locks("$config{Root}/transaction_groups", $sessid)) {
+			un_commit_lock;
+			$whinge->('Cannot perform unit recode at present: transaction groups busy');
+		}
+		if (scalar glob ("$config{Root}/fee_tmpls/.*.lock") && clear_locks("$config{Root}/fee_tmpls", $sessid)) {
+			un_commit_lock;
+			$whinge->('Cannot perform unit recode at present: fee templates busy');
+		}
+		if (scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
+			un_commit_lock;
+			$whinge->('Cannot perform unit recode at present: meets busy');
+		}
+		if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
+			un_commit_lock;
+			$whinge->('Cannot perform unit recode at present: config_fees busy');
+		}
+	}
 	bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_units', $etoken);
 	return try_commit_and_unlock(sub {
 		my $commit_msg = 'config_units: units/rates modified';
@@ -967,11 +994,53 @@ sub commit_config_units
 				my %tgdetails = read_tg($tg);
 
 				foreach my $old (keys %$rename) {
-					s/^$old$/$rename->{$old}/ foreach (@{$tgdetails{Currency}});
+					foreach (@{$tgdetails{Currency}}) {
+						s/^$old$/$rename->{$old}/ if $_;
+					}
 				}
 
 				write_tg($tg, %tgdetails);
 				$git->add($tg);
+			}
+			foreach my $ft_file (glob ("$config{Root}/fee_tmpls/*")) {
+				$ft_file = untaint($ft_file);
+				my %ft = read_htsv($ft_file);
+
+				foreach my $old (keys %$rename) {
+					foreach (@{$ft{Unit}}) {
+						s/^$old$/$rename->{$old}/ if $_;
+					}
+				}
+
+				write_htsv($ft_file, \%ft);
+				$git->add($ft_file);
+			}
+			foreach my $mt_file (glob ("$config{Root}/meets/*")) {
+				$mt_file = untaint($mt_file);
+				my %meet = read_htsv($mt_file);
+
+				foreach my $old (keys %$rename) {
+					$meet{Currency} =~ s/^$old$/$rename->{$old}/ if exists $meet{Currency} && defined $meet{Currency};
+					if (exists $meet{Headings}) {
+						foreach (@{$meet{Headings}}) {
+							s/^$old$/$rename->{$old}/;
+						}
+					}
+				}
+
+				write_htsv($mt_file, \%meet, 11);
+				$git->add($mt_file);
+			}
+			my %cf = read_htsv("$config{Root}/config_fees", 1);
+			if (%cf && exists $cf{Fee}) {
+				foreach my $old (keys %$rename) {
+					foreach (@{$cf{Fee}}) {
+						s/^$old$/$rename->{$old}/ if $_;
+					}
+				}
+
+				write_htsv("$config{Root}/config_fees", \%cf, 11);
+				$git->add("$config{Root}/config_fees");
 			}
 			$commit_msg .= ' AND RENAMED';
 		}
