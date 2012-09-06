@@ -765,43 +765,54 @@ sub gen_manage_fee_tmpls
 	return $tmpl;
 }
 
+sub gen_ft_tg_common
+{
+	my ($file, $is_tg, $max_rows, $view, $key_col, $key_fill, $cur_col, $d_row, $row_lim, $units, $tmpl) = @_;
+
+	my %htsv;
+	my $init_rows = 0;
+
+	if ($file) {
+		%htsv = $is_tg ? read_tg($file) : read_htsv($file);
+		$init_rows = (exists $htsv{$key_col}) ? scalar @{$htsv{$key_col}} : 0;
+		$max_rows = $init_rows + ($view ? 0 : min($d_row, $row_lim - $init_rows));
+	}
+
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	@{$units} = known_units(%units_cfg);
+
+	push (@{$htsv{$key_col}}, ($key_fill) x ($max_rows - scalar @{$htsv{$key_col}}));
+	push (@{$htsv{$cur_col}}, ('') x ($init_rows - scalar @{$htsv{$cur_col}})) if scalar @{$units} > 1;
+	push (@{$htsv{$cur_col}}, ($units_cfg{Default}) x ($max_rows - scalar @{$htsv{$cur_col}})) if scalar @{$units};
+
+	my @allunits = @{$units};
+	foreach my $cur (@{$htsv{$cur_col}}) {
+		push (@allunits, $cur) if defined $cur && !grep (/^$cur$/, @allunits);
+	}
+
+	$tmpl->param(CUROPTS => scalar @allunits > 1);
+	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? ((scalar @{$units}) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : "$allunits[0] (UNKNOWN!)") : undef);
+
+	return %htsv;
+}
+
 sub gen_edit_fee_tmpl
 {
 	my ($edit_id, $etoken) = @_;
 
-	my %ft;
-	my $init_rows = 0;
-	my $max_rows = 5;
-
-	if ($edit_id) {
-		%ft = read_htsv("$config{Root}/fee_tmpls/$edit_id");
-		$init_rows = scalar @{$ft{Fee}};
-		$max_rows = $init_rows + ($etoken ? min(2, 10 - $init_rows) : 0);
-	}
-
+	my @units;
 	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
 
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");
-	my @units = known_units(%units_cfg);
+	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units, $tmpl);
 
-	push (@{$ft{Fee}}, (0) x ($max_rows - scalar @{$ft{Fee}}));
-	push (@{$ft{Unit}}, ('') x ($init_rows - scalar @{$ft{Unit}})) if scalar @units > 1;
-	push (@{$ft{Unit}}, ($units_cfg{Default}) x ($max_rows - scalar @{$ft{Unit}})) if scalar @units;
-	push (@{$ft{Condition}}, ('') x ($max_rows - scalar @{$ft{Condition}}));
-
-	my @allunits = @units;
-	foreach my $cur (@{$ft{Unit}}) {
-		push (@allunits, $cur) if defined $cur and not grep (/^$cur$/, @allunits);
-	}
 	my @attrs = map ({ A => $_ }, query_pers_attrs);
 
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
 	$tmpl->param(NATTRS => scalar @attrs);
-	$tmpl->param(CUROPTS => scalar @allunits > 1);
 
 	my @fees;
-	foreach my $row (0 .. $max_rows - 1) {
+	foreach my $row (0 .. $#{$ft{Fee}}) {
 		my $unk_cur = (not defined $ft{Unit}[$row] or not grep (/^$ft{Unit}[$row]$/, @units));
 		my @currencies = map ({ C => $_, S => ((defined $ft{Unit}[$row]) ? ($_ eq $ft{Unit}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
 		my @fattrs;
@@ -820,7 +831,6 @@ sub gen_edit_fee_tmpl
 	}
 
 	$tmpl->param(ATTRS => \@attrs, FEES => \@fees);
-	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? ((scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : "$allunits[0] (UNKNOWN!)") : undef);
 
 	return $tmpl;
 }
@@ -2344,18 +2354,10 @@ sub gen_tg
 {
 	my ($edit_id, $session, $etoken) = @_;
 
-	my %tgdetails;
-	my $init_creds = 0;
-
-	if ($edit_id) {
-		%tgdetails = read_tg("$config{Root}/transaction_groups/$edit_id");
-		$init_creds = scalar @{$tgdetails{Creditor}};
-		push (@{$tgdetails{Creditor}}, ($session->param('User')) x min(5, 100 - scalar @{$tgdetails{Creditor}})) unless $view_mode;
-	} else {
-		push (@{$tgdetails{Creditor}}, ($session->param('User')) x 10);
-	}
-
+	my @units;
 	my $tmpl = load_template('edit_tg.html', $etoken);
+
+	my %tgdetails = gen_ft_tg_common($edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef, 1, 10, !$etoken, 'Creditor', $session->param('User'), 'Currency', 5, 100, \@units, $tmpl);
 
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
@@ -2374,6 +2376,11 @@ sub gen_tg
 		}
 		$in_use{$acct} = $acct_names{$acct} if $has_data && !($acct =~ /^TrnsfrPot\d?$/);
 	}
+	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
+	my @sorted_in_use = $etoken ? @sorted_accts : sort_AoH(\%unknown, \%in_use);
+
+	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_in_use);
+
 	my %tps;
 	my $tps_to_add = 3;
 	foreach my $i (1 .. 9) {
@@ -2384,19 +2391,6 @@ sub gen_tg
 		$tps{"TrnsfrPot$i"} = "Transfer Pot $i" if $tps_in_use[$i];
 	}
 	%acct_names = (%unknown, %ppl, %vaccts, %tps);
-	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
-	my @sorted_in_use = $etoken ? @sorted_accts : sort_AoH(\%unknown, \%in_use);
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");
-	my @units = known_units(%units_cfg);
-
-	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_in_use);
-	push (@{$tgdetails{Currency}}, ('') x ($init_creds - scalar @{$tgdetails{Currency}})) if scalar @units > 1;
-	push (@{$tgdetails{Currency}}, ($units_cfg{Default}) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{Currency}})) if scalar @units;
-
-	my @allunits = @units;
-	foreach my $cur (@{$tgdetails{Currency}}) {
-		push (@allunits, $cur) if defined $cur and not grep (/^$cur$/, @allunits);
-	}
 
 	$tmpl->param(TG_ID => $edit_id);
 	$tmpl->param(RO => !$etoken);
@@ -2404,7 +2398,6 @@ sub gen_tg
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
-	$tmpl->param(CURCOL => scalar @allunits > 1);
 	$tmpl->param(NOACCTS => scalar @sorted_in_use);
 	my %negated = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 	my @heads;
@@ -2434,7 +2427,6 @@ sub gen_tg
 			       DESC => $tgdetails{Description}[$row] });
 	}
 	$tmpl->param(ROWS => \@rows);
-	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? ((scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : "$allunits[0] (UNKNOWN!)") : undef);
 
 	return $tmpl;
 }
