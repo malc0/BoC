@@ -7,7 +7,11 @@
 	<body>
 		<h1>Fee template configuration</h1>
 
-		<form action="boc.pl" method="post">
+		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
+				this.save.clicked = false;
+				if ('ft_id' in this && this.ft_id.value != this.name.value)
+					return confirm('Really rename fee template?');
+			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="edit_fee_tmpl"/>
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
@@ -36,7 +40,7 @@
 			<TMPL_IF NAME=DEFCUR><p>All transactions denominated in <TMPL_VAR NAME=DEFCUR></p></TMPL_IF>
 
 			<p><TMPL_IF NAME=RO><input type="submit" name="edit" value="Edit"/><TMPL_ELSE>
-			   <input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save"/></TMPL_IF></p>
+			   <input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_cp" value="Return to control panel"/><input type="submit" name="manage_fee_tmpls" value="See all fee templates"/></p></TMPL_UNLESS>
 			<p><input type="submit" name="logout" value="Logout"/></p>
