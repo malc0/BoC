@@ -6,12 +6,13 @@ use warnings;
 
 use HTML::Entities;
 use Time::ParseDate;
+use URI::Escape;
 
 our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT_OK = qw(untaint encode_for_file encode_for_html clean_date clean_decimal clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+our @EXPORT_OK = qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_decimal clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 
 sub untaint
 {
@@ -26,12 +27,27 @@ sub encode_for_file
 	return encode_entities(decode_entities($_[0]), '^A-Za-z0-9¬`!"£\$%^&*()\-_=+{}\[\];:\'@~,.<>/?\\\| ');	# hash not included to avoid getting treated as comment in file!
 }
 
+sub encode_for_filename
+{
+	return undef unless defined $_[0];
+	my $encoded = uri_escape(decode_entities($_[0]), '^A-Za-z0-9\$^()\-_={}\[\]:@~,.?|');	# ¬£+# don't work well in URLs...
+	$encoded =~ s/^~/%7E/;
+	$encoded =~ s/^[.]/%2E/;
+	return $encoded;
+}
+
 sub encode_for_html
 {
 	return undef unless $_[0];
 	my $escaped = encode_entities(decode_entities($_[0]), '^A-Za-z0-9`!\$%^*()\-_=+{}\[\];:@#~,./?\\\| ');
 	$escaped =~ s/&#39;/&apos;/g;
 	return $escaped;
+}
+
+sub transcode_uri_for_html
+{
+	return undef unless defined $_[0];
+	return encode_for_html(uri_unescape($_[0]));
 }
 
 sub clean_date
