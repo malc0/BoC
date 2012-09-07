@@ -863,16 +863,10 @@ sub gen_edit_meet_cfg
 		my $row = first { @{$cfg{Fee}}[$_] eq $fee } 0 .. $#{$cfg{Fee}};
 		my $commod = exists $cds{$fee};
 		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
-		push (@feerows, { COMMOD => $commod, F => $fee, FEEID => (defined $row) ? @{$cfg{Fee}}[$row] : '', FEED => $commod ? $cds{$fee} : ((defined $row) ? @{$cfg{Description}}[$row] : ''), BOOL => (defined $row && true($cfg{IsBool}[$row])), ACCTS => \@rowoptions });
+		push (@feerows, { COMMOD => $commod, F => $fee, FEEID => (defined $row) ? @{$cfg{Fee}}[$row] : '', FEED => $commod ? $cds{$fee} : ((defined $row) ? @{$cfg{Description}}[$row] : ''), BOOL => (defined $row && true($cfg{IsBool}[$row])), DRAIN => (defined $row && true($cfg{IsDrain}[$row])), ACCTS => \@rowoptions });
 	}
 
-	my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %cfg);
-	my $num_exrows = (scalar @exps) - 1;
-	$num_exrows = ($num_exrows >= 0) ? $num_exrows + min(3, 30 - $num_exrows) : 4;
-
-	my @exrows = map ({ EXID => $exps[$_], EXD => (defined $exps[$_]) ? $cfg{"Expense_$exps[$_]"} : '', R => $_ }, 0 .. $num_exrows);
-
-	$tmpl->param(ACCTS => \@accts, FEEROWS => \@feerows, EXROWS => \@exrows);
+	$tmpl->param(ACCTS => \@accts, FEEROWS => \@feerows);
 
 	return $tmpl;
 }
@@ -1105,21 +1099,21 @@ sub gen_edit_meet
 
 	my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
 	my %cds = known_commod_descs;
-	my @feesh = map ({ FEE => (exists $cds{@{$meet_cfg{Fee}}[$_]}) ? $cds{@{$meet_cfg{Fee}}[$_]} : @{$meet_cfg{Description}}[$_] }, 0 .. $#{$meet_cfg{Fee}});
-	my @expsh = map ({ EXP => $meet_cfg{$_} }, grep (/^Expense_.+$/, keys %meet_cfg));
+	my @ccs = grep (exists $cds{$meet_cfg{Fee}[$_]}, 0 .. $#{$meet_cfg{Fee}});
+	my @drains = grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}});
+	my @exps = grep (!(exists $cds{$meet_cfg{Fee}[$_]} || true($meet_cfg{IsDrain}[$_])), 0 .. $#{$meet_cfg{Fee}});
+
+	my @feesh = map ({ FEE => $cds{$meet_cfg{Fee}[$_]} }, @ccs);
+	push (@feesh, map ({ FEE => $meet_cfg{Description}[$_] }, @drains));
+	my @expsh = map ({ EXP => $meet_cfg{Description}[$_] }, @exps);
 	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @ppl;
 	foreach my $row (0 .. $#{$meet{Person}}) {
-		my @rfees;
-		foreach my $commod (@{$meet_cfg{Fee}}) {
-			my $mc_row = first { @{$meet_cfg{Fee}}[$_] eq $commod } 0 .. $#{$meet_cfg{Fee}};
-			push (@rfees, { F => $commod, V => $meet{$commod}[$row], BOOL => $meet_cfg{IsBool}[$mc_row] });
-		}
-		my @exps = map ({ E => $_, V => $meet{$_}[$row] }, map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %meet_cfg));
+		my @rfees = map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row], BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken' }, (@ccs, @drains, @exps));
 		my $a = $meet{Person}[$row];
-		push (@ppl, { PER_CL => (exists $accts{$a}) ? '' : 'unknown', NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, BASEV => $meet{BaseFee}[$row], FEES => \@rfees, EXPS => \@exps, NOTEV => $meet{Notes}[$row] });
+		push (@ppl, { PER_CL => (exists $accts{$a}) ? '' : 'unknown', NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, BASEV => $meet{BaseFee}[$row], FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
 	}
         $tmpl->param(PPL => \@ppl);
 
@@ -1215,21 +1209,20 @@ sub meet_to_tg
 				push (@{$tg{Amount}}, $colsum{$hd});
 				push (@{$tg{Currency}}, $hd);
 				push (@{$tg{Description}}, $cds{$hd});
-			} else {
+			} elsif (true($meet_cfg{IsDrain}[$mc_row])) {
 				push (@{$tg{Amount}}, '*');
 				push (@{$tg{Currency}}, '');
-				push (@{$tg{Description}}, @{$meet_cfg{Description}}[$mc_row]);
-			}
-		} else {
-			push (@{$tg{Creditor}}, $meet_cfg{MeetAccount});
-			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
-			if ($hd eq 'BaseFee') {
-				push (@{$tg{Amount}}, $colsum{BaseFee});
-				push (@{$tg{Description}}, 'Meet fee');
+				push (@{$tg{Description}}, $meet_cfg{Description}[$mc_row]);
 			} else {
 				push (@{$tg{Amount}}, -$colsum{$hd});
-				push (@{$tg{Description}}, $meet_cfg{"Expense_$hd"});
+				push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
+				push (@{$tg{Description}}, $meet_cfg{Description}[$mc_row]);
 			}
+		} elsif ($hd eq 'BaseFee') {
+			push (@{$tg{Creditor}}, $meet_cfg{MeetAccount});
+			push (@{$tg{Amount}}, $colsum{BaseFee});
+			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
+			push (@{$tg{Description}}, 'Meet fee');
 		}
 	}
 
@@ -1511,21 +1504,14 @@ sub despatch_admin
 
 			my %cds = known_commod_descs;
 			my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
-			my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %meet_cfg);
 
 			foreach my $pers (@{$meet{Person}}) {
 				push (@{$meet{BaseFee}}, validate_decimal(scalar $cgi->param("${pers}_Base"), 'Base fee', 1, $whinge));
-				push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal(scalar $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]"), (exists $cds{@{$meet_cfg{Fee}}[$_]}) ? $cds{@{$meet_cfg{Fee}}[$_]} : @{$meet_cfg{Description}}[$_] . ' charge', 1, $whinge)) foreach (0 .. $#{$meet_cfg{Fee}});
-				push (@{$meet{$_}}, validate_decimal(scalar $cgi->param("${pers}_$_"), $meet_cfg{"Expense_$_"} . " expense", 1, $whinge)) foreach (@exps);
+				push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal(scalar $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]"), (exists $cds{@{$meet_cfg{Fee}}[$_]}) ? $cds{@{$meet_cfg{Fee}}[$_]} : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge)) foreach (0 .. $#{$meet_cfg{Fee}});
 				push (@{$meet{Notes}}, clean_words(scalar $cgi->param("${pers}_Notes")));
 			}
 
-			if (scalar @{$meet{Person}}) {
-				@{$meet{Headings}} = ( 'Person', 'BaseFee' );
-				push (@{$meet{Headings}}, @{$meet_cfg{Fee}});
-				push (@{$meet{Headings}}, @exps);
-				push (@{$meet{Headings}}, 'Notes');
-			}
+			@{$meet{Headings}} = ( 'Person', 'BaseFee', @{$meet_cfg{Fee}}, 'Notes' ) if scalar @{$meet{Person}};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
@@ -1816,31 +1802,25 @@ sub despatch_admin
 					next unless length $cgi->param("Acct_$fee");
 					push (@{$cfg{Fee}}, $fee);
 					push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$fee"), \%acct_names, $whinge));
+					push (@{$cfg{IsDrain}}, '');
 				} else {
 					my $id = clean_word($cgi->param("FeeID_$fee"));
 					$whinge->("ID cannot be a number ($id)") if defined $id && !($id =~ /^\s*$/) && defined clean_int($id);
 					my $acct = clean_username($cgi->param("Acct_$fee"));
 					next unless (defined $id && !($id =~ /^\s*$/)) || defined $desc;
-					$whinge->("Missing ID for distribution of \"$desc\"") unless defined $id;
-					$whinge->("Missing display text for distribution of \"$id\"") unless defined $desc;
-					$whinge->("Missing drain account for \"$desc\"") unless defined $acct && length $acct;
+					$whinge->("Missing ID for \"$desc\"") unless defined $id;
+					$whinge->("Missing display text for \"$id\"") unless defined $desc;
+					$whinge->("Missing linked account for \"$desc\"") unless defined $acct && length $acct;
+					$whinge->("Expense (\"$id\") cannot be Boolean") if defined $cgi->param("Bool_$fee") && !(defined $cgi->param("Drain_$fee"));
 					push (@{$cfg{Fee}}, lc $id);
 					push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
+					push (@{$cfg{IsDrain}}, (defined $cgi->param("Drain_$fee")));
 				}
 				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$fee")));
 				push (@{$cfg{Description}}, $desc);
 			}
 
-			foreach (0 .. get_rows(30, $cgi, 'ExpenseID_', sub { $whinge->('No expenses?') })) {
-				my $id = clean_word($cgi->param("ExpenseID_$_"));
-				my $desc = clean_words($cgi->param("ExpenseDesc_$_"));
-				next unless (defined $id) or (defined $desc);
-				$whinge->("Missing ID for \"$desc\"") unless defined $id;
-				$whinge->("Missing display text for \"$id\"") unless defined $desc;
-				$cfg{'Expense_' . lc ($id)} = $desc;
-			}
-
-			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'Account', 'Description' ) if exists $cfg{Fee};
+			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'IsDrain', 'Account', 'Description' ) if exists $cfg{Fee};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_meet_cfg', $etoken);
