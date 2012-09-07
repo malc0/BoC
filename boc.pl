@@ -916,19 +916,19 @@ sub gen_edit_fee_cfg
 
 	my %cds = known_commod_descs;
 	my @drains = grep (!exists $cds{$_}, @{$cfg{Fee}});
+	my $num_rows = (scalar keys %cds) + (scalar @drains) + ((scalar @drains > 0) ? min(3, 30 - scalar @drains) : 4);
+	my @fees = (keys %cds, @drains);
 	my @feerows;
-	foreach my $fee ((keys %cds, @drains)) {
-		my $row = first { @{$cfg{Fee}}[$_] eq $fee } 0 .. $#{$cfg{Fee}};
-		my $commod = exists $cds{$fee};
-		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
-		my $broken_fee = !(defined $fee) || clean_int($fee) || (!$commod && $fee =~ /[A-Z]/);
-		my $broken_acct = !(defined $row) || !defined $cfg{Account}[$row] || !grep (/^$cfg{Account}[$row]$/, @sorted_accts);
-		push (@feerows, { COMMOD => $commod, F => $fee, FEEID => $fee, FEED => $commod ? $cds{$fee} : $cfg{Description}[$row], BOOL => (defined $row && true($cfg{IsBool}[$row])), DRAIN => (defined $row && true($cfg{IsDrain}[$row])), ACCTS => \@rowoptions, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(length $cfg{Description}[$row])) ? 'broken' : '', BD_CL => (!$commod && true($cfg{IsBool}[$row]) && !true($cfg{IsDrain}[$row])) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
+	foreach my $row (0 .. $#fees) {
+		my $cf_row = first { @{$cfg{Fee}}[$_] eq $fees[$row] } 0 .. $#{$cfg{Fee}};
+		my $commod = exists $cds{$fees[$row]};
+		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $cf_row && defined $cfg{Account}[$cf_row] && $cfg{Account}[$cf_row] eq $_) }, @sorted_accts);
+		my $broken_fee = !(defined $fees[$row]) || clean_int($fees[$row]) || (!$commod && $fees[$row] =~ /[A-Z]/);
+		my $broken_acct = defined $cf_row && (!defined $cfg{Account}[$cf_row] || !grep (/^$cfg{Account}[$cf_row]$/, @sorted_accts));
+		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), ACCTS => \@rowoptions, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(length $cfg{Description}[$cf_row])) ? 'broken' : '', BD_CL => (!$commod && true($cfg{IsBool}[$cf_row]) && !true($cfg{IsDrain}[$cf_row])) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
 	}
-	foreach my $fee (map ($_, 0 .. ((scalar @drains > 0) ? min(2, 30 - scalar @drains) : 3))) {
-		my @rowoptions = map ({ O => $acct_names{$_}, V => $_ }, @sorted_accts);
-		push (@feerows, { F => $fee, FEEID => '', FEED => '', ACCTS => \@rowoptions });
-	}
+	my @rowoptions = map ({ O => $acct_names{$_}, V => $_ }, @sorted_accts);
+	push (@feerows, { R => $_, FEEID => '', FEED => '', ACCTS => \@rowoptions }) foreach (((scalar keys %cds) + (scalar @drains)) .. ($num_rows - 1));
 
 	$tmpl->param(ACCTS => \@accts, FEEROWS => \@feerows);
 
@@ -1835,29 +1835,30 @@ sub despatch_admin
 
 			my %cds = known_commod_descs;
 			my %recode;
-			foreach my $fee (map { /^Acct_(.*)/; $1 } grep (/^Acct_.+$/, $cgi->param)) {
-				my $desc = clean_words($cgi->param("FeeDesc_$fee"));
+			foreach my $row (0 .. get_rows(30, $cgi, 'Acct_', sub { $whinge->('No fees?') })) {
+				my $oldcode = clean_word($cgi->param("OldID_$row"));
+				my $desc = clean_words($cgi->param("FeeDesc_$row"));
 
-				if (exists $cds{$fee}) {
-					next unless length $cgi->param("Acct_$fee");
-					push (@{$cfg{Fee}}, $fee);
-					push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$fee"), \%acct_names, $whinge));
+				if (defined $oldcode && exists $cds{$oldcode}) {
+					next unless length $cgi->param("Acct_$row");
+					push (@{$cfg{Fee}}, $oldcode);
+					push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$row"), \%acct_names, $whinge));
 					push (@{$cfg{IsDrain}}, '');
 				} else {
-					my $id = clean_word($cgi->param("FeeID_$fee"));
+					my $id = clean_word($cgi->param("FeeID_$row"));
 					$whinge->("ID cannot be a number ($id)") if defined $id && !($id =~ /^\s*$/) && defined clean_int($id);
-					my $acct = clean_username($cgi->param("Acct_$fee"));
+					my $acct = clean_username($cgi->param("Acct_$row"));
 					next unless (defined $id && !($id =~ /^\s*$/)) || defined $desc;
-					$recode{$fee} = $id if !($fee =~ /[A-Z]/) && grep (/^$fee$/, @{$oldcf{Fee}}) && $fee ne $id;
 					$whinge->("Missing ID for \"$desc\"") unless defined $id;
+					$recode{$oldcode} = $id if defined $oldcode && !($oldcode =~ /[A-Z]/) && grep (/^$oldcode$/, @{$oldcf{Fee}}) && $oldcode ne $id;
 					$whinge->("Missing display text for \"$id\"") unless defined $desc;
 					$whinge->("Missing linked account for \"$desc\"") unless defined $acct && length $acct;
-					$whinge->("Expense (\"$id\") cannot be Boolean") if defined $cgi->param("Bool_$fee") && !(defined $cgi->param("Drain_$fee"));
+					$whinge->("Expense (\"$id\") cannot be Boolean") if defined $cgi->param("Bool_$row") && !(defined $cgi->param("Drain_$row"));
 					push (@{$cfg{Fee}}, lc $id);
 					push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
-					push (@{$cfg{IsDrain}}, (defined $cgi->param("Drain_$fee")));
+					push (@{$cfg{IsDrain}}, (defined $cgi->param("Drain_$row")));
 				}
-				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$fee")));
+				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$row")));
 				push (@{$cfg{Description}}, $desc);
 			}
 

@@ -11,16 +11,17 @@
 		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
 				this.save.clicked = false;
 				var sub = true;
-				for (i = 0; i < this.elements.length; i++)
-					if (this.elements[i].name.search(/^FeeID_(\D+)/) >= 0 && RegExp.$1 != this.elements[i].value) {
-						if (!this.elements[i].value.length) {
-							if (!this['FeeDesc_' + RegExp.$1].value.length && !confirm('Really remove fee ' + RegExp.$1 + '?'))
+				for (i = 0; sub && i < this.elements.length && 'OldID_' + i in this; i++) {
+					if ('FeeID_' + i in this && this['OldID_' + i].value.length && this['OldID_' + i].value != this['FeeID_' + i].value) {
+						if (!this['FeeID_' + i].value.length) {
+				       			if (!this['FeeDesc_' + i].value.length && !confirm('Really delete unit ' + this['OldID_' + i].value + '?'))
 								sub = false;
 						} else
-							if (!confirm('Really recode fee ' + RegExp.$1 + ' to ' + this.elements[i].value + '?'))
+							if (!confirm('Really rename unit ' + this['OldID_' + i].value + ' to ' + this['FeeID_' + i].value + '?'))
 								sub = false;
 					}
-					return sub;
+				}
+				return sub;
 			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="edit_fee_cfg"/>
@@ -35,8 +36,8 @@
 			<h3>Charges, credits and expenses</h3>
 			<table border=1>
 				<tr><th>Charge/credit/expense code (one word)</th><th>Display text</th><th>Is boolean?</th><th>Drain linked account?</th><th>Linked (credit/debit) account</th></tr>
-				<TMPL_LOOP NAME=FEEROWS><tr><td class="<TMPL_VAR NAME=ID_CL>"><TMPL_IF NAME=COMMOD><TMPL_VAR NAME=F></td><td class="<TMPL_VAR NAME=DESC_CL>"><TMPL_VAR NAME=FEED><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=FEEID>" name="FeeID_<TMPL_VAR NAME=F>" style="width:9ex"/></td><td class="<TMPL_VAR NAME=DESC_CL>"><input type="text" value="<TMPL_VAR NAME=FEED>" name="FeeDesc_<TMPL_VAR NAME=F>"/></TMPL_IF></td><td class="<TMPL_VAR NAME=BD_CL>"><input type="checkbox" name="Bool_<TMPL_VAR NAME=F>" value="" <TMPL_IF NAME=BOOL>checked="checked"</TMPL_IF>/></td><td class="<TMPL_VAR NAME=BD_CL>"><TMPL_UNLESS NAME=COMMOD><input type="checkbox" name="Drain_<TMPL_VAR NAME=F>" value="" <TMPL_IF NAME=DRAIN>checked="checked"</TMPL_IF>/></TMPL_UNLESS></td>
-					<td class="<TMPL_VAR NAME=ACCT_CL>"><select name="Acct_<TMPL_VAR NAME=F>">
+				<TMPL_LOOP NAME=FEEROWS><tr><input type="hidden" value="<TMPL_VAR NAME=FEEID>" name="OldID_<TMPL_VAR NAME=R>"><td class="<TMPL_VAR NAME=ID_CL>"><TMPL_IF NAME=COMMOD><TMPL_VAR NAME=FEEID></td><td class="<TMPL_VAR NAME=DESC_CL>"><TMPL_VAR NAME=FEED><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=FEEID>" name="FeeID_<TMPL_VAR NAME=R>" style="width:9ex"/></td><td class="<TMPL_VAR NAME=DESC_CL>"><input type="text" value="<TMPL_VAR NAME=FEED>" name="FeeDesc_<TMPL_VAR NAME=R>"/></TMPL_IF></td><td class="<TMPL_VAR NAME=BD_CL>"><input type="checkbox" name="Bool_<TMPL_VAR NAME=R>" value="" <TMPL_IF NAME=BOOL>checked="checked"</TMPL_IF>/></td><td class="<TMPL_VAR NAME=BD_CL>"><TMPL_UNLESS NAME=COMMOD><input type="checkbox" name="Drain_<TMPL_VAR NAME=R>" value="" <TMPL_IF NAME=DRAIN>checked="checked"</TMPL_IF>/></TMPL_UNLESS></td>
+					<td class="<TMPL_VAR NAME=ACCT_CL>"><select name="Acct_<TMPL_VAR NAME=R>">
 						<option value="">None (disabled)</option>
 						<TMPL_LOOP NAME=ACCTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 						</TMPL_LOOP>
