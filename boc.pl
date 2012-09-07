@@ -23,7 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+use CleanData qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use HeadedTSV;
 use TG;
 use Units;
@@ -856,21 +856,14 @@ sub gen_edit_meet_cfg
 	my @sorted_accts = (@sorted_vaccts, sort_AoH(\%ppl));
 
 	my %cds = known_commod_descs;
-	my @feerows;
-	foreach my $commod (keys %cds) {
-		my $row = first { @{$cfg{Fee}}[$_] eq $commod } 0 .. $#{$cfg{Fee}};
-		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
-		push (@feerows, { FEED => $cds{$commod}, F => $commod, BOOL => (defined $row && true($cfg{IsBool}[$row])), ACCTS => \@rowoptions });
-	}
-	my $n_fees = scalar @feerows;
 	my @drains = grep (!exists $cds{$_}, @{$cfg{Fee}});
-	my $num_drows = scalar @drains;
-	push (@drains, ('') x (($num_drows > 0) ? min(3, 30 - $num_drows) : 4));
-
-	foreach my $drain (@drains) {
-		my $row = first { @{$cfg{Fee}}[$_] eq $drain } 0 .. $#{$cfg{Fee}};
+	my @blanks = map ($_, 0 .. ((scalar @drains > 0) ? min(2, 30 - scalar @drains) : 3));
+	my @feerows;
+	foreach my $fee ((keys %cds, @drains, @blanks)) {
+		my $row = first { @{$cfg{Fee}}[$_] eq $fee } 0 .. $#{$cfg{Fee}};
+		my $commod = exists $cds{$fee};
 		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
-		push (@feerows, { DRAIN => 1, FEED => (defined $row) ? @{$cfg{Description}}[$row] : '', FEEID => $drain, F => scalar @feerows - $n_fees, BOOL => (defined $row && true($cfg{IsBool}[$row])), ACCTS => \@rowoptions });
+		push (@feerows, { COMMOD => $commod, F => $fee, FEEID => (defined $row) ? @{$cfg{Fee}}[$row] : '', FEED => $commod ? $cds{$fee} : ((defined $row) ? @{$cfg{Description}}[$row] : ''), BOOL => (defined $row && true($cfg{IsBool}[$row])), ACCTS => \@rowoptions });
 	}
 
 	my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %cfg);
@@ -1815,24 +1808,26 @@ sub despatch_admin
 			$whinge->('Missing account name') unless clean_username($cgi->param('MeetAcct'));
 			$cfg{MeetAccount} = validate_acct(scalar $cgi->param('MeetAcct'), \%vaccts, $whinge);
 
-			foreach (keys %{{known_commod_descs}}) {
-				next unless defined $cgi->param("Acct_$_") && length $cgi->param("Acct_$_");
-				push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$_"), \%acct_names, $whinge));
-				push (@{$cfg{Fee}}, $_);
-				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$_")));
-				push (@{$cfg{Description}}, '');
-			}
-			foreach (0 .. get_rows(30, $cgi, 'Acct_', sub { $whinge->('No drain fees?') })) {
-				my $id = clean_word($cgi->param("FeeID_$_"));
-				my $desc = clean_words($cgi->param("FeeDesc_$_"));
-				my $acct = clean_username($cgi->param("Acct_$_"));
-				next unless defined $id || defined $desc;
-				$whinge->("Missing ID for distribution of \"$desc\"") unless defined $id;
-				$whinge->("Missing display text for distribution of \"$id\"") unless defined $desc;
-				$whinge->("Missing drain account for \"$desc\"") unless defined $acct && length $acct;
-				push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
-				push (@{$cfg{Fee}}, lc $id);
-				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$_")));
+			my %cds = known_commod_descs;
+			foreach my $fee (map { /^Acct_(.*)/; $1 } grep (/^Acct_.+$/, $cgi->param)) {
+				my $desc = clean_words($cgi->param("FeeDesc_$fee"));
+
+				if (exists $cds{$fee}) {
+					next unless length $cgi->param("Acct_$fee");
+					push (@{$cfg{Fee}}, $fee);
+					push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$fee"), \%acct_names, $whinge));
+				} else {
+					my $id = clean_word($cgi->param("FeeID_$fee"));
+					$whinge->("ID cannot be a number ($id)") if defined $id && !($id =~ /^\s*$/) && defined clean_int($id);
+					my $acct = clean_username($cgi->param("Acct_$fee"));
+					next unless (defined $id && !($id =~ /^\s*$/)) || defined $desc;
+					$whinge->("Missing ID for distribution of \"$desc\"") unless defined $id;
+					$whinge->("Missing display text for distribution of \"$id\"") unless defined $desc;
+					$whinge->("Missing drain account for \"$desc\"") unless defined $acct && length $acct;
+					push (@{$cfg{Fee}}, lc $id);
+					push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
+				}
+				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$fee")));
 				push (@{$cfg{Description}}, $desc);
 			}
 

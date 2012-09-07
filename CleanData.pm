@@ -12,7 +12,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT_OK = qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_decimal clean_email clean_filename clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+our @EXPORT_OK = qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_decimal clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 
 sub untaint
 {
