@@ -1962,6 +1962,7 @@ sub despatch_admin
 				my $desc = clean_words($cgi->param("Description_$row"));
 				next unless $code or $desc;
 				$whinge->('Missing/invalid short code') unless $code;
+				$whinge->("\"$code\" multiply defined") if exists $cfg{$code};
 				validate_unitname($code, $whinge);
 				if (defined $oldcode && exists $oldcfg{$oldcode} && $oldcode ne $code) {
 					# renaming!
