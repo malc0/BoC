@@ -1257,6 +1257,17 @@ sub valid_edit_id
 	return $edit_id;
 }
 
+sub get_rows
+{
+	my ($max, $cgi, $prefix, $whinge) = @_;
+
+	my $max_rows = -1;
+	$max_rows++ while ($max_rows < $max && defined $cgi->param($prefix . ($max_rows + 1)));
+	$whinge->() unless $max_rows >= 0;
+
+	return $max_rows;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1650,13 +1661,9 @@ sub despatch_admin
 			my %cfg;
 			my $whinge = sub { whinge($_[0], gen_edit_simp_trans($etoken)) };
 
-			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 100 and defined $cgi->param('DebitAcct_' . ($max_rows + 1)));
-			$whinge->('No transactions?') unless $max_rows >= 0;
-
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 
-			foreach my $row (0 .. $max_rows) {
+			foreach my $row (0 .. get_rows(100, $cgi, 'DebitAcct_', sub { $whinge->('No transactions?') })) {
 				my $desc = clean_words($cgi->param("Description_$row"));
 				my $acct = clean_username($cgi->param("DebitAcct_$row"));
 				next unless $desc or $acct;
@@ -1716,16 +1723,12 @@ sub despatch_admin
 			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
 			$whinge->('Fee template name is already in use') if (-e $file && (!(defined $edit_id) || $rename));
 
-			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 10 and defined $cgi->param('Fee_' . ($max_rows + 1)));
-			$whinge->('No fees?') unless $max_rows >= 0;
-
 			my %units_cfg = read_units_cfg("$config{Root}/config_units");
 			my @units = known_units(%units_cfg);
 			my @curs = known_currs(%units_cfg);
 			my @are_curs;
 
-			foreach my $row (0 .. $max_rows) {
+			foreach my $row (0 .. get_rows(10, $cgi, 'Fee_', sub { $whinge->('No fees?') })) {
 				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
 				my $cur;
 				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
@@ -1814,10 +1817,7 @@ sub despatch_admin
 				push (@{$cfg{Boolean}}, (defined $cgi->param("Bool_$_")));
 				push (@{$cfg{Description}}, '');
 			}
-			my $max_drows = -1;
-			$max_drows++ while ($max_drows < 30 and defined $cgi->param('Acct_' . ($max_drows + 1)));
-			$whinge->('No drain fees?') unless $max_drows >= 0;
-			foreach (0 .. $max_drows) {
+			foreach (0 .. get_rows(30, $cgi, 'Acct_', sub { $whinge->('No drain fees?') })) {
 				my $id = clean_word($cgi->param("FeeID_$_"));
 				my $desc = clean_words($cgi->param("FeeDesc_$_"));
 				my $acct = clean_username($cgi->param("Acct_$_"));
@@ -1831,11 +1831,7 @@ sub despatch_admin
 				push (@{$cfg{Description}}, $desc);
 			}
 
-			my $max_exrows = -1;
-			$max_exrows++ while ($max_exrows < 30 and defined $cgi->param('ExpenseID_' . ($max_exrows + 1)));
-			$whinge->('No expenses?') unless $max_exrows >= 0;
-
-			foreach (0 .. $max_exrows) {
+			foreach (0 .. get_rows(30, $cgi, 'ExpenseID_', sub { $whinge->('No expenses?') })) {
 				my $id = clean_word($cgi->param("ExpenseID_$_"));
 				my $desc = clean_words($cgi->param("ExpenseDesc_$_"));
 				next unless (defined $id) or (defined $desc);
@@ -1866,11 +1862,7 @@ sub despatch_admin
 			my %cfg;
 			my $whinge = sub { whinge($_[0], gen_edit_pers_attrs($etoken)) };
 
-			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 100 and defined $cgi->param('Type_' . ($max_rows + 1)));
-			$whinge->('No attributes?') unless $max_rows >= 0;
-
-			foreach my $row (0 .. $max_rows) {
+			foreach my $row (0 .. get_rows(100, $cgi, 'Type_', sub { $whinge->('No attributes?') })) {
 				my $type = clean_word($cgi->param("Type_$row"));
 				my $attr = clean_words($cgi->param("Attr_$row"));
 				next unless $attr;
@@ -1982,10 +1974,6 @@ sub despatch_admin
 		if (defined $cgi->param('save')) {
 			my $whinge = sub { whinge($_[0], gen_edit_rates($etoken)) };
 
-			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 100 and defined $cgi->param('Date_' . ($max_rows + 1)));
-			$whinge->('No rates?') unless $max_rows >= 0;
-
 			my %cfg = read_units_cfg("$cfg_file.p1");	# presume we got here having successfully just defined units
 			delete $cfg{$_} foreach (grep (ref $cfg{$_}, keys %cfg));
 
@@ -2007,7 +1995,7 @@ sub despatch_admin
 			}
 
 			my $added = 0;
-			foreach my $row (0 .. $max_rows) {
+			foreach my $row (0 .. get_rows(100, $cgi, 'Date_', sub { $whinge->('No rates?') })) {
 				my $rate_found = 0;
 				my %row;
 				foreach (@{$cfg{Headings}}) {
@@ -2680,9 +2668,7 @@ sub despatch_user
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 			(defined $cgi->param('omit')) ? $tg{Omit} = undef : delete $tg{Omit};
 
-			my $max_rows = -1;
-			$max_rows++ while ($max_rows < 100 and defined $cgi->param('Creditor_' . ($max_rows + 1)));
-			$whinge->('No transactions?') unless $max_rows >= 0;
+			my $max_rows = get_rows(100, $cgi, 'Creditor_', sub { $whinge->('No transactions?') });
 
 			my %acct_names = get_acct_name_map;
 			my @accts = map { /^(.*)_0$/; $1 } grep ((/^(.+)_0$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), $cgi->param);
