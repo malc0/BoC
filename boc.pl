@@ -514,7 +514,7 @@ sub create_datastore
 		(mkdir $user_path or die) unless (-d "$user_path");
 		$git->init();
 		$whinge->('Unable to get commit lock') unless try_commit_lock($cryptpass);
-		# no session so not edit_token protected.  FIXME?
+		# no session so not edit_token protected.
 		try_commit_and_unlock(sub {
 			write_simp_cfg("$user_path/$user", %userdetails);
 			add_commit("$user_path/$user", 'CDS admin creation', $user);
