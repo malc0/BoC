@@ -966,7 +966,7 @@ sub gen_edit_units
 	my %cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%cfg);
 	my $num_rows = (scalar @units > 0) ? (scalar @units) + 3 : 5;
-	my @rows = map ({ D => $cfg{$_}, C => $_, A => !!($cfg{Commodities} =~ /(^|;)$_($|;)/), B => ($cfg{Anchor} eq $_), P => ($cfg{Default} eq $_), R => $_ }, @units);
+	my @rows = map ({ D => $cfg{$units[$_]}, C => $units[$_], A => !!($cfg{Commodities} =~ /(^|;)$units[$_]($|;)/), B => ($cfg{Anchor} eq $units[$_]), P => ($cfg{Default} eq $units[$_]), R => $_ }, 0 .. $#units);
 	push (@rows, { D => '', C => '', B => 0, A => 0, P => 0, R => $_ }) foreach (scalar @units .. ($num_rows - 1));
 
 	$tmpl->param(ROWS => \@rows);
@@ -1945,11 +1945,9 @@ sub despatch_admin
 
 		if (defined $cgi->param('rates')) {
 			my $whinge = sub { whinge($_[0], gen_edit_units($etoken)) };
-			my @rows = map {/^Description_(.*)/; $1} grep (/^Description_.+$/, $cgi->param);
-
-			$whinge->('No currencies?') unless scalar @rows;
 
 			my %cfg = read_units_cfg($cfg_file, 1);
+			my %oldcfg = %cfg;
 			delete $cfg{$_} foreach (grep (!ref $cfg{$_}, keys %cfg));
 
 			$cfg{Commodities} = '';
@@ -1958,22 +1956,23 @@ sub despatch_admin
 			my $nunits = 0;
 			my %rename;
 
-			foreach my $row (@rows) {
+			foreach my $row (0 .. get_rows(100, $cgi, 'Description_', sub { $whinge->('No currencies?') })) {
 				my $code = clean_unit($cgi->param("Code_$row"));
+				my $oldcode = clean_unit($cgi->param("OldCode_$row"));
 				my $desc = clean_words($cgi->param("Description_$row"));
 				next unless $code or $desc;
 				$whinge->('Missing/invalid short code') unless $code;
 				validate_unitname($code, $whinge);
-				unless ($row =~ /^\d+$/ or $code eq $row) {
+				if (defined $oldcode && exists $oldcfg{$oldcode} && $oldcode ne $code) {
 					# renaming!
 					foreach my $key (keys %cfg) {
-						if (ref $cfg{$key} and $key =~ /^$row\/(.*)$/) {
+						if (ref $cfg{$key} && $key =~ /^$oldcode\/(.*)$/) {
 							my $new = "$code/$1";
 							s/^$key$/$new/ foreach (@{$cfg{Headings}});
 							$cfg{$new} = $cfg{$key};
 							delete $cfg{$key};
 						}
-						if (ref $cfg{$key} and $key =~ /^(.*)\/$row$/) {
+						if (ref $cfg{$key} && $key =~ /^(.*)\/$oldcode$/) {
 							my $new = "$1/$code";
 							s/^$key$/$new/ foreach (@{$cfg{Headings}});
 							$cfg{$new} = $cfg{$key};
@@ -1981,7 +1980,7 @@ sub despatch_admin
 						}
 					}
 
-					$rename{$row} = $code;
+					$rename{$oldcode} = $code;
 				}
 				$cfg{$code} = $desc;
 				$nunits++;

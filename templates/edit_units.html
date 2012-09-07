@@ -13,15 +13,16 @@
 		<form action="boc.pl" method="post" onsubmit="if (this.rates.clicked) {
 				this.rates.clicked = false;
 				var sub = true;
-				for (i = 0; i < this.elements.length; i++)
-					if (this.elements[i].name.search(/^Code_(\D+)/) >= 0 && RegExp.$1 != this.elements[i].value) {
-						if (!this.elements[i].value.length) {
-				       			if (!this['Description_' + RegExp.$1].value.length && !confirm('Really delete unit ' + RegExp.$1 + '?'))
+				for (i = 0; sub && i < this.elements.length && 'Code_' + i in this; i++) {
+					if (this['OldCode_' + i].value.length && this['OldCode_' + i].value != this['Code_' + i].value) {
+						if (!this['Code_' + i].value.length) {
+				       			if (!this['Description_' + i].value.length && !confirm('Really delete unit ' + this['OldCode_' + i].value + '?'))
 								sub = false;
 						} else
-							if (!confirm('Really rename unit ' + RegExp.$1 + ' to ' + this.elements[i].value + '?'))
+							if (!confirm('Really rename unit ' + this['OldCode_' + i].value + ' to ' + this['Code_' + i].value + '?'))
 								sub = false;
 					}
+				}
 				return sub;
 			} return true">
 		<div>
@@ -32,6 +33,7 @@
 				<tr><th>Currency description</th><th>Short code</th><th>Commodity</th><th>Anchor currency</th><th>Presentation default</th></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr>
+					<input type="hidden" value="<TMPL_VAR NAME=C>" name="OldCode_<TMPL_VAR NAME=R>">
 					<td style="text-align:left"><input type="text" value="<TMPL_VAR NAME=D>" name="Description_<TMPL_VAR NAME=R>"/></td>
 					<td><input type="text" value="<TMPL_VAR NAME=C>" name="Code_<TMPL_VAR NAME=R>" style="width:6ex"/></td>
 					<td><input type="checkbox" value="" name="Commodity_<TMPL_VAR NAME=R>" <TMPL_IF NAME=A>checked="checked"</TMPL_IF>/></td>
