@@ -1561,7 +1561,9 @@ sub despatch_admin
 			}
 			if (scalar @{$meet{Person}} && $ft_file && -e $ft_file) {
 				my %ft = read_htsv($ft_file);
-				my @commods = keys %{{known_commod_descs}};
+				my %cf = read_htsv("$config{Root}/config_fees");
+				my %cds = known_commod_descs;
+				my @commods = grep (exists $cds{$_}, @{$cf{Fee}});
 
 				splice (@{$meet{Headings}}, 1, 0, 'BaseFee') if !grep (/^BaseFee$/, @{$meet{Headings}});
 				foreach my $commod (@commods) {
