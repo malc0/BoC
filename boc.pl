@@ -655,13 +655,78 @@ sub get_new_session
 	return $session;
 }
 
+sub query_all_htsv_in_path
+{
+	my ($path, $key, $all) = @_;
+
+	my @accts = glob ("$path/*");
+	my %response;
+
+	foreach my $acct (@accts) {
+		next unless $acct =~ /.*\/(.*)/;
+		$acct = $1;
+		my %acctdetails = ($path =~ /transaction_groups$/) ? %{$tgds{$acct}} : read_htsv("$path/$acct");
+		$response{$acct} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
+	}
+
+	return %response;
+}
+
+sub get_acct_name_map
+{
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	return (%ppl, %vaccts);
+}
+
+sub fee_cfg_valid
+{
+	return 1 unless -r "$config{Root}/config_fees";
+
+	my %cf = read_htsv("$config{Root}/config_fees");
+
+	my %acct_names = get_acct_name_map;
+	my $bad = 0;
+	my $whinge = sub { $bad = 1 };
+	validate_acct($cf{MeetAccount}, \%acct_names, $whinge);
+	return 0 if $bad;
+
+	return 1 unless exists $cf{Headings};
+
+	foreach my $hd ('Fee', 'IsBool', 'IsDrain', 'Account', 'Description') {
+		return 0 unless grep (/^$hd$/, @{$cf{Headings}});
+		return 0 unless exists $cf{$hd};
+	}
+
+	my %cds = known_commod_descs;
+
+	my %seen;
+	foreach (@{$cf{Fee}}) {
+		return unless defined;
+		return 0 if $seen{$_}++;
+	}
+
+	foreach my $row (0 .. $#{$cf{Fee}}) {
+		return 0 if clean_int($cf{Fee}[$row]);
+		return 0 unless defined $cf{Account}[$row] && exists $acct_names{$cf{Account}[$row]};
+
+		if ($cf{Fee}[$row] =~ /[A-Z]/) {
+			return 0 unless exists $cds{$cf{Fee}[$row]};
+		} else {
+			return 0 if true($cf{IsBool}) && !true($cf{IsDrain});
+			return 0 unless defined $cf{Description}[$row] && length $cf{Description}[$row];
+		}
+	}
+
+	return 1;
+}
+
 sub gen_tcp
 {
 	my $tmpl = load_template('treasurer_cp.html');
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	my %fee_cfg = read_htsv("$config{Root}/config_fees", 1);
-	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => (exists $fee_cfg{MeetAccount}));	# FIXME does MeetAccount need to be valid?
+	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => fee_cfg_valid);
 
 	return $tmpl;
 }
@@ -1448,6 +1513,7 @@ sub despatch_admin
 			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets());
 		}
 		if (defined $cgi->param('view')) {
+			whinge('Cannot view meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
 			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 
 			emit(gen_edit_meet($mid, undef));
@@ -1460,6 +1526,7 @@ sub despatch_admin
 		my $mt_file = "$config{Root}/meets/$edit_id";
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
+			whinge('Cannot edit meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
 			whinge("Couldn't get edit lock for meet \"$edit_id\"", gen_manage_meets) unless try_lock($mt_file, $sessid);
 			unless (-r $mt_file) {
 				unlock($mt_file);
@@ -1476,6 +1543,7 @@ sub despatch_admin
 		my %meet = read_htsv($mt_file);
 
 		if (defined $cgi->param('save')) {
+			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
 			my $whinge = sub { whinge($_[0], gen_edit_meet($edit_id, $etoken)) };
 
 			delete $meet{Currency};
@@ -1536,6 +1604,7 @@ sub despatch_admin
 		my %meet = read_htsv($mt_file);
 
 		if (defined $cgi->param('save')) {
+			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $etoken)) };
 			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 
@@ -1999,30 +2068,6 @@ sub despatch_admin
 	}
 
 	return;
-}
-
-sub query_all_htsv_in_path
-{
-	my ($path, $key, $all) = @_;
-
-	my @accts = glob ("$path/*");
-	my %response;
-
-	foreach my $acct (@accts) {
-		next unless $acct =~ /.*\/(.*)/;
-		$acct = $1;
-		my %acctdetails = ($path =~ /transaction_groups$/) ? %{$tgds{$acct}} : read_htsv("$path/$acct");
-		$response{$acct} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
-	}
-
-	return %response;
-}
-
-sub get_acct_name_map
-{
-	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	return (%ppl, %vaccts);
 }
 
 sub date_sorted_htsvs
