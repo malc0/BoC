@@ -1,15 +1,15 @@
 <!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 	<head>
-		<title><TMPL_VAR NAME=SN> meet form configuration</title>
+		<title><TMPL_VAR NAME=SN> charge/credit/expense configuration</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 	</head>
 	<body>
-		<h1>Meet form configuration</h1>
+		<h1>Charge/credit/expense configuration</h1>
 
 		<form action="boc.pl" method="post">
 		<div>
-			<input type="hidden" name="tmpl" value="edit_meet_cfg"/>
+			<input type="hidden" name="tmpl" value="edit_fee_cfg"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
 
 			<h3><label>Default meet account: <select name="MeetAcct">

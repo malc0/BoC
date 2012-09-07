@@ -651,8 +651,8 @@ sub gen_tcp
 	my $tmpl = load_template('treasurer_cp.html');
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
-	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => (exists $meet_cfg{MeetAccount}));	# FIXME does MeetAccount need to be valid?
+	my %fee_cfg = read_htsv("$config{Root}/config_fees", 1);
+	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => (exists $fee_cfg{MeetAccount}));	# FIXME does MeetAccount need to be valid?
 
 	return $tmpl;
 }
@@ -732,25 +732,6 @@ sub gen_edit_inst_cfg
 		$tmpl->param($param => $inst_cfg{$param});
 		$tmpl->param($param => '" data-noop="') if exists $inst_cfg{$param} and not defined $inst_cfg{$param};
 	}
-
-	return $tmpl;
-}
-
-sub gen_edit_simp_trans
-{
-	my $tmpl = load_template('edit_simp_trans.html', $_[0]);
-
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	my @sorted_vaccts = sort_AoH(\%vaccts);
-
-	my %cfg = read_htsv("$config{Root}/config_simp_trans", 1);
-	my $num_rows = ($#{$cfg{Description}} >= 0) ? scalar @{$cfg{Description}} + min(5, 30 - scalar @{$cfg{Description}}) : 10;
-	my @rows;
-	foreach my $row (0 .. ($num_rows - 1)) {
-		my @rowoptions = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{DebitAcct}[$row]) ? $cfg{DebitAcct}[$row] eq $_ : undef }, @sorted_vaccts);
-		push (@rows, { ACCTS => \@rowoptions, D => $cfg{Description}[$row], R => $row });
-	}
-	$tmpl->param(ROWS => \@rows);
 
 	return $tmpl;
 }
@@ -840,11 +821,11 @@ sub true
 	return defined $_[0] && !!($_[0] =~ /^\s*[^fn0]/i);
 }
 
-sub gen_edit_meet_cfg
+sub gen_edit_fee_cfg
 {
-	my $tmpl = load_template('edit_meet_cfg.html', $_[0]);
+	my $tmpl = load_template('edit_fee_cfg.html', $_[0]);
 
-	my %cfg = read_htsv("$config{Root}/config_meet_form", 1);
+	my %cfg = read_htsv("$config{Root}/config_fees", 1);
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my @sorted_vaccts = sort_AoH(\%vaccts);
@@ -1097,7 +1078,7 @@ sub gen_edit_meet
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
 	$tmpl->param(CURS => \@currencies);
 
-	my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
+	my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
 	my %cds = known_commod_descs;
 	my @ccs = grep (exists $cds{$meet_cfg{Fee}[$_]}, 0 .. $#{$meet_cfg{Fee}});
 	my @drains = grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}});
@@ -1197,7 +1178,7 @@ sub meet_to_tg
 
 	my @units = known_units;
 	my %cds = known_commod_descs;
-	my %meet_cfg = read_htsv("$config{Root}/config_meet_form");	# world breaks if doesn't exist (need MeetAccount)
+	my %meet_cfg = read_htsv("$config{Root}/config_fees");	# world breaks if doesn't exist (need MeetAccount)
 
 	foreach my $hd (@{$meet{Headings}}) {
 		next if ($hd eq 'Person' || $hd eq 'Notes');
@@ -1289,14 +1270,10 @@ sub despatch_admin
 			$whinge->() unless try_lock("$config{Root}/config", $sessid);
 			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
 		}
-		if (defined $cgi->param('edit_simp_trans')) {
-			$whinge->() unless try_lock("$config{Root}/config_simp_trans", $sessid);
-			emit(gen_edit_simp_trans(get_edit_token($sessid, 'edit_simp_trans')));
-		}
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
-		if (defined $cgi->param('edit_meet_cfg')) {
-			$whinge->() unless try_lock("$config{Root}/config_meet_form", $sessid);
-			emit(gen_edit_meet_cfg(get_edit_token($sessid, 'edit_meet_cfg')));
+		if (defined $cgi->param('edit_fee_cfg')) {
+			$whinge->() unless try_lock("$config{Root}/config_fees", $sessid);
+			emit(gen_edit_fee_cfg(get_edit_token($sessid, 'edit_fee_cfg')));
 		}
 		if (defined $cgi->param('edit_pers_attrs')) {
 			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
@@ -1503,7 +1480,7 @@ sub despatch_admin
 			$meet{Currency} = (scalar @units > 1) ? validate_unit(scalar $cgi->param('Currency'), \@units, $whinge) : $units[0] if scalar @units;
 
 			my %cds = known_commod_descs;
-			my %meet_cfg = read_htsv("$config{Root}/config_meet_form", 1);
+			my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
 
 			foreach my $pers (@{$meet{Person}}) {
 				push (@{$meet{BaseFee}}, validate_decimal(scalar $cgi->param("${pers}_Base"), 'Base fee', 1, $whinge));
@@ -1638,40 +1615,6 @@ sub despatch_admin
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to installation config' : 'Edit installation config cancelled', gen_tcp);
 	}
-	if ($cgi->param('tmpl') eq 'edit_simp_trans') {
-		my $cfg_file = "$config{Root}/config_simp_trans";
-
-		if (defined $cgi->param('save')) {
-			my %cfg;
-			my $whinge = sub { whinge($_[0], gen_edit_simp_trans($etoken)) };
-
-			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-
-			foreach my $row (0 .. get_rows(100, $cgi, 'DebitAcct_', sub { $whinge->('No transactions?') })) {
-				my $desc = clean_words($cgi->param("Description_$row"));
-				my $acct = clean_username($cgi->param("DebitAcct_$row"));
-				next unless $desc or $acct;
-				$whinge->('Missing account') unless $acct;
-				$whinge->('Missing description') unless $desc;
-				validate_acct($acct, \%vaccts, $whinge);
-				push (@{$cfg{Description}}, $desc);
-				push (@{$cfg{DebitAcct}}, $acct);
-			}
-			@{$cfg{Headings}} = ( 'DebitAcct', 'Description' ) if exists $cfg{DebitAcct};
-
-			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
-			try_commit_and_unlock(sub {
-				write_htsv($cfg_file, \%cfg, 11);
-				add_commit($cfg_file, 'config_simp_trans: simple transaction types modified', $session);
-			}, $cfg_file);
-		} else {
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_simp_trans', $etoken);
-		}
-
-		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to transaction config' : 'Edit transaction config cancelled', gen_tcp);
-	}
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls);
@@ -1780,12 +1723,12 @@ sub despatch_admin
 			emit_with_status((defined $cgi->param('save')) ? "Added fee template \"$new_id\"" : 'Add fee template cancelled', gen_manage_fee_tmpls);
 		}
 	}
-	if ($cgi->param('tmpl') eq 'edit_meet_cfg') {
-		my $cfg_file = "$config{Root}/config_meet_form";
+	if ($cgi->param('tmpl') eq 'edit_fee_cfg') {
+		my $cfg_file = "$config{Root}/config_fees";
 
 		if (defined $cgi->param('save')) {
 			my %cfg;
-			my $whinge = sub { whinge($_[0], gen_edit_meet_cfg($etoken)) };
+			my $whinge = sub { whinge($_[0], gen_edit_fee_cfg($etoken)) };
 
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
@@ -1823,14 +1766,14 @@ sub despatch_admin
 			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'IsDrain', 'Account', 'Description' ) if exists $cfg{Fee};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_meet_cfg', $etoken);
+			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
 			try_commit_and_unlock(sub {
 				write_htsv($cfg_file, \%cfg, 11);
-				add_commit($cfg_file, 'config_meet_form: meet form configuration modified', $session);
+				add_commit($cfg_file, 'config_fees: expense configuration modified', $session);
 			}, $cfg_file);
 		} else {
 			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_meet_cfg', $etoken);
+			redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to meet form config' : 'Edit meet form config cancelled', gen_tcp);
@@ -2096,8 +2039,8 @@ sub gen_ucp
 		);
 		push (@{($tg_broken or $computed{$user} >= 0) ? \@credlist : \@debtlist}, \%outputdetails);
 	}
-	my %cst = read_htsv("$config{Root}/config_simp_trans", 1);
-	$tmpl->param(SIMPTRANS => (exists $cst{DebitAcct} && scalar @{$cst{DebitAcct}}));
+	my %cf = read_htsv("$config{Root}/config_fees", 1);
+	$tmpl->param(SIMPTRANS => (exists $cf{Fee} && scalar @{$cf{Fee}}));	# FIXME check there's some valid expenses
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
 	my @units = known_units();
 	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
@@ -2207,9 +2150,10 @@ sub gen_add_swap
 	if ($swap) {
 		@debtaccts = map ({ O => $accts{$_}, V => $_ }, @sorted_accts);
 	} else {
-		my %cfg = read_htsv("$config{Root}/config_simp_trans");
-		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], 0 .. $#{$cfg{Description}}));	# Schwartzian transform ftw
-		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, @sorteddescs);
+		my %cfg = read_htsv("$config{Root}/config_fees");
+		my %cds = known_commod_descs;
+		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (!(exists $cds{$cfg{Fee}[$_]} || true($cfg{IsBool}[$_]) || true($cfg{IsDrain}[$_])), 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
+		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{Fee}[$_]" }, @sorteddescs);
 	}
 
 	$tmpl->param(SWAP => $swap, PPL => \@pploptions, CUR => (scalar @units > 1), CURS => \@currencies, DEBTACCTS => \@debtaccts);
@@ -2230,9 +2174,10 @@ sub gen_add_split
 
 	my @debtaccts;
 	if ($vacct) {
-		my %cfg = read_htsv("$config{Root}/config_simp_trans");
-		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], 0 .. $#{$cfg{Description}}));	# Schwartzian transform ftw
-		@debtaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{DebitAcct}[$_]!$cfg{Description}[$_]" }, @sorteddescs);
+		my %cfg = read_htsv("$config{Root}/config_fees");
+		my %cds = known_commod_descs;
+		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (!(exists $cds{$cfg{Fee}[$_]} || true($cfg{IsBool}[$_]) || true($cfg{IsDrain}[$_])), 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
+		@debtaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{Fee}[$_]" }, @sorteddescs);
 	} else {
 		@debtaccts = @pploptions;
 	}
@@ -2487,13 +2432,13 @@ sub despatch_user
 				$namedesc = substr ($namedesc, 0, rindex ($namedesc, ' ', 14)) . ' [...]' if (length $namedesc > 20);
 				$tg{Name} = "Swap: $acct_names{$debtor}->$acct_names{@{$tg{Creditor}}[0]} for $namedesc";
 			} else {
-				my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-				my $type = clean_words($cgi->param('Debtor'));
-				$whinge->('Broken expense type') unless defined $type;
-				($debtor, $type) = split('!', $type, 2);
-				validate_acct($debtor, \%vacct_names, $whinge);
-				$whinge->('Broken expense type') unless defined $type;
-				$tg{Name} = "Expense: $type";
+				my %cf = read_htsv("$config{Root}/config_fees");
+				my $fee = clean_word($cgi->param('Debtor'));
+				$whinge->('Broken expense type') unless defined $fee;
+				my $row = first { $cf{Fee}[$_] eq $fee } 0 .. $#{$cf{Fee}};
+				$whinge->('Unknown expense type') unless defined $row;
+				$debtor = $cf{Account}[$row];
+				$tg{Name} = "Expense: $cf{Description}[$row]";
 				$tg{Name} .= lc " ($tg{Description}[0])" if length $tg{Description}[0];
 			}
 			push (@{$tg{$debtor}}, 1);
@@ -2557,7 +2502,7 @@ sub despatch_user
 				push (@{$tg{TrnsfrPot}}, 1) if scalar keys %creds > 1;
 			}
 
-			my %vacct_names = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+			my %cf = read_htsv("$config{Root}/config_fees");
 			my @accts;
 			my $descstr = '';
 			foreach my $acct (map { /^Debt_(.*)/; $1 } grep (/^Debt_.+$/, $cgi->param)) {
@@ -2566,10 +2511,12 @@ sub despatch_user
 				if (!$vacct) {
 					validate_acct($acct, \%acct_names, $whinge);
 				} else {
-					$whinge->('Broken expense type') unless defined $acct;
-					($acct, $type) = split('!', $acct, 2);
-					validate_acct($acct, \%vacct_names, $whinge);
-					$whinge->('Broken expense type') unless defined $type;
+					my $fee = clean_word($acct);
+					$whinge->('Broken expense type') unless defined $fee;
+					my $row = first { $cf{Fee}[$_] eq $fee } 0 .. $#{$cf{Fee}};
+					$whinge->('Unknown expense type') unless defined $row;
+					$acct = $cf{Account}[$row];
+					$type = $cf{Description}[$row];
 				}
 				if ($ds) {
 					push (@{$tg{$acct}}, $ds);
