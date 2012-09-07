@@ -835,6 +835,11 @@ sub gen_edit_fee_tmpl
 	return $tmpl;
 }
 
+sub true
+{
+	return defined $_[0] && !!($_[0] =~ /^\s*[^fn0]/i);
+}
+
 sub gen_edit_meet_cfg
 {
 	my $tmpl = load_template('edit_meet_cfg.html', $_[0]);
@@ -855,7 +860,7 @@ sub gen_edit_meet_cfg
 	foreach my $commod (keys %cds) {
 		my $row = first { @{$cfg{Fee}}[$_] eq $commod } 0 .. $#{$cfg{Fee}};
 		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
-		push (@feerows, { FEED => $cds{$commod}, F => $commod, BOOL => (defined $row && defined $cfg{Boolean}[$row] && !!($cfg{Boolean}[$row] =~ /^\s*[^fn0]/i)), ACCTS => \@rowoptions });
+		push (@feerows, { FEED => $cds{$commod}, F => $commod, BOOL => (defined $row && true($cfg{IsBool}[$row])), ACCTS => \@rowoptions });
 	}
 	my $n_fees = scalar @feerows;
 	my @drains = grep (!exists $cds{$_}, @{$cfg{Fee}});
@@ -865,7 +870,7 @@ sub gen_edit_meet_cfg
 	foreach my $drain (@drains) {
 		my $row = first { @{$cfg{Fee}}[$_] eq $drain } 0 .. $#{$cfg{Fee}};
 		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
-		push (@feerows, { DRAIN => 1, FEED => (defined $row) ? @{$cfg{Description}}[$row] : '', FEEID => $drain, F => scalar @feerows - $n_fees, BOOL => (defined $row && defined $cfg{Boolean}[$row] && !!($cfg{Boolean}[$row] =~ /^\s*[^fn0]/i)), ACCTS => \@rowoptions });
+		push (@feerows, { DRAIN => 1, FEED => (defined $row) ? @{$cfg{Description}}[$row] : '', FEEID => $drain, F => scalar @feerows - $n_fees, BOOL => (defined $row && true($cfg{IsBool}[$row])), ACCTS => \@rowoptions });
 	}
 
 	my @exps = map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %cfg);
@@ -1117,7 +1122,7 @@ sub gen_edit_meet
 		my @rfees;
 		foreach my $commod (@{$meet_cfg{Fee}}) {
 			my $mc_row = first { @{$meet_cfg{Fee}}[$_] eq $commod } 0 .. $#{$meet_cfg{Fee}};
-			push (@rfees, { F => $commod, V => $meet{$commod}[$row], BOOL => $meet_cfg{Boolean}[$mc_row] });
+			push (@rfees, { F => $commod, V => $meet{$commod}[$row], BOOL => $meet_cfg{IsBool}[$mc_row] });
 		}
 		my @exps = map ({ E => $_, V => $meet{$_}[$row] }, map { s/^Expense_(.+)$//; $1} grep (/^Expense_.+/, keys %meet_cfg));
 		my $a = $meet{Person}[$row];
@@ -1814,7 +1819,7 @@ sub despatch_admin
 				next unless defined $cgi->param("Acct_$_") && length $cgi->param("Acct_$_");
 				push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$_"), \%acct_names, $whinge));
 				push (@{$cfg{Fee}}, $_);
-				push (@{$cfg{Boolean}}, (defined $cgi->param("Bool_$_")));
+				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$_")));
 				push (@{$cfg{Description}}, '');
 			}
 			foreach (0 .. get_rows(30, $cgi, 'Acct_', sub { $whinge->('No drain fees?') })) {
@@ -1827,7 +1832,7 @@ sub despatch_admin
 				$whinge->("Missing drain account for \"$desc\"") unless defined $acct && length $acct;
 				push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
 				push (@{$cfg{Fee}}, lc $id);
-				push (@{$cfg{Boolean}}, (defined $cgi->param("Bool_$_")));
+				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$_")));
 				push (@{$cfg{Description}}, $desc);
 			}
 
@@ -1840,7 +1845,7 @@ sub despatch_admin
 				$cfg{'Expense_' . lc ($id)} = $desc;
 			}
 
-			@{$cfg{Headings}} = ( 'Fee', 'Boolean', 'Account', 'Description' ) if exists $cfg{Fee};
+			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'Account', 'Description' ) if exists $cfg{Fee};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_meet_cfg', $etoken);
