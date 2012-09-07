@@ -905,6 +905,10 @@ sub gen_edit_fee_cfg
 	my @sorted_vaccts = sort_AoH(\%vaccts);
 
 	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{MeetAccount} && $cfg{MeetAccount} eq $_) }, @sorted_vaccts);
+	unless (grep (/^$cfg{MeetAccount}$/, @sorted_vaccts)) {
+		push (@accts, { O => $cfg{MeetAccount}, V => $cfg{MeetAccount}, S => 1 });
+		$tmpl->param(SEL_CL => 'broken');
+	}
 
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %acct_names = (%vaccts, %ppl);
@@ -912,13 +916,18 @@ sub gen_edit_fee_cfg
 
 	my %cds = known_commod_descs;
 	my @drains = grep (!exists $cds{$_}, @{$cfg{Fee}});
-	my @blanks = map ($_, 0 .. ((scalar @drains > 0) ? min(2, 30 - scalar @drains) : 3));
 	my @feerows;
-	foreach my $fee ((keys %cds, @drains, @blanks)) {
+	foreach my $fee ((keys %cds, @drains)) {
 		my $row = first { @{$cfg{Fee}}[$_] eq $fee } 0 .. $#{$cfg{Fee}};
 		my $commod = exists $cds{$fee};
 		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $row && defined $cfg{Account}[$row] && $cfg{Account}[$row] eq $_) }, @sorted_accts);
-		push (@feerows, { COMMOD => $commod, F => $fee, FEEID => (defined $row) ? @{$cfg{Fee}}[$row] : '', FEED => $commod ? $cds{$fee} : ((defined $row) ? @{$cfg{Description}}[$row] : ''), BOOL => (defined $row && true($cfg{IsBool}[$row])), DRAIN => (defined $row && true($cfg{IsDrain}[$row])), ACCTS => \@rowoptions });
+		my $broken_fee = !(defined $fee) || clean_int($fee) || (!$commod && $fee =~ /[A-Z]/);
+		my $broken_acct = !(defined $row) || !defined $cfg{Account}[$row] || !grep (/^$cfg{Account}[$row]$/, @sorted_accts);
+		push (@feerows, { COMMOD => $commod, F => $fee, FEEID => $fee, FEED => $commod ? $cds{$fee} : $cfg{Description}[$row], BOOL => (defined $row && true($cfg{IsBool}[$row])), DRAIN => (defined $row && true($cfg{IsDrain}[$row])), ACCTS => \@rowoptions, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(length $cfg{Description}[$row])) ? 'broken' : '', BD_CL => (!$commod && true($cfg{IsBool}[$row]) && !true($cfg{IsDrain}[$row])) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
+	}
+	foreach my $fee (map ($_, 0 .. ((scalar @drains > 0) ? min(2, 30 - scalar @drains) : 3))) {
+		my @rowoptions = map ({ O => $acct_names{$_}, V => $_ }, @sorted_accts);
+		push (@feerows, { F => $fee, FEEID => '', FEED => '', ACCTS => \@rowoptions });
 	}
 
 	$tmpl->param(ACCTS => \@accts, FEEROWS => \@feerows);
