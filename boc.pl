@@ -1295,8 +1295,6 @@ sub meet_to_tg
 	@{$tg{Headings}} = ( 'Creditor', 'Amount', @{$meet{Person}}, 'Description' );
 	splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
-	# FIXME: validate?
-
 	return %tg;
 }
 
