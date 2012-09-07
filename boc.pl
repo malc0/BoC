@@ -1743,6 +1743,7 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my %cfg;
+			my %oldcf = read_htsv($cfg_file, 1);
 			my $whinge = sub { whinge($_[0], gen_edit_fee_cfg($etoken)) };
 
 			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
@@ -1753,6 +1754,7 @@ sub despatch_admin
 			$cfg{MeetAccount} = validate_acct(scalar $cgi->param('MeetAcct'), \%vaccts, $whinge);
 
 			my %cds = known_commod_descs;
+			my %recode;
 			foreach my $fee (map { /^Acct_(.*)/; $1 } grep (/^Acct_.+$/, $cgi->param)) {
 				my $desc = clean_words($cgi->param("FeeDesc_$fee"));
 
@@ -1766,6 +1768,7 @@ sub despatch_admin
 					$whinge->("ID cannot be a number ($id)") if defined $id && !($id =~ /^\s*$/) && defined clean_int($id);
 					my $acct = clean_username($cgi->param("Acct_$fee"));
 					next unless (defined $id && !($id =~ /^\s*$/)) || defined $desc;
+					$recode{$fee} = $id if !($fee =~ /[A-Z]/) && grep (/^$fee$/, @{$oldcf{Fee}}) && $fee ne $id;
 					$whinge->("Missing ID for \"$desc\"") unless defined $id;
 					$whinge->("Missing display text for \"$id\"") unless defined $desc;
 					$whinge->("Missing linked account for \"$desc\"") unless defined $acct && length $acct;
@@ -1781,10 +1784,35 @@ sub despatch_admin
 			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'IsDrain', 'Account', 'Description' ) if exists $cfg{Fee};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			if (keys %recode && scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
+				un_commit_lock;
+				$whinge->('Cannot perform fee recode at present: meets busy');
+			}
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
 			try_commit_and_unlock(sub {
+				my $commit_msg = 'config_fees: expense configuration modified';
+
+				if (keys %recode) {
+					foreach my $mt_file (glob ("$config{Root}/meets/*")) {
+						$mt_file = untaint($mt_file);
+						my %meet = read_htsv($mt_file);
+
+						if (exists $meet{Headings}) {
+							foreach my $old (keys %recode) {
+								foreach (@{$meet{Headings}}) {
+									s/^$old$/$recode{$old}/;
+								}
+							}
+						}
+
+						write_htsv($mt_file, \%meet, 11);
+						$git->add($mt_file);
+					}
+					$commit_msg .= ' AND CODES ALTERED';
+				}
+
 				write_htsv($cfg_file, \%cfg, 11);
-				add_commit($cfg_file, 'config_fees: expense configuration modified', $session);
+				add_commit($cfg_file, $commit_msg, $session);
 			}, $cfg_file);
 		} else {
 			unlock($cfg_file);
