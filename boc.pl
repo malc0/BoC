@@ -2519,9 +2519,9 @@ sub despatch_user
 					$type = $cf{Description}[$row];
 				}
 				if ($ds) {
-					push (@{$tg{$acct}}, $ds);
-					push (@accts, $acct);
-					$descstr .= "$acct for $type, " if $vacct;
+					$tg{$acct}[0] = (exists $tg{$acct}) ? $tg{$acct}[0] + $ds : $ds;
+					push (@accts, $acct) unless grep (/^$acct$/, @accts);
+					$descstr .= "$type ($acct) -> $ds, " if $vacct;
 				}
 			}
 
