@@ -25,6 +25,7 @@ sub init_units_cfg
 	return;
 }
 
+# should always work
 sub known_units_raw
 {
 	my %cfg = @_;
@@ -32,6 +33,7 @@ sub known_units_raw
 	return grep (!ref $cfg{$_} && !/^(Anchor|Default|Commodities)$/, keys %cfg);
 }
 
+# should always work (modulo Commodities being screwed), except if 0 currencies and >1 commodity
 sub known_currs
 {
 	my %cfg = @_;
@@ -84,6 +86,7 @@ sub write_units_cfg
 	return write_htsv($file, $cfg, 12);
 }
 
+# should always work, Default may be wacky
 sub known_units
 {
 	my %cfg = @_;
@@ -94,12 +97,13 @@ sub known_units
 	return ($cfg{Default}, sort grep (!/^$cfg{Default}$/, known_units_raw(%cfg)));	# presentation unit returned first
 }
 
+# should always work for keys, not for descs
 sub known_commod_descs
 {
 	my %cfg = read_units_cfg($cfg_file);
 
 	my %cdesc;
-	$cdesc{$_} = $cfg{$_} foreach (grep ($cfg{Commodities} =~ /(^|;)$_($|;)/, known_units(%cfg)));
+	$cdesc{$_} = $cfg{$_} foreach (grep ($cfg{Commodities} =~ /(^|;)$_($|;)/, known_units_raw(%cfg)));
 
 	return %cdesc;
 }
