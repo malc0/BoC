@@ -24,6 +24,7 @@ use YAML::XS;
 
 use lib '.';
 use CleanData qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+use FT;
 use HeadedTSV;
 use TG;
 use Units;
@@ -808,7 +809,7 @@ sub gen_manage_fee_tmpls
 {
 	my $tmpl = load_template('manage_fee_tmpls.html');
 
-	my @list = map ({ TMPL => $_, NAME => transcode_uri_for_html($_) }, map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/fee_tmpls/*"));
+	my @list = map ({ TMPL => $_, NAME => transcode_uri_for_html($_), CL => !!valid_ft("$config{Root}/fee_tmpls/$_") ? undef : 'broken' }, map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/fee_tmpls/*"));
 	$tmpl->param(TMPLS => \@list);
 
 	return $tmpl;
@@ -1121,7 +1122,7 @@ sub gen_manage_meets
 {
 	my $tmpl = load_template('manage_meets.html');
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } glob ("$config{Root}/fee_tmpls/*");
+	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_), glob ("$config{Root}/fee_tmpls/*"));
 
 	my @meetlist;
 	foreach my $mid (date_sorted_htsvs('meets')) {
@@ -1154,7 +1155,8 @@ sub gen_edit_meet
 	my @units = known_units(%units_cfg);
 
 	my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
-	my $def_cur = ($ft_file && -e $ft_file) ? get_ft_currency(read_htsv($ft_file)) : $units_cfg{Default};
+	my %ft = valid_ft($ft_file);
+	my $def_cur = (%ft && defined get_ft_currency(%ft)) ? get_ft_currency(%ft) : $units_cfg{Default};
 	my $sel_cur = (exists $meet{Currency}) ? $meet{Currency} : $def_cur;
 
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
@@ -1200,46 +1202,6 @@ sub gen_edit_meet_ppl
 	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl);
 
 	return $tmpl;
-}
-
-sub get_ft_currency
-{
-	my (%ft) = @_;
-
-	return '' unless exists $ft{Unit};
-
-	my @curs = known_currs(read_units_cfg("$config{Root}/config_units"));
-
-	foreach my $ft_unit (@{$ft{Unit}}) {
-		return $ft_unit if grep (/^$ft_unit$/, @curs);
-	}
-
-	return undef;
-}
-
-sub get_ft_fees
-{
-	my ($acct, %ft) = @_;
-
-	my %user = read_simp_cfg("$config{Root}/users/$acct");
-	my %def_fees;
-
-	foreach (0 .. $#{$ft{Fee}}) {
-		my $relevant = 1;
-
-		if (defined $ft{Condition}[$_]) {
-			$ft{Condition}[$_] =~ s/\s*//g;
-			$ft{Condition}[$_] =~ s/&amp;/&/g;
-			foreach (split (/&&/, $ft{Condition}[$_])) {
-				next unless /^(!?)(.+)$/;
-				$relevant = 0 if ($1 ? exists $user{$2} : not exists $user{$2});
-			}
-		}
-
-		$def_fees{$ft{Unit}[$_] ? $ft{Unit}[$_] : ''} += $ft{Fee}[$_] if $relevant;
-	}
-
-	return %def_fees;
 }
 
 sub meet_to_tg
@@ -1630,12 +1592,12 @@ sub despatch_admin
 			@{$meet{Person}} = @ppl;
 
 			my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
-			if ($ft_file && -e $ft_file) {
-				my $cur = get_ft_currency(read_htsv($ft_file)) unless exists $meet{Currency};
+			my %ft = valid_ft($ft_file);
+			if (%ft) {
+				my $cur = get_ft_currency(%ft) unless exists $meet{Currency};
 				$meet{Currency} = $cur if $cur && length $cur;
 			}
-			if (scalar @{$meet{Person}} && $ft_file && -e $ft_file) {
-				my %ft = read_htsv($ft_file);
+			if (scalar @{$meet{Person}} && %ft) {
 				my %cf = read_htsv("$config{Root}/config_fees");
 				my %cds = known_commod_descs;
 				my @commods = grep (exists $cds{$_}, @{$cf{Fee}});
@@ -2823,6 +2785,7 @@ $git = Git::Wrapper->new($config{Root});
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
 
 init_units_cfg("$config{Root}/config_units");
+set_ft_config_root($config{Root});
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;
