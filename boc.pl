@@ -854,19 +854,41 @@ sub gen_edit_fee_tmpl
 	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
 
 	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units, $tmpl);
+	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id)) : %ft;
 
-	my @attrs = map ({ A => $_ }, keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}});
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @curs = known_currs(%units_cfg);
+	my %rawattrs = read_htsv("$config{Root}/config_pers_attrs", 1);
+	my %curs_in_use;
+	my %moreattrs;
+	foreach my $row (0 .. $#{$oldft{Fee}}) {
+		next unless defined $oldft{Unit}[$row] && length $oldft{Unit}[$row];
+		$curs_in_use{$oldft{Unit}[$row]} = 1 if grep (/^$oldft{Unit}[$row]$/, @curs);
+
+		next unless defined $ft{Condition}[$row];
+		(my $cond = $ft{Condition}[$row]) =~ s/\s*//g;
+		my @conds = split ('&amp;&amp;', $cond);
+		foreach (@conds) {
+			s/^!//;
+			$moreattrs{''} = 1 unless length $_;
+			$moreattrs{$_} = 1 unless exists $rawattrs{$_};
+		}
+	}
+
+	my @attrs = map ({ A => $_, A_CL => exists $moreattrs{$_} ? 'broken' : '' }, (keys %rawattrs, keys %moreattrs));
 
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
-	$tmpl->param(NATTRS => scalar @attrs);
+	$tmpl->param(NATTRS => scalar @attrs + scalar keys %moreattrs);
+	$tmpl->param(FH_CL => (!$edit_id || (exists $oldft{Fee} && (!(scalar @units) || exists $oldft{Unit}))) ? '' : 'broken');
+	$tmpl->param(AH_CL => (!$edit_id || exists $oldft{Condition}) ? '' : 'broken');
 
 	my @fees;
 	foreach my $row (0 .. $#{$ft{Fee}}) {
 		my $unk_cur = (not defined $ft{Unit}[$row] or not grep (/^$ft{Unit}[$row]$/, @units));
 		my @currencies = map ({ C => $_, S => ((defined $ft{Unit}[$row]) ? ($_ eq $ft{Unit}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
 		my @fattrs;
-		foreach (keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}}) {
+		foreach (keys %rawattrs, keys %moreattrs) {
 			my $cond = '';
 			($cond = $ft{Condition}[$row]) =~ s/\s*//g if defined $ft{Condition}[$row];
 			$cond =~ s/&amp;/&/g;
@@ -875,9 +897,10 @@ sub gen_edit_fee_tmpl
 			my $unless = ($cond =~ /&&!$_&&/);
 			$unless = 0 if $if;
 			my $dc = !($if or $unless);
-			push (@fattrs, { A => $_, I => $if, U => $unless, D => $dc });
+			push (@fattrs, { A => $_, I => $if, U => $unless, D => $dc, A_CL => exists $moreattrs{$_} ? 'broken' : '' });
 		}
-		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs });
+		my $unit_cl = (((scalar @units) && defined $ft{Unit}[$row] && grep (/^$ft{Unit}[$row]$/, @units) && !(grep (/^$ft{Unit}[$row]$/, @curs) && scalar keys %curs_in_use > 1 && $row <= $#{$oldft{Fee}})) || (!(scalar @units) && !(defined $ft{Unit}[$row] && length $ft{Unit}[$row]))) ? '' : 'broken';
+		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs, F_CL => (defined CleanData::clean_decimal($ft{Fee}[$row])) ? '' : 'broken', C_CL => $unit_cl });
 	}
 
 	$tmpl->param(ATTRS => \@attrs, FEES => \@fees);
