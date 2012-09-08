@@ -731,19 +731,13 @@ sub gen_tcp
 	return $tmpl;
 }
 
-sub query_pers_attrs
-{
-	my %attr_cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
-	return map ($attr_cfg{Type}[$_] . $attr_cfg{Attribute}[$_], 0 .. $#{$attr_cfg{Type}});
-}
-
 sub gen_manage_accts
 {
 	my $people = $_[0];
 	my $tmpl = load_template('manage_accts.html');
 	my @accounts = $people ? glob ("$config{Root}/users/*") : glob ("$config{Root}/accounts/*");
 	my @acctlist;
-	my @attrs_list = query_pers_attrs;
+	my @attrs_list = keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}};
 
 	foreach my $acct (@accounts) {
 		my %acctdetails = read_simp_cfg($acct);
@@ -789,7 +783,7 @@ sub gen_add_edit_acc
 		$tmpl->param(ADDRESS => $acctdetails{Address});
 		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
-	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_}) }, query_pers_attrs);
+	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_}) }, keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}});
 	$tmpl->param(ATTRS => \@attr_set);
 	$tmpl->param(USER_ACCT => 1) if $person;
 
@@ -860,7 +854,7 @@ sub gen_edit_fee_tmpl
 
 	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units, $tmpl);
 
-	my @attrs = map ({ A => $_ }, query_pers_attrs);
+	my @attrs = map ({ A => $_ }, keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}});
 
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
@@ -871,7 +865,7 @@ sub gen_edit_fee_tmpl
 		my $unk_cur = (not defined $ft{Unit}[$row] or not grep (/^$ft{Unit}[$row]$/, @units));
 		my @currencies = map ({ C => $_, S => ((defined $ft{Unit}[$row]) ? ($_ eq $ft{Unit}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
 		my @fattrs;
-		foreach (query_pers_attrs) {
+		foreach (keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}}) {
 			my $cond = '';
 			($cond = $ft{Condition}[$row]) =~ s/\s*//g if defined $ft{Condition}[$row];
 			$cond =~ s/&amp;/&/g;
@@ -945,14 +939,16 @@ sub gen_edit_pers_attrs
 	my @types = ( 'Has', 'Is' );
 
 	my %cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
-	foreach my $type (@{$cfg{Type}}) {
-		push (@types, $type) unless grep (/^$type$/, @types);
-	}
-	my $num_rows = ($#{$cfg{Type}} >= 0) ? scalar @{$cfg{Type}} + min(5, 30 - scalar @{$cfg{Type}}) : 10;
+	my @attrs = sort keys %cfg;
+
+	my $num_rows = (scalar @attrs > 0) ? scalar @attrs + min(5, 30 - scalar @attrs) : 10;
+	push (@attrs, ('') x ($num_rows - scalar @attrs));
 	my @rows;
+	my %type;
 	foreach my $row (0 .. ($num_rows - 1)) {
-		my @rowoptions = map ({ T => $_, S => (defined $cfg{Type}[$row]) ? $cfg{Type}[$row] eq $_ : undef }, @types);
-		push (@rows, { TYPES => \@rowoptions, A => $cfg{Attribute}[$row], R => $row });
+		my @rowoptions = map ({ T => $_, S => ($attrs[$row] =~ /^$_/ && ($attrs[$row] =~ s/^$_//, 1) && ($type{$attrs[$row]} = $_)) }, @types);
+		push (@rowoptions, { T => '', S => 1 }) if length $attrs[$row] && !(exists $type{$attrs[$row]});
+		push (@rows, { TYPES => \@rowoptions, A => $attrs[$row], OA => ((exists $type{$attrs[$row]}) ? $type{$attrs[$row]} : '') . $attrs[$row], R => $row, CL => (length $attrs[$row] && !(exists $type{$attrs[$row]})) ? 'unknown' : undef });
 	}
 	$tmpl->param(ROWS => \@rows);
 
@@ -1399,7 +1395,7 @@ sub despatch_admin
 			if ($person) {
 				$userdetails{email} = $email;
 				$userdetails{Address} = $address;
-				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (query_pers_attrs);
+				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}});
 			} else {
 				(mkdir $acct_path or die) unless (-d $acct_path);
 				(defined $cgi->param('is_negated')) ? $userdetails{IsNegated} = undef : delete $userdetails{IsNegated};
@@ -1756,7 +1752,7 @@ sub despatch_admin
 				my $cur;
 				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
 				my $cond;
-				foreach (query_pers_attrs) {
+				foreach (keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}}) {
 					if ($cgi->param("${_}_$row") eq 'if') {
 						$cond .= " && $_";
 					} elsif ($cgi->param("${_}_$row") eq 'unless') {
@@ -1911,23 +1907,68 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my %cfg;
+			my %oldcfg = read_htsv($cfg_file, 1);
 			my $whinge = sub { whinge($_[0], gen_edit_pers_attrs($etoken)) };
+			my @types = ( 'Has', 'Is' );
+			my %rename;
 
 			foreach my $row (0 .. get_rows(100, $cgi, 'Type_', sub { $whinge->('No attributes?') })) {
-				my $type = clean_word($cgi->param("Type_$row"));
+				my $type = clean_word($cgi->param("Type_$row")) // '';
 				my $attr = clean_words($cgi->param("Attr_$row"));
+				my $oldattr = clean_word($cgi->param("OldAttr_$row"));
 				next unless $attr;
+				$whinge->('Invalid type prefix') if defined $type && length $type && !grep (/^$type$/, @types);
 				$whinge->('Attributes cannot have spaces') unless clean_word($attr);
-				$whinge->('Missing type') unless $type;
-
-				push (@{$cfg{Type}}, ucfirst ($type));
-				push (@{$cfg{Attribute}}, ucfirst ($attr));
+				$attr = ucfirst $type . ucfirst $attr;
+				$rename{$oldattr} = $attr if defined $oldattr && exists $oldcfg{$oldattr} && $oldattr ne $attr;
+				$whinge->('Attributes renames must have type prefix') if $rename{$oldattr} && !(defined $type && length $type);
+				$cfg{$attr} = undef;
 			}
-			@{$cfg{Headings}} = ( 'Type', 'Attribute' ) if exists $cfg{Type};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			if (%rename) {
+				if (scalar glob ("$config{Root}/users/.*.lock") && clear_locks("$config{Root}/users", $sessid)) {
+					un_commit_lock;
+					$whinge->('Cannot perform attribute rename at present: users busy');
+				}
+				if (scalar glob ("$config{Root}/fee_tmpls/.*.lock") && clear_locks("$config{Root}/fee_tmpls", $sessid)) {
+					un_commit_lock;
+					$whinge->('Cannot perform attribute rename at present: fee templates busy');
+				}
+			}
+
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
 			try_commit_and_unlock(sub {
+				if (%rename) {
+					foreach my $file (glob ("$config{Root}/users/*")) {
+						$file = untaint($file);
+						my %acct = read_htsv($file);
+
+						foreach my $old (keys %rename) {
+							if (exists $acct{$old}) {
+								delete $acct{$old};
+								$acct{$rename{$old}} = undef;
+							}
+						}
+
+						write_htsv($file, \%acct);
+						$git->add($file);
+					}
+					foreach my $ft_file (glob ("$config{Root}/fee_tmpls/*")) {
+						$ft_file = untaint($ft_file);
+						my %ft = read_htsv($ft_file);
+
+						foreach my $old (keys %rename) {
+							foreach (@{$ft{Condition}}) {
+								s/((^|&amp;&amp;)\s*!?\s*)$old(\s*($|&amp;&amp;))/$1$rename{$old}$3/ if $_;
+							}
+						}
+
+						write_htsv($ft_file, \%ft);
+						$git->add($ft_file);
+					}
+				}
+
 				write_htsv($cfg_file, \%cfg);
 				add_commit($cfg_file, 'config_pers_attrs: personal attribute types modified', $session);
 			}, $cfg_file);
