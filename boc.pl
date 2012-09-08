@@ -1051,6 +1051,24 @@ sub gen_edit_rates
 	return $tmpl;
 }
 
+sub dir_mod_all
+{
+	my ($dir, $tg, $rename, $sub, $given_ts) = @_;
+
+	foreach my $f (glob ("$config{Root}/$dir/*")) {
+		$f = untaint($f);
+		my %htsv = $tg ? read_tg2($f) : read_htsv($f);
+
+		foreach my $old (@$rename) {
+			$sub->(\%htsv, $old);
+		}
+
+		$tg ? write_tg($f, %htsv) : write_htsv($f, \%htsv, $given_ts);
+		$git->add($f);
+	}
+	return;
+}
+
 sub commit_config_units
 {
 	my ($whinge, $session, $etoken, $rename, $cfg) = @_;
@@ -1081,48 +1099,12 @@ sub commit_config_units
 		my $commit_msg = 'config_units: units/rates modified';
 
 		if (keys %$rename) {
-			foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
-				$tg = untaint($tg);
-				my %tgdetails = read_tg2($tg);
-
-				foreach my $old (keys %$rename) {
-					foreach (@{$tgdetails{Currency}}) {
-						s/^$old$/$rename->{$old}/ if $_;
-					}
-				}
-
-				write_tg($tg, %tgdetails);
-				$git->add($tg);
-			}
-			foreach my $ft_file (glob ("$config{Root}/fee_tmpls/*")) {
-				$ft_file = untaint($ft_file);
-				my %ft = read_htsv($ft_file);
-
-				foreach my $old (keys %$rename) {
-					foreach (@{$ft{Unit}}) {
-						s/^$old$/$rename->{$old}/ if $_;
-					}
-				}
-
-				write_htsv($ft_file, \%ft);
-				$git->add($ft_file);
-			}
-			foreach my $mt_file (glob ("$config{Root}/meets/*")) {
-				$mt_file = untaint($mt_file);
-				my %meet = read_htsv($mt_file);
-
-				foreach my $old (keys %$rename) {
-					$meet{Currency} =~ s/^$old$/$rename->{$old}/ if exists $meet{Currency} && defined $meet{Currency};
-					if (exists $meet{Headings}) {
-						foreach (@{$meet{Headings}}) {
-							s/^$old$/$rename->{$old}/;
-						}
-					}
-				}
-
-				write_htsv($mt_file, \%meet, 11);
-				$git->add($mt_file);
-			}
+			my @renames = keys %$rename;
+			dir_mod_all('transaction_groups', 1, \@renames, sub { my ($tg, $old) = @_; foreach (@{$tg->{Currency}}) { s/^$old$/$rename->{$old}/ if $_; } });
+			dir_mod_all('fee_tmpls', 0, \@renames, sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$rename->{$old}/ if $_; } });
+			dir_mod_all('meets', 0, \@renames, sub { my ($meet, $old) = @_;
+				$meet->{Currency} =~ s/^$old$/$rename->{$old}/ if defined $meet->{Currency};
+				if (exists $meet->{Headings}) { foreach (@{$meet->{Headings}}) { s/^$old$/$rename->{$old}/; } } }, 11);
 			my %cf = read_htsv("$config{Root}/config_fees", 1);
 			if (%cf && exists $cf{Fee}) {
 				foreach my $old (keys %$rename) {
@@ -1390,10 +1372,14 @@ sub despatch_admin
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			if ($rename && scalar glob ("$config{Root}/transaction_groups/.*.lock")) {
-				if (clear_locks("$config{Root}/transaction_groups", $sessid)) {
+			if ($rename) {
+				if (scalar glob ("$config{Root}/transaction_groups/.*.lock") && clear_locks("$config{Root}/transaction_groups", $sessid)) {
 					un_commit_lock;
 					$whinge->('Cannot perform account rename at present: transaction groups busy');
+				}
+				if (scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
+					un_commit_lock;
+					$whinge->('Cannot perform account rename at present: meets busy');
 				}
 			}
 			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
@@ -1404,17 +1390,8 @@ sub despatch_admin
 			}
 			try_commit_and_unlock(sub {
 				if ($rename) {
-					foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
-						$tg = untaint($tg);
-						my %tgdetails = read_tg2($tg);
-
-						@{$tgdetails{Creditor}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Creditor}});
-						@{$tgdetails{Headings}} = map (($_ eq $edit_acct) ? $new_acct : $_, @{$tgdetails{Headings}});
-						$tgdetails{$new_acct} = delete $tgdetails{$edit_acct} if exists $tgdetails{$edit_acct};
-
-						write_tg($tg, %tgdetails);
-						$git->add($tg);
-					}
+					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
+					dir_mod_all('meets', 0, [ $edit_acct ], sub { my ($meet, $old) = @_; $meet->{Leader} =~ s/^$old$/$new_acct/; foreach (@{$meet->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
 					$git->mv($old_file, $file);
 				}
 				write_simp_cfg($file, %userdetails);
@@ -1773,16 +1750,7 @@ sub despatch_admin
 			bad_token_whinge(gen_manage_fee_tmpls) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken);
 			try_commit_and_unlock(sub {
 				if ($rename) {
-					foreach my $mt_file (glob ("$config{Root}/meets/*")) {
-						$mt_file = untaint($mt_file);
-						my %meet = read_htsv($mt_file);
-
-						if (defined $meet{Template} && $meet{Template} eq $edit_id) {
-							$meet{Template} = $new_id;
-							write_htsv($mt_file, \%meet, 11);
-							$git->add($mt_file);
-						}
-					}
+					dir_mod_all('meets', 0, [ $edit_id ], sub { my ($meet, $old) = @_; $meet->{Template} =~ s/^$old$/$new_id/ if defined $meet->{Template} }, 11);
 					$git->mv($old_file, $file);
 				}
 				write_htsv($file, \%ft);
@@ -1862,21 +1830,7 @@ sub despatch_admin
 				my $commit_msg = 'config_fees: expense configuration modified';
 
 				if (keys %recode) {
-					foreach my $mt_file (glob ("$config{Root}/meets/*")) {
-						$mt_file = untaint($mt_file);
-						my %meet = read_htsv($mt_file);
-
-						if (exists $meet{Headings}) {
-							foreach my $old (keys %recode) {
-								foreach (@{$meet{Headings}}) {
-									s/^$old$/$recode{$old}/;
-								}
-							}
-						}
-
-						write_htsv($mt_file, \%meet, 11);
-						$git->add($mt_file);
-					}
+					dir_mod_all('meets', 0, [ keys %recode ], sub { my ($meet, $old) = @_; if (exists $meet->{Headings}) { foreach (@{$meet->{Headings}}) { s/^$old$/$recode{$old}/; } } }, 11);
 					$commit_msg .= ' AND CODES ALTERED';
 				}
 
@@ -1928,33 +1882,9 @@ sub despatch_admin
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
 			try_commit_and_unlock(sub {
 				if (%rename) {
-					foreach my $file (glob ("$config{Root}/users/*")) {
-						$file = untaint($file);
-						my %acct = read_htsv($file);
-
-						foreach my $old (keys %rename) {
-							if (exists $acct{$old}) {
-								delete $acct{$old};
-								$acct{$rename{$old}} = undef;
-							}
-						}
-
-						write_htsv($file, \%acct);
-						$git->add($file);
-					}
-					foreach my $ft_file (glob ("$config{Root}/fee_tmpls/*")) {
-						$ft_file = untaint($ft_file);
-						my %ft = read_htsv($ft_file);
-
-						foreach my $old (keys %rename) {
-							foreach (@{$ft{Condition}}) {
-								s/((^|&amp;&amp;)\s*!?\s*)$old(\s*($|&amp;&amp;))/$1$rename{$old}$3/ if $_;
-							}
-						}
-
-						write_htsv($ft_file, \%ft);
-						$git->add($ft_file);
-					}
+					my @renames = keys %rename;
+					dir_mod_all('users', 0, \@renames, sub { my ($acct, $old) = @_; if (exists $acct->{$old}) { $acct->{$rename{$old}} = delete $acct->{$old}; } });
+					dir_mod_all('fee_tmpls', 0, \@renames, sub { my ($ft, $old) = @_; foreach (@{$ft->{Condition}}) { s/((^|&amp;&amp;)\s*!?\s*)$old(\s*($|&amp;&amp;))/$1$rename{$old}$3/ if $_; } });
 				}
 
 				write_htsv($cfg_file, \%cfg);
