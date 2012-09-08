@@ -1105,7 +1105,8 @@ sub commit_config_units
 			dir_mod_all('fee_tmpls', 0, \@renames, sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$rename->{$old}/ if $_; } });
 			dir_mod_all('meets', 0, \@renames, sub { my ($meet, $old) = @_;
 				$meet->{Currency} =~ s/^$old$/$rename->{$old}/ if defined $meet->{Currency};
-				if (exists $meet->{Headings}) { foreach (@{$meet->{Headings}}) { s/^$old$/$rename->{$old}/; } } }, 11);
+				s/^$old$/$rename->{$old}/ foreach (@{$meet->{Headings}});
+				$meet->{$rename->{$old}} = delete $meet->{$old} if exists $meet->{$old}; }, 11);
 			my %cf = read_htsv("$config{Root}/config_fees", 1);
 			if (%cf && exists $cf{Fee}) {
 				foreach my $old (keys %$rename) {
@@ -1393,6 +1394,18 @@ sub despatch_admin
 				if ($rename) {
 					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
 					dir_mod_all('meets', 0, [ $edit_acct ], sub { my ($meet, $old) = @_; $meet->{Leader} =~ s/^$old$/$new_acct/; foreach (@{$meet->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
+					my %cf = read_htsv("$config{Root}/config_fees", 1);
+					if (%cf) {
+						$cf{MeetAccount} =~ s/^$edit_acct$/$new_acct/;
+						if (exists $cf{Account}) {
+							foreach (@{$cf{Account}}) {
+								s/^$edit_acct$/$new_acct/ if $_;
+							}
+						}
+
+						write_htsv("$config{Root}/config_fees", \%cf, 11);
+						$git->add("$config{Root}/config_fees");
+					}
 					$git->mv($old_file, $file);
 				}
 				write_simp_cfg($file, %userdetails);
@@ -1831,7 +1844,7 @@ sub despatch_admin
 				my $commit_msg = 'config_fees: expense configuration modified';
 
 				if (keys %recode) {
-					dir_mod_all('meets', 0, [ keys %recode ], sub { my ($meet, $old) = @_; if (exists $meet->{Headings}) { foreach (@{$meet->{Headings}}) { s/^$old$/$recode{$old}/; } } }, 11);
+					dir_mod_all('meets', 0, [ keys %recode ], sub { my ($meet, $old) = @_; s/^$old$/$recode{$old}/ foreach (@{$meet->{Headings}}); $meet->{$recode{$old}} = delete $meet->{$old} if exists $meet->{$old}; }, 11);
 					$commit_msg .= ' AND CODES ALTERED';
 				}
 
