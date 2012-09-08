@@ -1056,6 +1056,7 @@ sub dir_mod_all
 	my ($dir, $tg, $rename, $sub, $given_ts) = @_;
 
 	foreach my $f (glob ("$config{Root}/$dir/*")) {
+		next if $tg && $f =~ /\/[A-Z][^\/]*$/;	# skip auto gen TGs
 		$f = untaint($f);
 		my %htsv = $tg ? read_tg2($f) : read_htsv($f);
 
