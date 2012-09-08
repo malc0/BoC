@@ -726,6 +726,9 @@ sub gen_tcp
 {
 	my $tmpl = load_template('treasurer_cp.html');
 
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	validate_units(\%units_cfg, sub { $tmpl->param(STATUS => 'Units config broken: fix it!') }, 1);
+
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => fee_cfg_valid);
 
