@@ -3,6 +3,7 @@
 	<head>
 		<title><TMPL_VAR NAME=SN> meet: <TMPL_VAR NAME=NAME> -- people</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
+		<style type="text/css">.dup { background-color: orange } .unknown { background-color: red }</style>
 	</head>
 	<body>
 		<h1>People involved with &quot;<TMPL_VAR NAME=NAME>&quot;</h1>
@@ -10,9 +11,9 @@
 		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
 				this.save.clicked = false;
 				var sub = true;
-				for (i = 0; i < this.elements.length; i++)
+				for (i = 0; sub && i < this.elements.length; i++)
 					if (this.elements[i].type == 'checkbox' && this.elements[i].defaultChecked && !this.elements[i].checked)
-						if (!confirm('Really remove participant \'' + this.elements[i].name + '\' (all previously entered values for this person will be lost)?'))
+						if (!confirm('Really remove participant \'' + this.elements[i].value + '\' (all previously entered values for this person will be lost)?'))
 							sub = false;
 				return sub;
 			} return true">
@@ -22,9 +23,11 @@
 			<input type="hidden" name="m_id" value="<TMPL_VAR NAME=MID>"/>
 
 			<div>
-				<TMPL_LOOP NAME=PPL><p><label><TMPL_VAR NAME=NAME> <input type="checkbox" name="<TMPL_VAR NAME=A>" value="" <TMPL_IF NAME=Y>checked="checked"</TMPL_IF>/></label></p>
+				<TMPL_LOOP NAME=PPL><p><span class="<TMPL_VAR NAME=P_CL>"><label><TMPL_VAR NAME=NAME> <input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" <TMPL_IF NAME=Y>checked="checked"</TMPL_IF>/></label><TMPL_LOOP NAME=DUPS><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" checked="checked"/></TMPL_LOOP></span></p>
 				</TMPL_LOOP>
 			</div>
+
+			<TMPL_IF NAME=DUPTEXT><p style="color:orange">Duplicates listed left-to-right in the order they appear top-to-bottom on previous page</p></TMPL_IF>
 
 			<p><input type="submit" name="new_user" value="Add new person to system"/></p>
 

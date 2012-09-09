@@ -1227,13 +1227,21 @@ sub gen_edit_meet_ppl
 	my %meet = read_htsv("$config{Root}/meets/$edit_id");
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my @unks = grep (!(exists $accts{$_}), map ($_ // '', @{$meet{Person}}));
+
+	my %ppl_seen;
+	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
+
 	my @ppl;
 	foreach my $user (sort_AoH(\%accts)) {
-		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (exists $meet{Person} and !!grep (/^$user$/, @{$meet{Person}})) });
+		$ppl_seen{$user} = 0 unless exists $ppl_seen{$user};
+		my @dups = map ({ A => "$user.$_" }, 2 .. $ppl_seen{$user});
+		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (exists $meet{Person} and !!grep (/^$user$/, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
 	}
+	push (@ppl, { NAME => $_, A => $_, Y => 1, P_CL => ($ppl_seen{$_} && $ppl_seen{$_} > 1) ? 'unknown dup' : 'unknown' }) foreach (@unks);
 
 	$tmpl->param(MID => $edit_id);
-	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl);
+	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
 
 	return $tmpl;
 }
@@ -1628,12 +1636,23 @@ sub despatch_admin
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $etoken)) };
 			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 
-			my @ppl = grep ((defined $cgi->param($_)), sort keys %accts);
+			my @ppl;
+			my %seen_ppl;
+			foreach (map { /^Pers_(.*)/; $1 } grep (/^Pers_.+$/, $cgi->param)) {
+				(my $stripped = $_) =~ s/\..*$//;
+				push (@ppl, $_) if validate_acct($stripped, \%accts, $whinge);
+				$seen_ppl{$stripped}++;
+			}
+			$whinge->('Having duplicate people is silly') if grep ($_ > 1, values %seen_ppl);
 			delete $meet{Headings} unless scalar @ppl;
 			if (exists $meet{Headings}) {
 				my %new_m;
+				my %ppl_pos;
+				push (@{$ppl_pos{$meet{Person}[$_]}}, $_) foreach grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}});
 				foreach my $p_n (0 .. $#ppl) {
-					my $row = first { $meet{Person}[$_] eq $ppl[$p_n] } 0 .. $#{$meet{Person}};
+					(my $pers = $ppl[$p_n]) =~ s/\..*$//;
+					my $inst = ($ppl[$p_n] =~ /\.(\d*)$/) ? $1 - 1 : 0;
+					my $row = $ppl_pos{$pers}[$inst];
 					next unless defined $row;
 					$new_m{$_}[$p_n] = $meet{$_}[$row] foreach (@{$meet{Headings}});
 				}
@@ -1641,7 +1660,7 @@ sub despatch_admin
 			} elsif (scalar @ppl) {
 				@{$meet{Headings}} = ( 'Person' );
 			}
-			@{$meet{Person}} = @ppl;
+			@{$meet{Person}} = map { s/\..*$//; $_ } (@ppl);
 
 			my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
 			my %ft = valid_ft($ft_file);
