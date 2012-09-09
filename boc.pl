@@ -1128,6 +1128,46 @@ sub commit_config_units
 	}, $cfg_file);
 }
 
+sub meet_valid
+{
+	my %meet = @_;
+
+	# no check on Leader or Template -- gen_manage_meets is sufficient for now
+
+	foreach (@{$meet{Headings}}) {
+		return 0 unless exists $meet{$_};
+	}
+	foreach my $hd (grep (ref $meet{$_} && $_ ne 'Headings', keys %meet)) {
+		return 0 unless grep ($_ eq $hd, @{$meet{Headings}});
+	}
+
+	my @units = known_units;
+	return 0 if scalar @units > 1 && !(exists $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
+	return 0 if !(scalar @units) && exists $meet{Currency} && defined $meet{Currency} && length $meet{Currency};
+	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep (/^$meet{Currency}$/, @units));
+
+	return 0 unless fee_cfg_valid;
+
+	my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
+	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
+		return 0 unless $hd eq 'BaseFee' || grep (/^$hd$/, @{$meet_cfg{Fee}});
+		foreach (@{$meet{$hd}}) {
+			return 0 unless defined CleanData::clean_decimal($_);
+		}
+	}
+
+	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %seen;
+	foreach (@{$meet{Person}}) {
+		return 0 unless defined;
+		return 0 unless exists $ppl{$_};
+		$seen{$_}++
+	}
+	return 0 if grep ($_ > 1, values %seen);
+
+	return 1;
+}
+
 sub gen_manage_meets
 {
 	my $tmpl = load_template('manage_meets.html');
@@ -1140,7 +1180,7 @@ sub gen_manage_meets
 		my $leader = (exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader};
 		my $ft_state = (!(exists $meet{Template}) || !!grep (/^$meet{Template}$/, @fts));
 
-		push (@meetlist, { MID => $mid, NAME => $meet{Name}, DATE => $meet{Date}, LEN => $meet{Duration}, LDR_CL => (exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => (exists $meet{Template}) ? $meet{Template} : 'None' });
+		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => meet_valid(%meet) ? '' : 'broken', DATE => $meet{Date}, LEN => $meet{Duration}, LDR_CL => (exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => (exists $meet{Template}) ? $meet{Template} : 'None' });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, keys %ppl);
 	my @ftlist = map ({ FTN => $_ }, @fts);
@@ -1251,6 +1291,12 @@ sub meet_to_tg
 	my %meet = @_;
 	my %tg = ( Date => $meet{Date}, Name => "Meet: $meet{Name}" );
 	my %colsum;
+
+	unless (meet_valid(%meet)) {
+		$tg{Name} .= ' (broken)';
+		$tg{Omit} = undef;
+		return %tg;
+	}
 
 	foreach my $row (0 .. $#{$meet{Person}}) {
 		foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
