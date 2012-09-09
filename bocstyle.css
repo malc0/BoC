@@ -86,6 +86,13 @@ th {
   font-weight: bold;
   font-size: 0.8em;
 }
+th.negated {
+  background: #fff;
+  color: #008787;
+}
+  th.negated a {
+    color: #008787;
+  }
 th a {
   color: #fff;
 }
