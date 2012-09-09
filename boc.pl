@@ -1179,8 +1179,9 @@ sub gen_manage_meets
 		my %meet = read_htsv("$config{Root}/meets/$mid");
 		my $leader = (exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader};
 		my $ft_state = (!(exists $meet{Template}) || !!grep (/^$meet{Template}$/, @fts));
+		my $ft_exists = exists $meet{Template} && -r "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template});
 
-		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => meet_valid(%meet) ? '' : 'broken', DATE => $meet{Date}, LEN => $meet{Duration}, LDR_CL => (exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => (exists $meet{Template}) ? $meet{Template} : 'None' });
+		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => meet_valid(%meet) ? '' : 'broken', DATE => $meet{Date}, LEN => $meet{Duration}, LDR_CL => (exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => (exists $meet{Template}) ? $meet{Template} : '', FTID => $ft_exists ? encode_for_filename($meet{Template}) : '' });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, keys %ppl);
 	my @ftlist = map ({ FTN => $_ }, @fts);
