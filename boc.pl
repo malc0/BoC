@@ -2455,7 +2455,7 @@ sub gen_tg
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %acct_names = (%ppl, %vaccts);
-	my (%unknown, %in_use);
+	my (%unknown, %in_use_ppl, %in_use_vaccts);
 	my @tps_in_use;
 	foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
 		next if $acct eq 'Currency';
@@ -2467,10 +2467,11 @@ sub gen_tg
 			$has_data = 1 if defined $_ && $_ != 0;
 			last if $has_data;
 		}
-		$in_use{$acct} = $acct_names{$acct} if $has_data && !($acct =~ /^TrnsfrPot\d?$/);
+		$in_use_ppl{$acct} = $acct_names{$acct} if $has_data && exists $ppl{$acct} && !($acct =~ /^TrnsfrPot\d?$/);
+		$in_use_vaccts{$acct} = $acct_names{$acct} if $has_data && exists $vaccts{$acct} && !($acct =~ /^TrnsfrPot\d?$/);
 	}
 	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
-	my @sorted_in_use = $etoken ? @sorted_accts : sort_AoH(\%unknown, \%in_use);
+	my @sorted_in_use = $etoken ? @sorted_accts : sort_AoH(\%unknown, \%in_use_ppl, \%in_use_vaccts);
 
 	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_in_use);
 
