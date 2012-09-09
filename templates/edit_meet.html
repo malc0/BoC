@@ -3,7 +3,7 @@
 	<head>
 		<title><TMPL_VAR NAME=SN> meet: <TMPL_VAR NAME=NAME></title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
-		<style type="text/css">.unknown { background-color: red }</style>
+		<style type="text/css">.broken { background-color: red } .dup { background-color: orange } .unknown { background-color: red }</style>
 	</head>
 	<body>
 		<h1>Meet: <TMPL_VAR NAME=NAME></h1>
@@ -13,7 +13,7 @@
 		<form action="boc.pl" method="post" onsubmit="if ('save' in this && this.save.clicked) {
 				this.save.clicked = false;
 				var sub = true;
-				for (i = 0; i < this.elements.length; i++)
+				for (i = 0; sub && i < this.elements.length; i++)
 					if (this.elements[i].name.search(/^(.+)_Base$/) >= 0 && this.elements[i].defaultValue.length && this.elements[i].defaultValue != this.elements[i].value)
 						if (!confirm('Really change base fee for participant \'' + RegExp.$1 + '\'?'))
 							sub = false;
@@ -24,21 +24,23 @@
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
 			<input type="hidden" name="m_id" value="<TMPL_VAR NAME=MID>"/>
 
-			<TMPL_IF NAME=CURS><p>All monetary values in <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=D></TMPL_IF></TMPL_LOOP><TMPL_ELSE><select name="Currency">
+			<TMPL_IF NAME=CURS><p>All monetary values in <span class="<TMPL_VAR NAME=CUR_CL>"><TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=D></TMPL_IF></TMPL_LOOP><TMPL_ELSE><select name="Currency">
 				<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</option>
 				</TMPL_LOOP>
-			</select></TMPL_IF></p></TMPL_IF>
+			</select></TMPL_IF></span></p></TMPL_IF>
 			<table border=1 class="widetable">
-				<tr><th rowspan=2>Name</th><th rowspan=2>Base meet fee</th><TMPL_IF NAME=NFEES><th colspan=<TMPL_VAR NAME=NFEES>>Charges/Credits</th></TMPL_IF><TMPL_IF NAME=NEXPS><th colspan=<TMPL_VAR NAME=NEXPS>>Expenses</th></TMPL_IF><th rowspan=2>Notes (explain unusual values, payment status, etc.)</th></tr>
-				<tr><TMPL_LOOP NAME=FEESH><th><TMPL_VAR NAME=FEE></th></TMPL_LOOP><TMPL_LOOP NAME=EXPSH><th><TMPL_VAR NAME=EXP></th></TMPL_LOOP></tr>
+				<tr><th rowspan=2>Name</th><th rowspan=2>Base meet fee</th><TMPL_IF NAME=NFEES><th colspan=<TMPL_VAR NAME=NFEES>>Charges/Credits</th></TMPL_IF><TMPL_IF NAME=NEXPS><th colspan=<TMPL_VAR NAME=NEXPS>>Expenses</th></TMPL_IF><TMPL_IF NAME=NUNKS><th colspan=<TMPL_VAR NAME=NUNKS> class="unknown">Unknowns</th></TMPL_IF><th rowspan=2>Notes (explain unusual values, payment status, etc.)</th></tr>
+				<tr><TMPL_LOOP NAME=FEESH><th><TMPL_VAR NAME=FEE></th></TMPL_LOOP><TMPL_LOOP NAME=EXPSH><th><TMPL_VAR NAME=EXP></th></TMPL_LOOP><TMPL_LOOP NAME=UNKSH><th class="unknown"><TMPL_VAR NAME=UNK></th></TMPL_LOOP></tr>
 				<TMPL_LOOP NAME=PPL><tr class="<TMPL_VAR NAME=PER_CL>">
 					<td><TMPL_VAR NAME=NAME></td><td align="center"><TMPL_IF NAME=RO><TMPL_VAR NAME=BASEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=BASEV>" name="<TMPL_VAR NAME=A>_Base" size=10 onclick="this.select()"/></TMPL_IF></td>
 					<TMPL_LOOP NAME=FEES>
-					<td align="center"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5 onclick="this.select()"/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
+					<td align="center" class="<TMPL_VAR NAME=D_CL>"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5 onclick="this.select()"/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
 					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=NOTEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=NOTEV>" name="<TMPL_VAR NAME=A>_Notes" size=60/></TMPL_IF></td>
 				</tr>
 				</TMPL_LOOP>
 			</table>
+
+			<TMPL_UNLESS NAME=RO><TMPL_IF NAME=NUNKS><p><strong style="color:red">Contents of unknown columns will be lost on saving!</strong></p></TMPL_IF></TMPL_UNLESS>
 
 			<!-- add swaps/splits? FIXME? -->
 

@@ -1167,28 +1167,52 @@ sub gen_edit_meet
 	my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
 	my %ft = valid_ft($ft_file);
 	my $def_cur = (%ft && defined get_ft_currency(%ft)) ? get_ft_currency(%ft) : $units_cfg{Default};
-	my $sel_cur = (exists $meet{Currency}) ? $meet{Currency} : $def_cur;
+
+	my $sel_cur = $def_cur;
+	if (exists $meet{Currency}) {
+		$sel_cur = $meet{Currency};
+		if (@units) {
+			$sel_cur = (scalar @units > 1) ? '' : $units_cfg{Default} unless defined $meet{Currency};
+		} else {
+			push (@units, 'N/A') if defined $meet{Currency};
+		}
+	}
+	my $red_unit;
+
+	if (defined $sel_cur && !grep (/^$sel_cur$/, @units)) {
+		$red_unit = 1;
+		push (@units, $sel_cur);
+	}
 
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
-	$tmpl->param(CURS => \@currencies);
+	$tmpl->param(CURS => \@currencies, CUR_CL => $red_unit ? 'unknown' : '');
 
 	my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
 	my %cds = known_commod_descs;
 	my @ccs = grep (exists $cds{$meet_cfg{Fee}[$_]}, 0 .. $#{$meet_cfg{Fee}});
 	my @drains = grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}});
 	my @exps = grep (!(exists $cds{$meet_cfg{Fee}[$_]} || true($meet_cfg{IsDrain}[$_])), 0 .. $#{$meet_cfg{Fee}});
+	my @unks;
+	foreach my $hd (grep (!/^(Person|BaseFee|Notes)$/, @{$meet{Headings}})) {
+		push (@unks, $hd) unless grep (/^$hd$/, @{$meet_cfg{Fee}});
+	}
 
 	my @feesh = map ({ FEE => $cds{$meet_cfg{Fee}[$_]} }, @ccs);
 	push (@feesh, map ({ FEE => $meet_cfg{Description}[$_] }, @drains));
 	my @expsh = map ({ EXP => $meet_cfg{Description}[$_] }, @exps);
-	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh);
+	my @unksh = map ({ UNK => $_ }, @unks);
+	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
+
+	my %ppl_seen;
+	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @ppl;
 	foreach my $row (0 .. $#{$meet{Person}}) {
 		my @rfees = map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row], BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken' }, (@ccs, @drains, @exps));
-		my $a = $meet{Person}[$row];
-		push (@ppl, { PER_CL => (exists $accts{$a}) ? '' : 'unknown', NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, BASEV => $meet{BaseFee}[$row], FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
+		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
+		my $a = $meet{Person}[$row] // '';
+		push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, BASEV => $meet{BaseFee}[$row], FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
 	}
         $tmpl->param(PPL => \@ppl);
 
@@ -1537,15 +1561,26 @@ sub despatch_admin
 			@{$meet{Person}} = @ppl;
 
 			my @units = known_units;
-			$meet{Currency} = (scalar @units > 1) ? validate_unit(scalar $cgi->param('Currency'), \@units, $whinge) : $units[0] if scalar @units;
+			$whinge->('No currency definition?') if scalar @units && !(defined $cgi->param('Currency'));
+			if (defined $cgi->param('Currency') && $cgi->param('Currency') ne 'N/A') {
+				$meet{Currency} = validate_unit(scalar $cgi->param('Currency'), \@units, $whinge);
+			}
 
 			my %cds = known_commod_descs;
 			my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
 
+			my %pers_count;
 			foreach my $pers (@{$meet{Person}}) {
-				push (@{$meet{BaseFee}}, validate_decimal(scalar $cgi->param("${pers}_Base"), 'Base fee', 1, $whinge));
-				push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal(scalar $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]"), (exists $cds{@{$meet_cfg{Fee}}[$_]}) ? $cds{@{$meet_cfg{Fee}}[$_]} : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge)) foreach (0 .. $#{$meet_cfg{Fee}});
-				push (@{$meet{Notes}}, clean_words(scalar $cgi->param("${pers}_Notes")));
+				$pers_count{$pers} = 0 unless exists $pers_count{$pers};
+				my @arr = $cgi->param("${pers}_Base");
+				push (@{$meet{BaseFee}}, validate_decimal($arr[$pers_count{$pers}], 'Base fee', 1, $whinge));
+				foreach (0 .. $#{$meet_cfg{Fee}}) {
+					@arr = $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]");
+					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{@{$meet_cfg{Fee}}[$_]}) ? $cds{@{$meet_cfg{Fee}}[$_]} : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
+				}
+				@arr = $cgi->param("${pers}_Notes");
+				push (@{$meet{Notes}}, clean_words($arr[$pers_count{$pers}]));
+				$pers_count{$pers}++;
 			}
 
 			@{$meet{Headings}} = ( 'Person', 'BaseFee', @{$meet_cfg{Fee}}, 'Notes' ) if scalar @{$meet{Person}};
