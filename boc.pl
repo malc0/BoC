@@ -1503,12 +1503,11 @@ sub despatch_admin
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : 'Edit account cancelled', gen_manage_accts($person));
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
-			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
 			if (defined $cgi->param('savenadd')) {
-				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct');
-				push_session_data($sessid, "${etoken}_editid", $edit_id) if $edit_id;
+				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
 				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken));
 			}
+			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
 			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $etoken) : gen_manage_accts($person);
 			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
 		}
