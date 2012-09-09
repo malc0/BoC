@@ -20,6 +20,19 @@ sub set_htsv_encoders
 	return;
 }
 
+sub dedup_headings {
+	my $hds = $_[0];
+
+	my %seen;
+	$seen{$_}++ foreach (@$hds);
+	return if scalar keys %seen == scalar @$hds;
+
+	my %count;
+	foreach (@$hds) {
+		$_ = "${_}__HTSV" . $count{$_}++ . '__' if $seen{$_} > 1;
+	}
+}
+
 sub read_htsv
 {
 	my ($file, $nexist_ok, $hdg_key) = @_;
@@ -52,6 +65,7 @@ sub read_htsv
 			next if m/^===/;
 			unless ($content{$hdg_key}) {
 				$content{$hdg_key} = [ split ];
+				dedup_headings(\@{$content{$hdg_key}});
 			} else {
 				my @line = split ('	', $_, scalar(@{$content{$hdg_key}}));
 				foreach my $i (0 .. $#{$content{$hdg_key}}) {
