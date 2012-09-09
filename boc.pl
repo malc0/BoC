@@ -1262,7 +1262,7 @@ sub gen_edit_meet
 
 sub gen_edit_meet_ppl
 {
-	my ($edit_id, $etoken) = @_;
+	my ($edit_id, $sessid, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet_ppl.html', $etoken);
 	my %meet = read_htsv("$config{Root}/meets/$edit_id");
@@ -1273,11 +1273,14 @@ sub gen_edit_meet_ppl
 	my %ppl_seen;
 	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
 
+	my $adds = peek_session_data($sessid, "${etoken}_add_accts");
+	my @adds = split ('\.', $adds) if $adds;
+
 	my @ppl;
 	foreach my $user (sort_AoH(\%accts)) {
 		$ppl_seen{$user} = 0 unless exists $ppl_seen{$user};
 		my @dups = map ({ A => "$user.$_" }, 2 .. $ppl_seen{$user});
-		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (exists $meet{Person} and !!grep (/^$user$/, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
+		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (grep (/^$user$/, @adds) || exists $meet{Person} && !!grep (/^$user$/, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
 	}
 	push (@ppl, { NAME => $_, A => $_, Y => 1, P_CL => ($ppl_seen{$_} && $ppl_seen{$_} > 1) ? 'unknown dup' : 'unknown' }) foreach (@unks);
 
@@ -1494,6 +1497,13 @@ sub despatch_admin
 					add_commit($file, unroot($file) . ': ' . ($edit_acct ? 'modified' : 'created'), $session);
 				}
 			}, $rename ? $old_file : ($edit_acct) ? $file : undef);
+
+			my $net = peek_session_data($sessid, $etoken);
+			if ($net) {
+				my $adds = pop_session_data($sessid, "${net}_add_accts");
+				$adds = $adds ? "$adds.$new_acct" : $new_acct;
+				push_session_data($sessid, "${net}_add_accts", $adds);
+			}
 		} else {
 			unlock($file) if ($file);
 			redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
@@ -1508,7 +1518,7 @@ sub despatch_admin
 				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken));
 			}
 			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
-			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $etoken) : gen_manage_accts($person);
+			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $sessid, $etoken) : gen_manage_accts($person);
 			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
 		}
 	}
@@ -1599,7 +1609,7 @@ sub despatch_admin
 			if (defined $cgi->param('edit')) {
 				emit(gen_edit_meet($edit_id, get_edit_token($sessid, "edit_$edit_id")));
 			} else {
-				emit(gen_edit_meet_ppl($edit_id, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
 			}
 		}
 
@@ -1679,7 +1689,7 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
-			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
 			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 
 			my @ppl;
@@ -1738,6 +1748,7 @@ sub despatch_admin
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			pop_session_data($sessid, "${etoken}_add_accts");
 			try_commit_and_unlock(sub {
 				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
 				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
@@ -1756,6 +1767,7 @@ sub despatch_admin
 		} else {
 			unlock($mt_file) if $mt_file;
 			redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			pop_session_data($sessid, "${etoken}_add_accts");
 		}
 
 		$mt_file =~ /\/([^\/]{4})[^\/]*$/;
