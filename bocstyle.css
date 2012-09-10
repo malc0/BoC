@@ -12,6 +12,10 @@ body {
 p {
   text-align: justify;
 }
+p.acctbal {
+  text-align: right;
+  font-size: 1.4em;
+}
 a {
   color: #008787;
 }
