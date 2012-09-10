@@ -23,7 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use FT;
 use HeadedTSV;
 use TG;
@@ -288,7 +288,7 @@ sub commit
 	my ($message, $userdata) = @_;
 	my $user = ref $userdata ? $userdata->param('User') : $userdata;
 	my $name = ref $userdata ? $userdata->param('Name') : $userdata;
-	return $git->commit({author => "$name <$user>", message => $message});
+	return $git->commit({ author => encode_for_commit("$name <$user>"), message => encode_for_commit($message) });
 }
 
 sub add_commit
