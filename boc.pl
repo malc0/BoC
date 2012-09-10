@@ -2191,6 +2191,7 @@ sub gen_ucp
 	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts);
 
+	my $sum = 0;
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %computed = eval { compute_tg_c($tg, undef, \%acct_names, \%neg_accts, \%resolved) };
@@ -2198,9 +2199,12 @@ sub gen_ucp
 		my $tg_broken = $@ ne '' || (%resolved && $tg_indet) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
+		my %tgdetails = %{$tgds{$tg}};
 		my @to;
 		my $to_extra;
 		unless ($tg_broken) {
+			$sum += $computed{$user} unless exists $tgdetails{Omit};
+
 			if (($computed{$user} < 0 && exists $neg_accts{$user}) || ($computed{$user} > 0 && !(exists $neg_accts{$user}))) {
 				@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep (exists $neg_accts{$_} ? $computed{$_} > 0 : $computed{$_} < 0, keys %computed));
 			} elsif (($computed{$user} > 0 && exists $neg_accts{$user}) || ($computed{$user} < 0 && !(exists $neg_accts{$user}))) {
@@ -2215,7 +2219,6 @@ sub gen_ucp
 			}
 		}
 
-		my %tgdetails = %{$tgds{$tg}};
 		my %outputdetails = (
 			ACC => $tg,
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
@@ -2233,6 +2236,7 @@ sub gen_ucp
 	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (!($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_]) || true($cf{IsDrain}[$_])) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]}, 0 .. $#{$cf{Description}}));
 	$tmpl->param(SIMPTRANS => scalar @simptransidcounts && !grep ($_ > 0, @simptransidcounts));
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
+	$tmpl->param(BAL => sprintf('%+.2f', $sum));
 	my @units = known_units();
 	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
 	$tmpl->param(CREDITS => \@credlist);

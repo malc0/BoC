@@ -1,7 +1,7 @@
 <!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 	<head>
-		<title><TMPL_IF NAME=ACCT><TMPL_VAR NAME=ACCT>'s </TMPL_IF><TMPL_VAR NAME=LN> transaction summary</title>
+		<title><TMPL_IF NAME=ACCT><TMPL_VAR NAME=ACCT>'s </TMPL_IF><TMPL_VAR NAME=LN> account summary</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 		<style type="text/css">tr.omitted { background-color: grey } td.broken { background-color: red } td.indet { background-color: yellow }</style>
 	</head>
@@ -23,7 +23,9 @@
 			<input type="hidden" name="tmpl" value="view_acct"/>
 			</TMPL_UNLESS>
 
-			<h1>Transaction summary<TMPL_IF NAME=ACCT>: <TMPL_VAR NAME=ACCT></TMPL_IF></h1>
+			<h1>Account summary<TMPL_IF NAME=ACCT>: <TMPL_VAR NAME=ACCT></TMPL_IF></h1>
+
+			<p class="acctbal">Balance: <TMPL_VAR NAME=BAL> <TMPL_VAR NAME=DEFCUR></p>
 
 			<h2><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> credits</h2>
 			<table border=1>

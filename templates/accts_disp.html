@@ -16,6 +16,7 @@
 			<TMPL_ELSE>
 			<TMPL_IF NAME=UNKNOWN>
 			<h2>Unknown Accounts</h2>
+			<p style="color:red">The effects of these values <strong>are</strong> included in the account balances below, unlike in the individual account pages</p>
 			<table class="unknown_accts" border=1 width="90%">
 				<tr><th>Name</th><th>Balance</th></tr>
 				<TMPL_LOOP NAME=UNKNOWN>
