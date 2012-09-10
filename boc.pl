@@ -351,7 +351,7 @@ sub compute_tg_c
 {
 	my ($tg, $omit, $valid_accts, $neg_accts, $resolved, $die) = @_;
 
-	if (-e "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units")) {
+	if (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units")) {
 		my ($fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
 		close $fh;
 		return %computed;
