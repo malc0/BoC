@@ -55,7 +55,7 @@ sub read_units_cfg
 	return %cfg unless scalar @units;
 
 	# Commodities always exists and is valid if @units
-	$cfg{Commodities} = '' unless exists $cfg{Commodities} and defined $cfg{Commodities};
+	$cfg{Commodities} //= '';
 	# Anchor exists and is valid only if one unit, or one or more currencies
 	unless ($cfg{Anchor} and exists $cfg{$cfg{Anchor}}) {
 		# this will still work if more than one real currency -- it's up to the validator to fix that

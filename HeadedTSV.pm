@@ -36,7 +36,7 @@ sub dedup_headings {
 sub read_htsv
 {
 	my ($file, $nexist_ok, $hdg_key) = @_;
-	$hdg_key = 'Headings' unless defined $hdg_key;
+	$hdg_key //= 'Headings';
 	my $fh;
 	my %content;
 	my $in_header = 1;
@@ -85,7 +85,7 @@ sub write_htsv
 {
 	my ($file, $content, $given_ts, $hdg_key, $max_rows) = @_;
 	my $ts = $given_ts ? $given_ts : 8;
-	$hdg_key = 'Headings' unless defined $hdg_key;
+	$hdg_key //= 'Headings';
 	my $heading_only = not exists $content->{$hdg_key};
 
 	$write_encoder->($content) if ($write_encoder);
@@ -97,7 +97,7 @@ sub write_htsv
 	}
 
 	unless ($heading_only) {
-		$max_rows = scalar @{$content->{$content->{$hdg_key}[0]}} unless defined $max_rows;
+		$max_rows //= scalar @{$content->{$content->{$hdg_key}[0]}};
 		my $col_line = '=' x ($ts - 1) . '	';
 		my $cols = scalar(@{$content->{$hdg_key}});
 

@@ -37,8 +37,8 @@ sub update_global_config
 {
 	my (%append_cfg) = @_;
 	@config{keys %append_cfg} = values %append_cfg;	# merge settings
-	$config{LongName} = 'Set LongName in installation config!' unless defined $config{LongName};
-	$config{ShortName} = 'Set ShortName in installation config!' unless defined $config{ShortName};
+	$config{LongName} //= 'Set LongName in installation config!';
+	$config{ShortName} //= 'Set ShortName in installation config!';
 	return;
 }
 
@@ -622,7 +622,7 @@ sub clear_old_session_locks
 sub get_new_session
 {
 	my ($session, $cgi) = @_;
-	my $last_tmpl = (defined $cgi->param('tmpl')) ? $cgi->param('tmpl') : '';
+	my $last_tmpl = $cgi->param('tmpl') // '';
 
 	my $expired = ($session->is_expired() and not defined $cgi->param('logout'));
 	$session->delete();
@@ -2184,7 +2184,7 @@ sub gen_ucp
 {
 	my ($session, $acct) = @_;
 	my $tmpl = load_template('user_cp.html');
-	my $user = (defined $acct) ? $acct : $session->param('User');
+	my $user = $acct // $session->param('User');
 
 	my %acct_names = get_acct_name_map;
 	my %dds = double_drainers;
