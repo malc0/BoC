@@ -1673,7 +1673,7 @@ sub despatch_admin
 			redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 		}
 
-		$mt_file =~ /\/([^\/]{4})[^\/]*$/;
+		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
@@ -1770,7 +1770,7 @@ sub despatch_admin
 			pop_session_data($sessid, "${etoken}_add_accts");
 		}
 
-		$mt_file =~ /\/([^\/]{4})[^\/]*$/;
+		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
@@ -2657,7 +2657,7 @@ sub despatch_user
 			redeem_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap', $etoken);
 		}
 
-		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
+		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
 		if ($swap) {
 			emit_with_status((defined $cgi->param('save')) ? "Swap saved ($1)" : 'Add swap cancelled', gen_ucp($session));
 		} else {
@@ -2750,7 +2750,7 @@ sub despatch_user
 			redeem_edit_token($sessid, !$vacct ? 'add_split' : 'add_vacct_split', $etoken);
 		}
 
-		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
+		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
 		if (!$vacct) {
 			emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : 'Add split cancelled', gen_ucp($session));
 		} else {
@@ -2845,7 +2845,7 @@ sub despatch_user
 			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 		}
 
-		$tgfile =~ /\/([^\/]{4})[^\/]*$/ if $tgfile;
+		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
 		if ($edit_id) {
 			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($edit_id, $session, undef));
 		} else {
