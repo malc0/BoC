@@ -16,7 +16,7 @@
 			<table border=1>
 				<tr><th>Name</th><th>Start Date</th><th>Duration (days)</th><th>Organizer</th><th>Meet fee template</th></tr>
 				<TMPL_LOOP NAME=MEETS>
-				<tr><td class="<TMPL_VAR NAME=M_CL>"><a href="boc.pl?tmpl=manage_meets&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME></a></td><td><TMPL_VAR NAME=DATE></td><td><TMPL_VAR NAME=LEN></td><td class="<TMPL_VAR NAME=LDR_CL>"><TMPL_VAR NAME=LEADER></td><td class="<TMPL_VAR NAME=FT_CL>"><TMPL_IF NAME=FTID><a href="boc.pl?tmpl=manage_fee_tmpls&amp;view=<TMPL_VAR NAME=FTID>"><TMPL_VAR NAME=FT></a><TMPL_ELSE><TMPL_IF NAME=FT><TMPL_VAR NAME=FT><TMPL_ELSE>None</TMPL_IF></TMPL_IF></td></tr>
+				<tr><td class="<TMPL_VAR NAME=M_CL>"><a href="boc.pl?tmpl=manage_meets&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME></a></td><td class="<TMPL_VAR NAME=D_CL>"><TMPL_VAR NAME=DATE></td><td class="<TMPL_VAR NAME=LEN_CL>"><TMPL_VAR NAME=LEN></td><td class="<TMPL_VAR NAME=LDR_CL>"><TMPL_VAR NAME=LEADER></td><td class="<TMPL_VAR NAME=FT_CL>"><TMPL_IF NAME=FTID><a href="boc.pl?tmpl=manage_fee_tmpls&amp;view=<TMPL_VAR NAME=FTID>"><TMPL_VAR NAME=FT></a><TMPL_ELSE><TMPL_IF NAME=FT><TMPL_VAR NAME=FT><TMPL_ELSE>None</TMPL_IF></TMPL_IF></td></tr>
 				</TMPL_LOOP>
 				<tr><td><input type="text" name="name"/></td><td><input type="text" name="date"/></td><td><input type="text" name="len"/></td><td><select name="leader">
 						<TMPL_LOOP NAME=PPL><option value="<TMPL_VAR NAME=A>"><TMPL_VAR NAME=N></option>

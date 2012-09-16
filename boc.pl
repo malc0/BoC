@@ -23,7 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
-use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use FT;
 use HeadedTSV;
 use TG;
@@ -1142,8 +1142,8 @@ sub meet_valid
 	}
 
 	my @units = known_units;
-	return 0 if scalar @units > 1 && !(exists $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
-	return 0 if !(scalar @units) && exists $meet{Currency} && defined $meet{Currency} && length $meet{Currency};
+	return 0 if scalar @units > 1 && !(defined $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
+	return 0 if !(scalar @units) && defined $meet{Currency} && length $meet{Currency};
 	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep (/^$meet{Currency}$/, @units));
 
 	return 0 unless fee_cfg_valid;
@@ -1177,11 +1177,11 @@ sub gen_manage_meets
 	my @meetlist;
 	foreach my $mid (date_sorted_htsvs('meets')) {
 		my %meet = read_htsv("$config{Root}/meets/$mid");
-		my $leader = (exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader};
-		my $ft_state = (!(exists $meet{Template}) || !!grep (/^$meet{Template}$/, @fts));
-		my $ft_exists = exists $meet{Template} && -r "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template});
+		my $leader = (defined $meet{Leader}) ? ((exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader}) : '';
+		my $ft_state = (!(defined $meet{Template}) || !!grep (/^$meet{Template}$/, @fts));
+		my $ft_exists = defined $meet{Template} && -r "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template});
 
-		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => meet_valid(%meet) ? '' : 'broken', DATE => $meet{Date}, LEN => $meet{Duration}, LDR_CL => (exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => (exists $meet{Template}) ? $meet{Template} : '', FTID => $ft_exists ? encode_for_filename($meet{Template}) : '' });
+		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(%meet)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => $meet{Template} // '', FTID => $ft_exists ? encode_for_filename($meet{Template}) : '' });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, keys %ppl);
 	my @ftlist = map ({ FTN => $_ }, @fts);
@@ -1205,7 +1205,7 @@ sub gen_edit_meet
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 
-	my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
+	my $ft_file = (defined $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
 	my %ft = valid_ft($ft_file);
 	my $def_cur = (%ft && defined get_ft_currency(%ft)) ? get_ft_currency(%ft) : $units_cfg{Default};
 
@@ -1293,7 +1293,7 @@ sub gen_edit_meet_ppl
 sub meet_to_tg
 {
 	my %meet = @_;
-	my %tg = ( Date => $meet{Date}, Name => "Meet: $meet{Name}" );
+	my %tg = ( Date => $meet{Date}, Name => "Meet: " . ($meet{Name} // '') );
 	my %colsum;
 
 	unless (meet_valid(%meet)) {
@@ -1475,7 +1475,7 @@ sub despatch_admin
 			try_commit_and_unlock(sub {
 				if ($rename) {
 					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
-					dir_mod_all('meets', 0, [ $edit_acct ], sub { my ($meet, $old) = @_; $meet->{Leader} =~ s/^$old$/$new_acct/; foreach (@{$meet->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
+					dir_mod_all('meets', 0, [ $edit_acct ], sub { my ($meet, $old) = @_; $meet->{Leader} =~ s/^$old$/$new_acct/ if defined $meet->{Leader}; foreach (@{$meet->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
 					my %cf = read_htsv("$config{Root}/config_fees", 1);
 					if (%cf) {
 						$cf{MeetAccount} =~ s/^$edit_acct$/$new_acct/;
@@ -1718,7 +1718,7 @@ sub despatch_admin
 			}
 			@{$meet{Person}} = map { s/\..*$//; $_ } (@ppl);
 
-			my $ft_file = (exists $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
+			my $ft_file = (defined $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
 			my %ft = valid_ft($ft_file);
 			if (%ft) {
 				my $cur = get_ft_currency(%ft) unless exists $meet{Currency};
