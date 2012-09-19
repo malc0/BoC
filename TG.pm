@@ -21,25 +21,13 @@ my (%valid, %vavalid);
 
 sub read_tg
 {
-	my %content = read_htsv($_[0]);
+	my %content = read_htsv($_[0], undef, [ 'Creditor', 'Amount', 'Currency', 'TrnsfrPot', 'Description' ]);
 
 	($content{Headings}[0] eq 'Creditor') or confess "tg data is broken ($content{Headings}[0])";
 	($content{Headings}[1] eq 'Amount') or confess "tg data is broken ($content{Headings}[1])";
 	($content{Headings}[$#{$content{Headings}}] eq 'Description') or confess "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
 
-	foreach my $col (@{$content{Headings}}) {
-		next if $col eq 'Creditor';
-		next if $col eq 'Currency';
-		next if $col eq 'Description';
-		next if $col eq 'TrnsfrPot';
-		if ($col eq 'Amount') {
-			foreach my $i (0 .. $#{$content{Amount}}) {
-				$content{Amount}[$i] = ($content{Creditor}[$i] =~ /^TrnsfrPot\d$/ ? '*' : 0) unless $content{Amount}[$i];
-			}
-		} else {
-			@{$content{$col}} = map ($_ ? $_ : 0, @{$content{$col}});
-		}
-	}
+	$content{Amount}[$_] = ($content{Creditor}[$_] =~ /^TrnsfrPot\d$/ ? '*' : 0) foreach (grep (!$content{Amount}[$_], 0 .. $#{$content{Amount}}));
 
 	return %content;
 }
@@ -55,7 +43,7 @@ sub write_tg
 	foreach my $col (@{$content{Headings}}) {
 		next if $col eq 'Creditor';
 		next if $col eq 'Description';
-		@{$content{$col}} = map (((not defined $_) or ($_ =~ /^-?\d*[.]?\d*$/ and ($_ eq '' or $_ == 0))) ? undef : $_, @{$content{$col}});
+		@{$content{$col}} = map ((!(defined $_) || ($_ =~ /^-?\d*[.]?\d*$/ && ($_ eq '' || $_ == 0))) ? undef : $_, @{$content{$col}});
 	}
 
 	return write_htsv($file, \%content, 11);

@@ -256,7 +256,7 @@ sub read_tg2
 
 	return read_tg($tg_file) unless $tg_file =~ /.*\/M([^\/]+)$/ && -e "$config{Root}/meets/$1";
 
-	return meet_to_tg(%{{read_htsv("$config{Root}/meets/$1")}});
+	return meet_to_tg(%{{read_htsv("$config{Root}/meets/$1", undef, [ 'Person', 'Notes' ])}});
 }
 
 sub read_htsv_encode
@@ -826,7 +826,7 @@ sub gen_ft_tg_common
 	my $init_rows = 0;
 
 	if ($file) {
-		%htsv = $is_tg ? read_tg2($file) : read_htsv($file);
+		%htsv = $is_tg ? read_tg2($file) : read_htsv($file, undef, [ 'Unit', 'Condition' ]);
 		$init_rows = (exists $htsv{$key_col}) ? scalar @{$htsv{$key_col}} : 0;
 		$max_rows = $init_rows + ($view ? 0 : min($d_row, $row_lim - $init_rows));
 	}
@@ -857,7 +857,7 @@ sub gen_edit_fee_tmpl
 	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
 
 	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units, $tmpl);
-	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id)) : %ft;
+	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id), undef, [ 'Unit', 'Condition' ]) : %ft;
 
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @curs = known_currs(%units_cfg);
@@ -1176,7 +1176,7 @@ sub gen_manage_meets
 
 	my @meetlist;
 	foreach my $mid (date_sorted_htsvs('meets')) {
-		my %meet = read_htsv("$config{Root}/meets/$mid");
+		my %meet = read_htsv("$config{Root}/meets/$mid", undef, [ 'Person', 'Notes' ]);
 		my $leader = (defined $meet{Leader}) ? ((exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader}) : '';
 		my $ft_state = (!(defined $meet{Template}) || !!grep (/^$meet{Template}$/, @fts));
 		my $ft_exists = defined $meet{Template} && -r "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template});
@@ -1196,7 +1196,7 @@ sub gen_edit_meet
 	my ($edit_id, $mcr, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet.html', $etoken);
-	my %meet = read_htsv("$config{Root}/meets/$edit_id");
+	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
 
 	$tmpl->param(MID => $edit_id);
 	$tmpl->param(RO => !$etoken);
@@ -1265,7 +1265,7 @@ sub gen_edit_meet_ppl
 	my ($edit_id, $sessid, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet_ppl.html', $etoken);
-	my %meet = read_htsv("$config{Root}/meets/$edit_id");
+	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @unks = grep (!(exists $accts{$_}), map ($_ // '', @{$meet{Person}}));
@@ -1303,9 +1303,7 @@ sub meet_to_tg
 	}
 
 	foreach my $row (0 .. $#{$meet{Person}}) {
-		foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
-			$colsum{$_} += $meet{$_}[$row] if defined $meet{$_}[$row];
-		}
+		$colsum{$_} += $meet{$_}[$row] foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}}));
 	}
 	foreach my $row (0 .. $#{$meet{Person}}) {
 		push (@{$tg{$meet{Person}[$row]}}, $meet{$_}[$row]) foreach (grep ($colsum{$_}, @{$meet{Headings}}));
@@ -1615,7 +1613,7 @@ sub despatch_admin
 			}
 		}
 
-		my %meet = read_htsv($mt_file);
+		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
 		if (defined $cgi->param('save')) {
 			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless %meet_cfg;
@@ -1687,7 +1685,7 @@ sub despatch_admin
 			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken)));
 		}
 
-		my %meet = read_htsv($mt_file);
+		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
 		if (defined $cgi->param('save')) {
 			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless %cf;
@@ -1742,6 +1740,9 @@ sub despatch_admin
 					$meet{BaseFee}[$p_n] = $def_fees{$ft_curr} if defined $ft_curr;
 					$meet{$_}[$p_n] = $def_fees{$_} foreach (@commods);
 				}
+			}
+			foreach my $p_n (0 .. $#ppl) {
+				$meet{$_}[$p_n] //= 0 foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}}));
 			}
 
 			my %tg;

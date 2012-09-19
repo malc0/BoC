@@ -69,7 +69,7 @@ sub valid_ft
 	return unless defined $ft_file;
 	return unless -r $ft_file;
 
-	my %ft = read_htsv($ft_file);
+	my %ft = read_htsv($ft_file, undef, [ 'Unit', 'Condition' ]);
 
 	return unless exists $ft{Headings};
 
