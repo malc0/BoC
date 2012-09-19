@@ -264,7 +264,7 @@ sub read_htsv_encode
 	my $content = $_[0];
 
 	foreach my $key (keys %$content) {
-		$content->{$key} = encode_for_html($content->{$key}) unless (ref($content->{$key}) or not $content->{$key});
+		$content->{$key} = encode_for_html($content->{$key}) unless (ref($content->{$key}) || !$content->{$key});
 		@{$content->{$key}} = map (encode_for_html($_), @{$content->{$key}}) if ref ($content->{$key});
 	}
 
@@ -276,7 +276,7 @@ sub write_htsv_encode
 	my $content = $_[0];
 
 	foreach my $key (keys %$content) {
-		$content->{$key} = encode_for_file($content->{$key}) unless (ref($content->{$key}) or not $content->{$key});
+		$content->{$key} = encode_for_file($content->{$key}) unless (ref($content->{$key}) || !$content->{$key});
 		@{$content->{$key}} = map (encode_for_file($_), @{$content->{$key}}) if ref ($content->{$key});
 	}
 

@@ -35,11 +35,12 @@ sub dedup_headings {
 
 sub read_htsv
 {
-	my ($file, $nexist_ok, $hdg_key) = @_;
+	my ($file, $nexist_ok, $to_undef, $hdg_key) = @_;
 	$hdg_key //= 'Headings';
 	my $fh;
 	my %content;
 	my $in_header = 1;
+	my @defs;
 
 	if ($nexist_ok) {
 		no autodie qw(open);
@@ -66,10 +67,13 @@ sub read_htsv
 			unless ($content{$hdg_key}) {
 				$content{$hdg_key} = [ split ];
 				dedup_headings(\@{$content{$hdg_key}});
+				foreach my $i (0 .. $#{$content{$hdg_key}}) {
+					$defs[$i] = 0 unless (!ref $to_undef || grep ($_ eq $content{$hdg_key}[$i], @$to_undef));
+				}
 			} else {
 				my @line = split ('	', $_, scalar(@{$content{$hdg_key}}));
 				foreach my $i (0 .. $#{$content{$hdg_key}}) {
-					push (@{$content{$content{$hdg_key}[$i]}}, $line[$i]);
+					push (@{$content{$content{$hdg_key}[$i]}}, (defined $line[$i] && length $line[$i]) ? $line[$i] : $defs[$i]);
 				}
 			}
 		}
