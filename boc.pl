@@ -2198,7 +2198,8 @@ sub gen_ucp
 	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts);
 
-	my $sum = 0;
+	my $credsum = 0;
+	my $debsum = 0;
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %computed = eval { compute_tg_c($tg, undef, \%acct_names, \%neg_accts, \%resolved) };
@@ -2210,7 +2211,7 @@ sub gen_ucp
 		my @to;
 		my $to_extra;
 		unless ($tg_broken) {
-			$sum += $computed{$user} unless exists $tgdetails{Omit};
+			$computed{$user} >= 0 ? $credsum : $debsum += $computed{$user} unless exists $tgdetails{Omit};
 
 			if (($computed{$user} < 0 && exists $neg_accts{$user}) || ($computed{$user} > 0 && !(exists $neg_accts{$user}))) {
 				@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep (exists $neg_accts{$_} ? $computed{$_} > 0 : $computed{$_} < 0, keys %computed));
@@ -2243,7 +2244,9 @@ sub gen_ucp
 	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (defined $cf{Fee}[$_] && length $cf{Fee}[$_] && !($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_]) || true($cf{IsDrain}[$_])) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]} && defined $cf{Description}[$_] && length $cf{Description}[$_], 0 .. $#{$cf{Description}}));
 	$tmpl->param(SIMPTRANS => scalar @simptransidcounts && !grep ($_ > 0, @simptransidcounts));
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
-	$tmpl->param(BAL => sprintf('%+.2f', $sum));
+	$tmpl->param(BAL => sprintf('%+.2f', $credsum + $debsum));
+	$tmpl->param(CRED_TOT => sprintf('%+.2f', $credsum));
+	$tmpl->param(DEB_TOT => sprintf('%+.2f', $debsum));
 	my @units = known_units();
 	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
 	$tmpl->param(CREDITS => \@credlist);
