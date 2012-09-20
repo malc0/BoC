@@ -31,7 +31,7 @@ sub get_ft_currency
 	my @curs = known_currs(read_units_cfg("$root/config_units"));
 
 	foreach my $ft_unit (grep (defined, @{$ft{Unit}})) {
-		return $ft_unit if grep (/^$ft_unit$/, @curs);
+		return $ft_unit if grep ($_ eq $ft_unit, @curs);
 	}
 
 	return undef;
@@ -74,10 +74,10 @@ sub valid_ft
 	return unless exists $ft{Headings};
 
 	foreach my $hd ('Fee', 'Condition') {
-		return unless grep (/^$hd$/, @{$ft{Headings}});
+		return unless grep ($_ eq $hd, @{$ft{Headings}});
 		return unless exists $ft{$hd};
 	}
-	return if grep (/^Unit$/, @{$ft{Headings}}) && !(exists $ft{Unit});
+	return if grep ($_ eq 'Unit', @{$ft{Headings}}) && !(exists $ft{Unit});
 
 	my %units_cfg = read_units_cfg("$root/config_units");
 	my $bad = 0;
@@ -99,8 +99,8 @@ sub valid_ft
 
 		if ($unitcol) {
 			return unless (defined $ft{Unit}[$row] && length $ft{Unit}[$row]) || !(scalar @units);
-			return unless grep (/^$ft{Unit}[$row]$/, @units);
-			$curs_in_use{$ft{Unit}[$row]} = 1 if grep (/^$ft{Unit}[$row]$/, @curs);
+			return unless grep ($_ eq $ft{Unit}[$row], @units);
+			$curs_in_use{$ft{Unit}[$row]} = 1 if grep ($_ eq $ft{Unit}[$row], @curs);
 		}
 
 		next unless defined $ft{Condition}[$row];

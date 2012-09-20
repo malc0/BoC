@@ -217,7 +217,7 @@ sub validate_unit
 	$unit = clean_unit($unit);
 
 	$whinge->('Disallowed characters in currency code') unless defined $unit;
-	$whinge->("Non-existent unit \"$unit\"") unless grep (/^$unit$/, @$valid_ref);
+	$whinge->("Non-existent unit \"$unit\"") unless grep ($_ eq $unit, @$valid_ref);
 
 	return $unit;
 }

@@ -94,7 +94,7 @@ sub known_units
 
 	return unless $cfg{Default};
 
-	return ($cfg{Default}, sort grep (!/^$cfg{Default}$/, known_units_raw(%cfg)));	# presentation unit returned first
+	return ($cfg{Default}, sort grep ($_ ne $cfg{Default}, known_units_raw(%cfg)));	# presentation unit returned first
 }
 
 # should always work for keys, not for descs
@@ -148,7 +148,7 @@ sub validate_units
 	$whinge->("Unknown heading \"$_\"") foreach (grep (!(exists $cfg{$_}), @{$cfg{Headings}}));
 	foreach my $key (keys %cfg) {
 		next if $key eq 'Headings' or not ref $cfg{$key};
-		$whinge->("Unlisted heading \"$key\"") unless scalar grep (/^$key$/, @{$cfg{Headings}}) == 1;
+		$whinge->("Unlisted heading \"$key\"") unless scalar grep ($_ eq $key, @{$cfg{Headings}}) == 1;
 	}
 
 	foreach my $unit (@units) {

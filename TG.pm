@@ -62,7 +62,7 @@ sub validate_tg
 	$whinge->("Unknown heading \"$_\"") foreach (grep (!(exists $tg{$_}), @{$tg{Headings}}));
 	foreach my $key (keys %tg) {
 		next if $key eq 'Headings' or not ref $tg{$key};
-		$whinge->("Unlisted heading \"$key\"") unless scalar grep (/^$key$/, @{$tg{Headings}}) == 1;
+		$whinge->("Unlisted heading \"$key\"") unless scalar grep ($_ eq $key, @{$tg{Headings}}) == 1;
 	}
 
 	$whinge->('Missing transaction group name') unless clean_words($tg{Name});
@@ -90,7 +90,7 @@ sub validate_tg
 			my $val = validate_decimal($tg{$head}[$row], 'Debt share', 1, $whinge);
 			$debtors = 1 unless $val == 0;
 		}
-		if (grep (/^TrnsfrPot$/, @{$tg{Headings}}) and defined $tg{TrnsfrPot}[$row]) {
+		if (grep ($_ eq 'TrnsfrPot', @{$tg{Headings}}) && defined $tg{TrnsfrPot}[$row]) {
 			$whinge->('Invalid transfer pot') unless $tg{TrnsfrPot}[$row] =~ /^\s*([1-9]?)\s*$/;
 			if ($1 ne '') {
 				$whinge->('Cannot have a transfer pot creditor and debtor set in same row') unless clean_username($tg{Creditor}[$row]);

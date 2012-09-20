@@ -695,7 +695,7 @@ sub valid_fee_cfg
 	return %cf unless exists $cf{Headings};
 
 	foreach my $hd ('Fee', 'IsBool', 'IsDrain', 'Account', 'Description') {
-		return unless grep (/^$hd$/, @{$cf{Headings}});
+		return unless grep ($_ eq $hd, @{$cf{Headings}});
 		return unless exists $cf{$hd};
 	}
 
@@ -841,7 +841,7 @@ sub gen_ft_tg_common
 
 	my @allunits = @{$units};
 	foreach my $cur (@{$htsv{$cur_col}}) {
-		push (@allunits, $cur) if defined $cur && !grep (/^$cur$/, @allunits);
+		push (@allunits, $cur) if defined $cur && !grep ($_ eq $cur, @allunits);
 	}
 
 	$tmpl->param(CUROPTS => scalar @allunits > 1);
@@ -867,7 +867,7 @@ sub gen_edit_fee_tmpl
 	my %moreattrs;
 	foreach my $row (0 .. $#{$oldft{Fee}}) {
 		next unless defined $oldft{Unit}[$row] && length $oldft{Unit}[$row];
-		$curs_in_use{$oldft{Unit}[$row]} = 1 if grep (/^$oldft{Unit}[$row]$/, @curs);
+		$curs_in_use{$oldft{Unit}[$row]} = 1 if grep ($_ eq $oldft{Unit}[$row], @curs);
 
 		next unless defined $ft{Condition}[$row];
 		(my $cond = $ft{Condition}[$row]) =~ s/\s*//g;
@@ -889,7 +889,7 @@ sub gen_edit_fee_tmpl
 
 	my @fees;
 	foreach my $row (0 .. $#{$ft{Fee}}) {
-		my $unk_cur = (not defined $ft{Unit}[$row] or not grep (/^$ft{Unit}[$row]$/, @units));
+		my $unk_cur = (!(defined $ft{Unit}[$row]) || !grep ($_ eq $ft{Unit}[$row], @units));
 		my @currencies = map ({ C => $_, S => ((defined $ft{Unit}[$row]) ? ($_ eq $ft{Unit}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
 		my @fattrs;
 		foreach (keys %rawattrs, keys %moreattrs) {
@@ -903,7 +903,7 @@ sub gen_edit_fee_tmpl
 			my $dc = !($if or $unless);
 			push (@fattrs, { A => $_, I => $if, U => $unless, D => $dc, A_CL => exists $moreattrs{$_} ? 'broken' : '' });
 		}
-		my $unit_cl = (((scalar @units) && defined $ft{Unit}[$row] && grep (/^$ft{Unit}[$row]$/, @units) && !(grep (/^$ft{Unit}[$row]$/, @curs) && scalar keys %curs_in_use > 1 && $row <= $#{$oldft{Fee}})) || (!(scalar @units) && !(defined $ft{Unit}[$row] && length $ft{Unit}[$row]))) ? '' : 'broken';
+		my $unit_cl = (((scalar @units) && defined $ft{Unit}[$row] && grep ($_ eq $ft{Unit}[$row], @units) && !(grep ($_ eq $ft{Unit}[$row], @curs) && scalar keys %curs_in_use > 1 && $row <= $#{$oldft{Fee}})) || (!(scalar @units) && !(defined $ft{Unit}[$row] && length $ft{Unit}[$row]))) ? '' : 'broken';
 		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs, F_CL => (defined CleanData::clean_decimal($ft{Fee}[$row])) ? '' : 'broken', C_CL => $unit_cl });
 	}
 
@@ -927,7 +927,7 @@ sub gen_edit_fee_cfg
 	my @sorted_vaccts = sort_AoH(\%vaccts);
 
 	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{MeetAccount} && $cfg{MeetAccount} eq $_) }, @sorted_vaccts);
-	unless (defined $cfg{MeetAccount} && grep (/^$cfg{MeetAccount}$/, @sorted_vaccts)) {
+	unless (defined $cfg{MeetAccount} && grep ($_ eq $cfg{MeetAccount}, @sorted_vaccts)) {
 		push (@accts, { O => $cfg{MeetAccount}, V => $cfg{MeetAccount}, S => 1 });
 		$tmpl->param(SEL_CL => 'broken');
 	}
@@ -951,7 +951,7 @@ sub gen_edit_fee_cfg
 		my $commod = exists $cds{$fees[$row]};
 		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $cf_row && defined $cfg{Account}[$cf_row] && $cfg{Account}[$cf_row] eq $_) }, @sorted_accts);
 		my $broken_fee = (defined $seen{$fees[$row]} && $seen{$fees[$row]} > 1) || !(defined $fees[$row]) || clean_int($fees[$row]) || (!$commod && $fees[$row] =~ /[A-Z]/);
-		my $broken_acct = defined $cf_row && (!defined $cfg{Account}[$cf_row] || !grep (/^$cfg{Account}[$cf_row]$/, @sorted_accts));
+		my $broken_acct = defined $cf_row && (!defined $cfg{Account}[$cf_row] || !grep ($_ eq $cfg{Account}[$cf_row], @sorted_accts));
 		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), ACCTS => \@rowoptions, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(defined $cfg{Description}[$cf_row] && length $cfg{Description}[$cf_row])) ? 'broken' : '', BD_CL => (!$commod && true($cfg{IsBool}[$cf_row]) && !true($cfg{IsDrain}[$cf_row])) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
 	}
 	my @rowoptions = map ({ O => $acct_names{$_}, V => $_ }, @sorted_accts);
@@ -1013,7 +1013,7 @@ sub gen_edit_rates
 	my %curs;
 	$curs{$_} = 1 foreach (known_currs(%cfg));
 
-	@units = grep (!/^$cfg{Anchor}$/, @units);	# exclude self-referencing rate henceforth
+	@units = grep ($_ ne $cfg{Anchor}, @units);	# exclude self-referencing rate henceforth
 
 	my %in;
 	foreach my $unit (@units) {
@@ -1147,13 +1147,13 @@ sub meet_valid
 	my @units = known_units;
 	return 0 if scalar @units > 1 && !(defined $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
 	return 0 if !(scalar @units) && defined $meet{Currency} && length $meet{Currency};
-	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep (/^$meet{Currency}$/, @units));
+	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep ($_ eq $meet{Currency}, @units));
 
 	my %meet_cfg = valid_fee_cfg;
 	return 0 unless %meet_cfg;
 
 	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
-		return 0 unless $hd eq 'BaseFee' || grep (/^$hd$/, grep (defined, @{$meet_cfg{Fee}}));
+		return 0 unless $hd eq 'BaseFee' || grep ($_ eq $hd, grep (defined, @{$meet_cfg{Fee}}));
 		foreach (@{$meet{$hd}}) {
 			return 0 unless defined CleanData::clean_decimal($_);
 		}
@@ -1181,7 +1181,7 @@ sub gen_manage_meets
 	foreach my $mid (date_sorted_htsvs('meets')) {
 		my %meet = read_htsv("$config{Root}/meets/$mid", undef, [ 'Person', 'Notes' ]);
 		my $leader = (defined $meet{Leader}) ? ((exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader}) : '';
-		my $ft_state = (!(defined $meet{Template}) || !!grep (/^$meet{Template}$/, @fts));
+		my $ft_state = (!(defined $meet{Template}) || !!grep ($_ eq $meet{Template}, @fts));
 		my $ft_exists = defined $meet{Template} && -r "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template});
 
 		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(%meet)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => $meet{Template} // '', FTID => $ft_exists ? encode_for_filename($meet{Template}) : '' });
@@ -1223,7 +1223,7 @@ sub gen_edit_meet
 	}
 	my $red_unit;
 
-	if (defined $sel_cur && !grep (/^$sel_cur$/, @units)) {
+	if (defined $sel_cur && !grep ($_ eq $sel_cur, @units)) {
 		$red_unit = 1;
 		push (@units, $sel_cur);
 	}
@@ -1238,7 +1238,7 @@ sub gen_edit_meet
 	my @exps = grep (!(exists $cds{$meet_cfg{Fee}[$_]} || true($meet_cfg{IsDrain}[$_])), 0 .. $#{$meet_cfg{Fee}});
 	my @unks;
 	foreach my $hd (grep (!/^(Person|BaseFee|Notes)$/, @{$meet{Headings}})) {
-		push (@unks, $hd) unless grep (/^$hd$/, @{$meet_cfg{Fee}});
+		push (@unks, $hd) unless grep ($_ eq $hd, @{$meet_cfg{Fee}});
 	}
 
 	my @feesh = map ({ FEE => $cds{$meet_cfg{Fee}[$_]} }, @ccs);
@@ -1283,7 +1283,7 @@ sub gen_edit_meet_ppl
 	foreach my $user (sort_AoH(\%accts)) {
 		$ppl_seen{$user} = 0 unless exists $ppl_seen{$user};
 		my @dups = map ({ A => "$user.$_" }, 2 .. $ppl_seen{$user});
-		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (grep (/^$user$/, @adds) || !!grep (/^$user$/, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
+		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (grep ($_ eq $user, @adds) || !!grep ($_ eq $user, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
 	}
 	push (@ppl, { NAME => $_, A => $_, Y => 1, P_CL => ($ppl_seen{$_} && $ppl_seen{$_} > 1) ? 'unknown dup' : 'unknown' }) foreach (@unks);
 
@@ -1320,7 +1320,7 @@ sub meet_to_tg
 	foreach my $hd (@{$meet{Headings}}) {
 		next if ($hd eq 'Person' || $hd eq 'Notes');
 		next unless $colsum{$hd};
-		if (grep (/^$hd$/, grep (defined, @{$meet_cfg{Fee}}))) {
+		if (grep ($_ eq $hd, grep (defined, @{$meet_cfg{Fee}}))) {
 			my $mc_row = first { $meet_cfg{Fee}[$_] eq $hd } 0 .. $#{$meet_cfg{Fee}};
 			push (@{$tg{Creditor}}, $meet_cfg{Account}[$mc_row]);
 			if (exists $cds{$hd}) {
@@ -1733,9 +1733,9 @@ sub despatch_admin
 				my %cds = known_commod_descs;
 				my @commods = grep (exists $cds{$_}, @{$cf{Fee}});
 
-				splice (@{$meet{Headings}}, 1, 0, 'BaseFee') if !grep (/^BaseFee$/, @{$meet{Headings}});
+				splice (@{$meet{Headings}}, 1, 0, 'BaseFee') if !grep ($_ eq 'BaseFee', @{$meet{Headings}});
 				foreach my $commod (@commods) {
-					splice (@{$meet{Headings}}, 2, 0, $commod) if !grep (/^$commod$/, @{$meet{Headings}});
+					splice (@{$meet{Headings}}, 2, 0, $commod) if !grep ($_ eq $commod, @{$meet{Headings}});
 				}
 
 				my $ft_curr = get_ft_currency(%ft);
@@ -1865,7 +1865,7 @@ sub despatch_admin
 				push (@{$ft{Fee}}, $amnt);
 				if (scalar @units) {
 					push (@{$ft{Unit}}, $cur);
-					push (@are_curs, $cur) if grep (/^$cur$/, @curs) && !grep (/^$cur$/, @are_curs);
+					push (@are_curs, $cur) if grep ($_ eq $cur, @curs) && !grep ($_ eq $cur, @are_curs);
 				}
 				push (@{$ft{Condition}}, $cond);
 			}
@@ -1927,7 +1927,7 @@ sub despatch_admin
 
 				if (defined $oldcode && exists $cds{$oldcode}) {
 					next unless length $cgi->param("Acct_$row");
-					$whinge->("\"$oldcode\" multiply defined") if grep (/^$oldcode$/, @{$cfg{Fee}});
+					$whinge->("\"$oldcode\" multiply defined") if grep ($_ eq $oldcode, @{$cfg{Fee}});
 					push (@{$cfg{Fee}}, $oldcode);
 					push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$row"), \%acct_names, $whinge));
 					push (@{$cfg{IsDrain}}, '');
@@ -1938,8 +1938,8 @@ sub despatch_admin
 					next unless (defined $id && !($id =~ /^\s*$/)) || defined $desc;
 					$whinge->("Missing ID for \"$desc\"") unless defined $id;
 					$id = lc $id;
-					$whinge->("\"$id\" multiply defined") if grep (/^$id$/, @{$cfg{Fee}});
-					$recode{$oldcode} = $id if defined $oldcode && !($oldcode =~ /[A-Z]/) && grep (/^$oldcode$/, grep (defined, @{$oldcf{Fee}})) && $oldcode ne $id;
+					$whinge->("\"$id\" multiply defined") if grep ($_ eq $id, @{$cfg{Fee}});
+					$recode{$oldcode} = $id if defined $oldcode && !($oldcode =~ /[A-Z]/) && grep ($_ eq $oldcode, grep (defined, @{$oldcf{Fee}})) && $oldcode ne $id;
 					$whinge->("Missing display text for \"$id\"") unless defined $desc;
 					$whinge->("Missing linked account for \"$desc\"") unless defined $acct && length $acct;
 					$whinge->("Expense (\"$id\") cannot be Boolean") if defined $cgi->param("Bool_$row") && !(defined $cgi->param("Drain_$row"));
@@ -1992,7 +1992,7 @@ sub despatch_admin
 				my $attr = clean_words($cgi->param("Attr_$row"));
 				my $oldattr = clean_word($cgi->param("OldAttr_$row"));
 				next unless $attr;
-				$whinge->('Invalid type prefix') if defined $type && length $type && !grep (/^$type$/, @types);
+				$whinge->('Invalid type prefix') if defined $type && length $type && !grep ($_ eq $type, @types);
 				$whinge->('Attributes cannot have spaces') unless clean_word($attr);
 				$attr = ucfirst $type . ucfirst $attr;
 				$rename{$oldattr} = $attr if defined $oldattr && exists $oldcfg{$oldattr} && $oldattr ne $attr;
@@ -2529,14 +2529,14 @@ sub gen_tg
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
 		my $cred = $tgdetails{Creditor}[$row] // '';
 		my @creditors = map ({ O => $acct_names{$_}, V => $_, S => $cred eq $_, CR_CL => (exists $tps{$_}) ? 'tp' : '' }, (@sorted_accts, sort_AoH(\%tps)));
-		my $unk_cur = (not defined $tgdetails{Currency}[$row] or not grep (/^$tgdetails{Currency}[$row]$/, @units));
+		my $unk_cur = (!(defined $tgdetails{Currency}[$row]) || !grep ($_ eq $tgdetails{Currency}[$row], @units));
 		my @currencies = map ({ C => $_, S => ((defined $tgdetails{Currency}[$row]) ? ($_ eq $tgdetails{Currency}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
 		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => ((exists $unknown{$_}) ? 'unknown_d' : '') . ((exists $vaccts{$_}) ? ' vacct' : '') }, @sorted_in_use);
 		my @tps = map ({ V => $_, S => ($tgdetails{TrnsfrPot}[$row] ? $tgdetails{TrnsfrPot}[$row] eq $_ : undef) }, 1 .. 9);
 		push (@rows, { ROW_CL => (exists $unknown{$cred}) ? 'unknown_c' : '',
 			       R => $row,
 			       CREDS => \@creditors,
-			       CUR_CL => (!(exists $tps{$cred}) && !($tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/) && (!$tgdetails{Currency}[$row] || !grep (/^$tgdetails{Currency}[$row]$/, @units))) ? 'unknown_u' : '',
+			       CUR_CL => (!(exists $tps{$cred}) && !($tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/) && (!$tgdetails{Currency}[$row] || !grep ($_ eq $tgdetails{Currency}[$row], @units))) ? 'unknown_u' : '',
 			       CURS => \@currencies,
 			       A => $tgdetails{Amount}[$row],
 			       RC => \@rowcontents,
@@ -2728,7 +2728,7 @@ sub despatch_user
 				}
 				if ($ds) {
 					$tg{$acct}[0] = (exists $tg{$acct}) ? $tg{$acct}[0] + $ds : $ds;
-					push (@accts, $acct) unless grep (/^$acct$/, @accts);
+					push (@accts, $acct) unless grep ($_ eq $acct, @accts);
 					$descstr .= "$type ($acct) -> $ds, " if $vacct;
 				}
 			}
