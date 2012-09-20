@@ -2341,12 +2341,12 @@ sub gen_accts_disp
 
 sub gen_add_swap
 {
-	my ($swap, $session, $etoken) = @_;
+	my ($swap, $def_cred, $etoken) = @_;
 	my $tmpl = load_template('add_swap.html', $etoken);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @sorted_accts = sort_AoH(\%accts);
-	my @pploptions = map ({ O => $accts{$_}, V => $_, S => $session->param('User') eq $_ }, @sorted_accts);
+	my @pploptions = map ({ O => $accts{$_}, V => $_, S => $def_cred eq $_ }, @sorted_accts);
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $units_cfg{Default} eq $_ }, @units);
@@ -2368,7 +2368,7 @@ sub gen_add_swap
 
 sub gen_add_split
 {
-	my ($vacct, $session, $etoken) = @_;
+	my ($vacct, $etoken) = @_;
 	my $tmpl = load_template('add_split.html', $etoken);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
@@ -2607,12 +2607,12 @@ sub despatch_user
 	if ($cgi->param('tmpl') eq 'ucp') {
 		if (defined $cgi->param('add_swap') || defined $cgi->param('add_vacct_swap')) {
 			my $swap = defined $cgi->param('add_swap');
-			emit(gen_add_swap($swap, $session, get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap')));
+			emit(gen_add_swap($swap, $session->param('User'), get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap')));
 		}
 		if (defined $cgi->param('add_split') || defined $cgi->param('add_vacct_split')) {
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;
 			my $vacct = defined $cgi->param('add_vacct_split');
-			emit(gen_add_split($vacct, $session, get_edit_token($sessid, !$vacct ? 'add_split' : 'add_vacct_split')));
+			emit(gen_add_split($vacct, get_edit_token($sessid, !$vacct ? 'add_split' : 'add_vacct_split')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_swap' || $cgi->param('tmpl') eq 'add_vacct_swap') {
@@ -2621,7 +2621,7 @@ sub despatch_user
 
 		if (defined $cgi->param('save')) {
 			my %tg;
-			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session->param('User'), $etoken)) };
 
 			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my @units = known_units();
@@ -2682,7 +2682,7 @@ sub despatch_user
 
 		if (defined $cgi->param('save')) {
 			my %tg;
-			my $whinge = sub { whinge($_[0], gen_add_split($vacct, $session, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_add_split($vacct, $etoken)) };
 
 			$tg{Name} = 'Split' . ($vacct ? ' expense: ' : ': ') . clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
