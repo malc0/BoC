@@ -680,9 +680,9 @@ sub get_acct_name_map
 	return (%ppl, %vaccts);
 }
 
-sub fee_cfg_valid
+sub valid_fee_cfg
 {
-	return 1 unless -r "$config{Root}/config_fees";
+	return unless -r "$config{Root}/config_fees";
 
 	my %cf = read_htsv("$config{Root}/config_fees");
 
@@ -690,13 +690,13 @@ sub fee_cfg_valid
 	my $bad = 0;
 	my $whinge = sub { $bad = 1 };
 	validate_acct($cf{MeetAccount}, \%acct_names, $whinge);
-	return 0 if $bad;
+	return if $bad;
 
-	return 1 unless exists $cf{Headings};
+	return %cf unless exists $cf{Headings};
 
 	foreach my $hd ('Fee', 'IsBool', 'IsDrain', 'Account', 'Description') {
-		return 0 unless grep (/^$hd$/, @{$cf{Headings}});
-		return 0 unless exists $cf{$hd};
+		return unless grep (/^$hd$/, @{$cf{Headings}});
+		return unless exists $cf{$hd};
 	}
 
 	my %cds = known_commod_descs;
@@ -704,22 +704,22 @@ sub fee_cfg_valid
 	my %seen;
 	foreach (@{$cf{Fee}}) {
 		return unless defined;
-		return 0 if $seen{$_}++;
+		return if $seen{$_}++;
 	}
 
 	foreach my $row (0 .. $#{$cf{Fee}}) {
-		return 0 if clean_int($cf{Fee}[$row]);
-		return 0 unless defined $cf{Account}[$row] && exists $acct_names{$cf{Account}[$row]};
+		return if clean_int($cf{Fee}[$row]);
+		return unless defined $cf{Account}[$row] && exists $acct_names{$cf{Account}[$row]};
 
 		if ($cf{Fee}[$row] =~ /[A-Z]/) {
-			return 0 unless exists $cds{$cf{Fee}[$row]};
+			return unless exists $cds{$cf{Fee}[$row]};
 		} else {
-			return 0 if true($cf{IsBool}) && !true($cf{IsDrain});
-			return 0 unless defined $cf{Description}[$row] && length $cf{Description}[$row];
+			return if true($cf{IsBool}) && !true($cf{IsDrain});
+			return unless defined $cf{Description}[$row] && length $cf{Description}[$row];
 		}
 	}
 
-	return 1;
+	return %cf;
 }
 
 sub gen_tcp
@@ -730,7 +730,7 @@ sub gen_tcp
 	validate_units(\%units_cfg, sub { $tmpl->param(STATUS => 'Units config broken: fix it!') }, 1);
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => fee_cfg_valid);
+	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!valid_fee_cfg);
 
 	return $tmpl;
 }
@@ -1146,9 +1146,9 @@ sub meet_valid
 	return 0 if !(scalar @units) && defined $meet{Currency} && length $meet{Currency};
 	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep (/^$meet{Currency}$/, @units));
 
-	return 0 unless fee_cfg_valid;
+	my %meet_cfg = valid_fee_cfg;
+	return 0 unless %meet_cfg;
 
-	my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
 	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
 		return 0 unless $hd eq 'BaseFee' || grep (/^$hd$/, @{$meet_cfg{Fee}});
 		foreach (@{$meet{$hd}}) {
@@ -1193,7 +1193,7 @@ sub gen_manage_meets
 
 sub gen_edit_meet
 {
-	my ($edit_id, $etoken) = @_;
+	my ($edit_id, $mcr, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet.html', $etoken);
 	my %meet = read_htsv("$config{Root}/meets/$edit_id");
@@ -1228,7 +1228,7 @@ sub gen_edit_meet
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
 	$tmpl->param(CURS => \@currencies, CUR_CL => $red_unit ? 'unknown' : '');
 
-	my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
+	my %meet_cfg = %$mcr;
 	my %cds = known_commod_descs;
 	my @ccs = grep (exists $cds{$meet_cfg{Fee}[$_]}, 0 .. $#{$meet_cfg{Fee}});
 	my @drains = grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}});
@@ -1586,10 +1586,11 @@ sub despatch_admin
 			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets());
 		}
 		if (defined $cgi->param('view')) {
-			whinge('Cannot view meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
+			my %cf = valid_fee_cfg;
+			whinge('Cannot view meet: expenses config is broken', gen_manage_meets) unless %cf;
 			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 
-			emit(gen_edit_meet($mid, undef));
+			emit(gen_edit_meet($mid, \%cf, undef));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet') {
@@ -1597,9 +1598,10 @@ sub despatch_admin
 
 		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
+		my %meet_cfg = valid_fee_cfg;
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
-			whinge('Cannot edit meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
+			whinge('Cannot edit meet: expenses config is broken', gen_manage_meets) unless %meet_cfg;
 			whinge("Couldn't get edit lock for meet \"$edit_id\"", gen_manage_meets) unless try_lock($mt_file, $sessid);
 			unless (-r $mt_file) {
 				unlock($mt_file);
@@ -1607,7 +1609,7 @@ sub despatch_admin
 			}
 
 			if (defined $cgi->param('edit')) {
-				emit(gen_edit_meet($edit_id, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_meet($edit_id, \%meet_cfg, get_edit_token($sessid, "edit_$edit_id")));
 			} else {
 				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
 			}
@@ -1616,8 +1618,8 @@ sub despatch_admin
 		my %meet = read_htsv($mt_file);
 
 		if (defined $cgi->param('save')) {
-			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
-			my $whinge = sub { whinge($_[0], gen_edit_meet($edit_id, $etoken)) };
+			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless %meet_cfg;
+			my $whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $etoken)) };
 
 			delete $meet{Currency};
 			my @ppl = @{$meet{Person}};
@@ -1631,7 +1633,6 @@ sub despatch_admin
 			}
 
 			my %cds = known_commod_descs;
-			my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
 
 			my %pers_count;
 			foreach my $pers (@{$meet{Person}}) {
@@ -1674,11 +1675,12 @@ sub despatch_admin
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%meet_cfg, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
 		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
+		my %cf = valid_fee_cfg;
 
 		if (defined $cgi->param('new_user')) {
 			push_session_data($sessid, "${etoken}_editid", $edit_id);
@@ -1688,7 +1690,7 @@ sub despatch_admin
 		my %meet = read_htsv($mt_file);
 
 		if (defined $cgi->param('save')) {
-			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless fee_cfg_valid;
+			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless %cf;
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
 			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 
@@ -1725,7 +1727,6 @@ sub despatch_admin
 				$meet{Currency} = $cur if $cur && length $cur;
 			}
 			if (scalar @{$meet{Person}} && %ft) {
-				my %cf = read_htsv("$config{Root}/config_fees");
 				my %cds = known_commod_descs;
 				my @commods = grep (exists $cds{$_}, @{$cf{Fee}});
 
@@ -1771,7 +1772,7 @@ sub despatch_admin
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
