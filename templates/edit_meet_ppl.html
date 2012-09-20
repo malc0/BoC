@@ -4,7 +4,7 @@
 		<title><TMPL_VAR NAME=SN> meet: <TMPL_VAR NAME=NAME> -- people</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
-		<style type="text/css">.dup { background-color: orange } .unknown { background-color: red }</style>
+		<style type="text/css">.dup { background-color: orange } .unknown { background-color: red } .outerp { display:inline-block; margin:10px 40px } .innerp { display:inline-block; width:22ex }</style>
 	</head>
 	<body>
 		<h1>People involved with &quot;<TMPL_VAR NAME=NAME>&quot;</h1>
@@ -24,7 +24,7 @@
 			<input type="hidden" name="m_id" value="<TMPL_VAR NAME=MID>"/>
 
 			<div>
-				<TMPL_LOOP NAME=PPL><p><span class="<TMPL_VAR NAME=P_CL>"><label><TMPL_VAR NAME=NAME> <input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" <TMPL_IF NAME=Y>checked="checked"</TMPL_IF>/></label><TMPL_LOOP NAME=DUPS><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" checked="checked"/></TMPL_LOOP></span></p>
+				<TMPL_LOOP NAME=PPL><span class="outerp <TMPL_VAR NAME=P_CL>"><label><span class="innerp"><TMPL_VAR NAME=NAME> </span><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" <TMPL_IF NAME=Y>checked="checked"</TMPL_IF>/></label><TMPL_LOOP NAME=DUPS><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" checked="checked"/></TMPL_LOOP></span>
 				</TMPL_LOOP>
 			</div>
 
