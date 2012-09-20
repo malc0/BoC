@@ -132,7 +132,7 @@ sub validate_units
 	}
 	my @units = known_units(%cfg);
 	my $nunits = scalar @units;
-	$whinge->("$_ unit has no description") foreach (grep (!(defined $cfg{$_}), @units));
+	$whinge->("$_ unit has no description") foreach (grep (!(defined $cfg{$_} && length $cfg{$_}), @units));
 	$whinge->('No currency defined') if $nunits > 1 && $nunits - $ncommods == 0;
 	$whinge->('Anchor currency not set with multiple currencies defined') if $nunits - $ncommods > 1 and not exists $cfg{Anchor};
 	$whinge->('Presentation currency not set with multiple currencies defined') if $nunits - $ncommods > 1 and not exists $cfg{Default};

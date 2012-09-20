@@ -27,7 +27,7 @@ sub read_tg
 	($content{Headings}[1] eq 'Amount') or confess "tg data is broken ($content{Headings}[1])";
 	($content{Headings}[$#{$content{Headings}}] eq 'Description') or confess "tg data is broken ($content{Headings}[$#{$content{Headings}}])";
 
-	$content{Amount}[$_] = ($content{Creditor}[$_] =~ /^TrnsfrPot\d$/ ? '*' : 0) foreach (grep (!$content{Amount}[$_], 0 .. $#{$content{Amount}}));
+	$content{Amount}[$_] = ((defined $content{Creditor}[$_] && $content{Creditor}[$_] =~ /^TrnsfrPot\d$/) ? '*' : 0) foreach (grep (!$content{Amount}[$_], 0 .. $#{$content{Amount}}));
 
 	return %content;
 }
@@ -74,17 +74,17 @@ sub validate_tg
 		validate_acctname($_, $whinge);
 		validate_acct($_, $valid_accts, $whinge) if $valid_accts;
 	}
-	my @cred_accts = my @compact_creds = @{$tg{Creditor}};
-	foreach (@cred_accts) {
-		validate_acctname($_, $whinge) unless $_ =~ /^TrnsfrPot[1-9]$/;
-		validate_acct($_, $valid_accts, $whinge) if $valid_accts and not $_ =~ /^TrnsfrPot[1-9]$/;
+	foreach (@{$tg{Creditor}}) {
+		validate_acctname($_, $whinge) unless defined $_ && $_ =~ /^TrnsfrPot[1-9]$/;
+		validate_acct($_, $valid_accts, $whinge) if $valid_accts && !(defined $_ && $_ =~ /^TrnsfrPot[1-9]$/);
 	}
 
 	my @valid_units = known_units();
 	$whinge->('No currency data') if scalar @valid_units > 1 and not exists $tg{Currency};
 
 	my %drained;
-	foreach my $row (0 .. $#cred_accts) {
+	my @compact_creds = @{$tg{Creditor}};
+	foreach my $row (0 .. $#{$tg{Creditor}}) {
 		my $debtors = 0;
 		foreach my $head (@all_head_accts) {
 			my $val = validate_decimal($tg{$head}[$row], 'Debt share', 1, $whinge);

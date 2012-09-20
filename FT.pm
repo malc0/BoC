@@ -30,7 +30,7 @@ sub get_ft_currency
 
 	my @curs = known_currs(read_units_cfg("$root/config_units"));
 
-	foreach my $ft_unit (@{$ft{Unit}}) {
+	foreach my $ft_unit (grep (defined, @{$ft{Unit}})) {
 		return $ft_unit if grep (/^$ft_unit$/, @curs);
 	}
 
