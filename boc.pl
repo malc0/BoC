@@ -1859,7 +1859,7 @@ sub despatch_admin
 				}
 				$cond = substr ($cond, 4) if length $cond;
 
-				$whinge->('Missing fee amount') if length $cond and $amnt == 0;
+				$whinge->('Missing fee amount (but condition set)') if length $cond && $amnt == 0;
 				next if $amnt == 0;
 
 				push (@{$ft{Fee}}, $amnt);
