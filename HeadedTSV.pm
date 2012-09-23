@@ -70,6 +70,7 @@ sub read_htsv
 				foreach my $i (0 .. $#{$content{$hdg_key}}) {
 					$defs[$i] = 0 unless (!ref $to_undef || grep ($_ eq $content{$hdg_key}[$i], @$to_undef));
 				}
+				@{$content{$_}} = () foreach @{$content{$hdg_key}};
 			} else {
 				my @line = split ('	', $_, scalar(@{$content{$hdg_key}}));
 				foreach my $i (0 .. $#{$content{$hdg_key}}) {
