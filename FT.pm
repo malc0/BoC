@@ -26,7 +26,7 @@ sub get_ft_currency
 {
 	my (%ft) = @_;
 
-	return '' unless exists $ft{Unit};
+	return '' if exists $ft{Fee} && scalar @{$ft{Fee}} && !(exists $ft{Unit} && scalar @{$ft{Unit}});
 
 	my @curs = known_currs(read_units_cfg("$root/config_units"));
 
@@ -71,7 +71,7 @@ sub valid_ft
 
 	my %ft = read_htsv($ft_file, undef, [ 'Unit', 'Condition' ]);
 
-	return unless exists $ft{Headings};
+	return ( Empty => 1 ) unless exists $ft{Headings};
 
 	foreach my $hd ('Fee', 'Condition') {
 		return unless grep ($_ eq $hd, @{$ft{Headings}});

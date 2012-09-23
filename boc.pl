@@ -828,7 +828,7 @@ sub gen_ft_tg_common
 	if ($file) {
 		%htsv = $is_tg ? read_tg2($file) : read_htsv($file, undef, [ 'Unit', 'Condition' ]);
 		$init_rows = (exists $htsv{$key_col}) ? scalar @{$htsv{$key_col}} : 0;
-		$max_rows = $init_rows + ($view ? 0 : min($d_row, $row_lim - $init_rows));
+		$max_rows = $init_rows + ($view ? 0 : min($d_row, $row_lim - $init_rows)) if $init_rows || $view;
 	}
 
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
@@ -884,8 +884,8 @@ sub gen_edit_fee_tmpl
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
 	$tmpl->param(NATTRS => scalar @attrs + scalar keys %moreattrs);
-	$tmpl->param(FH_CL => (!$edit_id || (exists $oldft{Fee} && (!(scalar @units) || exists $oldft{Unit}))) ? '' : 'broken');
-	$tmpl->param(AH_CL => (!$edit_id || exists $oldft{Condition}) ? '' : 'broken');
+	$tmpl->param(FH_CL => (!$edit_id || !(exists $oldft{Headings}) || (exists $oldft{Fee} && (!(scalar @units) || exists $oldft{Unit}))) ? '' : 'broken');
+	$tmpl->param(AH_CL => (!$edit_id || !(exists $oldft{Headings}) || exists $oldft{Condition}) ? '' : 'broken');
 
 	my @fees;
 	foreach my $row (0 .. $#{$ft{Fee}}) {
@@ -1869,11 +1869,12 @@ sub despatch_admin
 				}
 				push (@{$ft{Condition}}, $cond);
 			}
-			$whinge->('No fees?') unless exists $ft{Fee};
 			$whinge->('More than one currency in use') if scalar @are_curs > 1;
 
-			@{$ft{Headings}} = ( 'Fee', 'Condition' );
-			splice (@{$ft{Headings}}, 1, 0, 'Unit') if exists $ft{Unit};
+			if (exists $ft{Fee}) {
+				@{$ft{Headings}} = ( 'Fee', 'Condition' );
+				splice (@{$ft{Headings}}, 1, 0, 'Unit') if exists $ft{Unit};
+			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if ($rename && scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
