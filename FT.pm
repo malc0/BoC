@@ -42,6 +42,7 @@ sub get_ft_fees
 {
 	my ($acct, %ft) = @_;
 
+	my %attr_syns = get_attr_synonyms;
 	my %user = read_htsv("$root/users/$acct");
 	my %def_fees;
 
@@ -52,7 +53,8 @@ sub get_ft_fees
 			$ft{Condition}[$_] =~ s/\s*//g;
 			foreach (split (/&amp;&amp;/, $ft{Condition}[$_])) {
 				next unless /^(!?)(.+)$/;
-				$relevant = 0 if ($1 ? exists $user{$2} : !(exists $user{$2}));
+				my $attr_set = grep (exists $user{$_}, @{$attr_syns{$2}});
+				$relevant = 0 if ($1 ? $attr_set : !$attr_set);
 			}
 		}
 

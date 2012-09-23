@@ -773,6 +773,15 @@ sub gen_manage_accts
 	return $tmpl;
 }
 
+sub fmt_impl_attrs
+{
+	return undef unless $_[0];
+	
+	my $s = $_[0];
+	$s =~ s/\s*:\s*/, /g;
+	return $s;
+}
+
 sub gen_add_edit_acc
 {
 	my ($edit_acct, $person, $etoken) = @_;
@@ -788,7 +797,8 @@ sub gen_add_edit_acc
 		$tmpl->param(ADDRESS => $acctdetails{Address});
 		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
-	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_}) }, keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}});
+	my %attrs = read_htsv("$config{Root}/config_pers_attrs", 1);
+	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_}), I => fmt_impl_attrs($attrs{$_}) }, keys %attrs);
 	$tmpl->param(ATTRS => \@attr_set);
 	$tmpl->param(USER_ACCT => 1) if $person;
 
@@ -880,7 +890,7 @@ sub gen_edit_fee_tmpl
 		}
 	}
 
-	my @attrs = map ({ A => $_, A_CL => exists $moreattrs{$_} ? 'broken' : '' }, (keys %rawattrs, keys %moreattrs));
+	my @attrs = map ({ A => $_, I => fmt_impl_attrs($rawattrs{$_}), A_CL => exists $moreattrs{$_} ? 'broken' : '' }, (keys %rawattrs, keys %moreattrs));
 
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
@@ -981,6 +991,29 @@ sub gen_edit_pers_attrs
 		push (@rows, { TYPES => \@rowoptions, A => $attrs[$row], OA => ((exists $type{$attrs[$row]}) ? $type{$attrs[$row]} : '') . $attrs[$row], R => $row, CL => (length $attrs[$row] && !(exists $type{$attrs[$row]})) ? 'unknown' : undef });
 	}
 	$tmpl->param(ROWS => \@rows);
+
+	return $tmpl;
+}
+
+sub gen_edit_attr_groups
+{
+	my $tmpl = load_template('edit_attr_groups.html', $_[0]);
+
+	my %cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
+	my @sorted_attrs = sort keys %cfg;
+	my %attr_syns = get_attr_synonyms;
+	my @extra_attrs = grep (!(exists $cfg{$_}), sort keys %attr_syns);
+
+	my @impsh = map ({ I => $_ }, (@sorted_attrs, @extra_attrs));
+
+	my @attrs;
+	foreach my $attr (@sorted_attrs) {
+		my @imps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr) }; } @sorted_attrs;
+		my @nimps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'unknown' }; } @extra_attrs;
+		push (@imps, @nimps);
+		push (@attrs, { A => $attr, IMPS => \@imps });
+	}
+	$tmpl->param(NIMPS => (scalar @sorted_attrs + scalar @extra_attrs), IMPSH => \@impsh, ATTRS => \@attrs);
 
 	return $tmpl;
 }
@@ -1412,6 +1445,10 @@ sub despatch_admin
 		if (defined $cgi->param('edit_pers_attrs')) {
 			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
 			emit(gen_edit_pers_attrs(get_edit_token($sessid, 'edit_pers_attrs')));
+		}
+		if (defined $cgi->param('edit_attr_groups')) {
+			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
+			emit(gen_edit_attr_groups(get_edit_token($sessid, 'edit_attr_groups')));
 		}
 		if (defined $cgi->param('edit_units')) {
 			$whinge->() unless try_lock("$config{Root}/config_units", $sessid);
@@ -1994,11 +2031,12 @@ sub despatch_admin
 				my $oldattr = clean_word($cgi->param("OldAttr_$row"));
 				next unless $attr;
 				$whinge->('Invalid type prefix') if defined $type && length $type && !grep ($_ eq $type, @types);
+				$whinge->('Attributes cannot have \':\' in them') if $attr =~ /:/;
 				$whinge->('Attributes cannot have spaces') unless clean_word($attr);
 				$attr = ucfirst $type . ucfirst $attr;
 				$rename{$oldattr} = $attr if defined $oldattr && exists $oldcfg{$oldattr} && $oldattr ne $attr;
 				$whinge->('Attributes renames must have type prefix') if $rename{$oldattr} && !(defined $type && length $type);
-				$cfg{$attr} = undef;
+				$cfg{$attr} = (defined $oldattr && exists $oldcfg{$oldattr}) ? $oldcfg{$oldattr} : undef;
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
@@ -2019,6 +2057,10 @@ sub despatch_admin
 					my @renames = keys %rename;
 					dir_mod_all('users', 0, \@renames, sub { my ($acct, $old) = @_; if (exists $acct->{$old}) { $acct->{$rename{$old}} = delete $acct->{$old}; } });
 					dir_mod_all('fee_tmpls', 0, \@renames, sub { my ($ft, $old) = @_; foreach (@{$ft->{Condition}}) { s/((^|&amp;&amp;)\s*!?\s*)$old(\s*($|&amp;&amp;))/$1$rename{$old}$3/ if $_; } });
+					foreach my $attr (keys %cfg) {
+						next unless $cfg{$attr};
+						$cfg{$attr} =~ s/(^|:)\s*$_\s*(:|$)/$1$rename{$_}$2/ foreach (@renames);
+					}
 				}
 
 				write_htsv($cfg_file, \%cfg);
@@ -2031,6 +2073,31 @@ sub despatch_admin
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to attribute config' : 'Edit attribute config cancelled', gen_tcp);
 	}
+	if ($cgi->param('tmpl') eq 'edit_attr_groups') {
+		my $cfg_file = "$config{Root}/config_pers_attrs";
+
+		if (defined $cgi->param('save')) {
+			my %cfg;
+			my $whinge = sub { whinge($_[0], gen_edit_attr_groups($etoken)) };
+
+			foreach my $attr (get_attrs) {
+				$cfg{$attr} = join (':', map { s/^${attr}_//; $_ } grep (/^${attr}_/, $cgi->param()));
+			}
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_attr_groups', $etoken);
+			try_commit_and_unlock(sub {
+				write_htsv($cfg_file, \%cfg);
+				add_commit($cfg_file, 'config_pers_attrs: attribute groups modified', $session);
+			}, $cfg_file);
+		} else {
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_attr_groups', $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to attribute config' : 'Edit attribute config cancelled', gen_tcp);
+	}
+
 	if ($cgi->param('tmpl') eq 'edit_units') {
 		my $cfg_file = "$config{Root}/config_units";
 

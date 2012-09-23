@@ -25,7 +25,7 @@
 
 			<table border=1>
 				<tr><th rowspan=2 class="<TMPL_VAR NAME=FH_CL>">Fee</th><TMPL_IF NAME=NATTRS><th rowspan=2 class="<TMPL_VAR NAME=AH_CL>">Condition</th><th colspan=<TMPL_VAR NAME=NATTRS> class="<TMPL_VAR NAME=AH_CL>">Attributes</th></tr>
-				<tr><TMPL_LOOP NAME=ATTRS><th class="<TMPL_VAR NAME=A_CL>"><TMPL_VAR NAME=A></th></TMPL_LOOP><TMPL_ELSE><tr></tr></TMPL_IF></tr>
+				<tr><TMPL_LOOP NAME=ATTRS><th class="<TMPL_VAR NAME=A_CL>"><TMPL_VAR NAME=A><TMPL_IF NAME=I> (implies <TMPL_VAR NAME=I>)</TMPL_IF></th></TMPL_LOOP><TMPL_ELSE><tr></tr></TMPL_IF></tr>
 
 				<TMPL_LOOP NAME=FEES>
 				<tr><td rowspan=3 class="<TMPL_VAR NAME=F_CL><TMPL_VAR NAME=C_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=F><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=F>" name="Fee_<TMPL_VAR NAME=N>" size=5 onclick="this.select()"/></TMPL_IF><TMPL_IF NAME=CUROPTS> <TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
