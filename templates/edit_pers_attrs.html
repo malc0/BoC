@@ -21,10 +21,10 @@
 					var newattr = ucfirst(this['Type_' + i].value) + ucfirst(this['Attr_' + i].value);
 					if (this['OldAttr_' + i].value.length && this['OldAttr_' + i].value != newattr) {
 						if (!this['Attr_' + i].value.length) {
-							if (!confirm('Really remove fee ' + this['OldAttr_' + i].value + '?'))
+							if (!confirm('Really remove attribute ' + this['OldAttr_' + i].value + '?'))
 								sub = false;
 						} else
-							if (!confirm('Really recode fee ' + this['OldAttr_' + i].value + ' to ' + newattr + '?'))
+							if (!confirm('Really recode attribute ' + this['OldAttr_' + i].value + ' to ' + newattr + '?'))
 								sub = false;
 					}
 				}
