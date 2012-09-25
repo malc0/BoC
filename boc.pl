@@ -1415,6 +1415,26 @@ sub get_rows
 	return $max_rows;
 }
 
+sub delete_common
+{
+	my ($file, $thing, $session, $done) = @_;
+
+	whinge("Couldn't get lock for $thing", $done->()) unless try_lock($file, $session->id());
+	unless (-r $file) {
+		unlock($file);
+		emit_with_status(ucfirst $thing . ' already deleted', $done->());
+	}
+	unless (try_commit_lock($session->id())) {
+		unlock($file);
+		whinge('Unable to get commit lock', $done->());
+	}
+	try_commit_and_unlock(sub {
+		$git->rm($file);
+		commit(unroot($file) . ': deleted', $session);
+	}, $file);
+	return emit_with_status("Deleted $thing", $done->());
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1573,17 +1593,18 @@ sub despatch_admin
 		my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
 
 		foreach my $p ($cgi->param) {
-			if ($p =~ /^edit_(.*)$/) {
+			if ($p =~ /^edit_(.+)$/) {
 				$acct = $1;
 				last;
 			}
-			if ($p =~ /^del_(.*)$/) {
+			if ($p =~ /^del_(.+)$/) {
 				$acct = $1;
 				$delete = 1;
 				last;
 			}
 		}
 
+		$acct = valid_edit_id($acct, $person ? "$config{Root}/users" : "$config{Root}/accounts", 'account', gen_manage_accts($person));
 		my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 		unless ($delete) {
 			if ($acct) {
@@ -1596,12 +1617,7 @@ sub despatch_admin
 			$etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
 			emit(gen_add_edit_acc($acct, $person, $etoken));
 		} else {
-			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			try_commit_and_unlock(sub {
-				$git->rm($acct_file);
-				commit(unroot($acct_file) . ': deleted', $session);
-			});
-			emit_with_status("Deleted account \"$acct\"", gen_manage_accts($person));
+			delete_common($acct_file, "account \"$acct\"", $session, sub { gen_manage_accts($person) });
 		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_meets') {
@@ -2528,6 +2544,7 @@ sub gen_manage_tgs
 	my @units = known_units(%units_cfg);
 	$tmpl->param(TGS => \@tglist, DEFCUR => (scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
+	$tmpl->param(DELTG => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
@@ -2863,6 +2880,13 @@ sub despatch
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs($session));
 
 			emit(gen_tg($view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
+		}
+		if (grep (/^del_.*$/, $cgi->param)) {
+			my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
+			my @dels = grep (/^del_.*$/, $cgi->param);
+			next unless $dels[0] =~ /^del_(.*)$/;
+			my $edit_id = valid_edit_id($1, "$config{Root}/transaction_groups", 'TG', gen_manage_tgs($session), 1);
+			delete_common("$config{Root}/transaction_groups/$edit_id", "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
