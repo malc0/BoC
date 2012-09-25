@@ -1849,15 +1849,15 @@ sub despatch_admin
 				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
 				my $cur;
 				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
-				my $cond;
+				my @conds;
 				foreach (keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}}) {
 					if ($cgi->param("${_}_$row") eq 'if') {
-						$cond .= " && $_";
+						push (@conds, $_);
 					} elsif ($cgi->param("${_}_$row") eq 'unless') {
-						$cond .= " && !$_";
+						push (@conds, "!$_");
 					}
 				}
-				$cond = substr ($cond, 4) if length $cond;
+				my $cond = join (' && ', @conds);
 
 				$whinge->('Missing fee amount (but condition set)') if length $cond && $amnt == 0;
 				next if $amnt == 0;
@@ -2210,7 +2210,7 @@ sub gen_ucp
 
 		my %tgdetails = %{$tgds{$tg}};
 		my @to;
-		my $to_extra;
+		my @to_extras;
 		unless ($tg_broken) {
 			$computed{$user} >= 0 ? $credsum : $debsum += $computed{$user} unless exists $tgdetails{Omit};
 
@@ -2222,8 +2222,7 @@ sub gen_ucp
 			$to[0]->{SEP} = '';
 			$to[-1]->{SEP} = ' and ' if scalar @to > 1;
 			if (scalar @to > 5) {
-				$to_extra .= "$to[$_]->{N}, " foreach (4 .. $#to);
-				$to_extra = substr($to_extra, 0, -2);
+				@to_extras = map ($to[$_]->{N}, (4 .. $#to));
 				$#to = 3;
 			}
 		}
@@ -2233,7 +2232,7 @@ sub gen_ucp
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
 			TO => \@to,
-			TO_EXTRA => $to_extra,
+			TO_EXTRA => join (', ', @to_extras),
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_broken ? 'broken' : $tg_indet ? 'indet' : '',
 			SUMMARY => encode_for_html($tg_broken ? 'TG BROKEN' : $tg_indet ? 'incalculable' : ($computed{$user} > 0 ? '+' : '') . $computed{$user}),
@@ -2715,7 +2714,7 @@ sub despatch_user
 			my %cf = read_htsv("$config{Root}/config_fees");
 			my %all_acct_names = get_acct_name_map;
 			my @accts;
-			my $descstr = '';
+			my @descstrs;
 			foreach my $acct (map { /^Debt_(.*)/; $1 } grep (/^Debt_.+$/, $cgi->param)) {
 				my $ds = validate_decimal(scalar $cgi->param("Debt_$acct"), 'Debt share', 1, $whinge);
 				my $type;
@@ -2733,11 +2732,11 @@ sub despatch_user
 				if ($ds) {
 					$tg{$acct}[0] = (exists $tg{$acct}) ? $tg{$acct}[0] + $ds : $ds;
 					push (@accts, $acct) unless grep ($_ eq $acct, @accts);
-					$descstr .= "$type ($acct) -> $ds, " if $vacct;
+					push (@descstrs, "$type ($acct) -> $ds") if $vacct;
 				}
 			}
 
-			$descstr = substr($descstr, 0, -2) if length $descstr;
+			my $descstr = join (', ', @descstrs);
 			if (length clean_text($cgi->param('Description'))) {
 				$descstr .= ': ' if length $descstr;
 				$descstr .= clean_text($cgi->param('Description'));
