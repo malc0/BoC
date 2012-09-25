@@ -2329,6 +2329,7 @@ sub gen_ucp
 	$tmpl->param(DEBITS => \@debtlist);
 	$tmpl->param(LOGIN => $session->param('User'));
 	$tmpl->param(TCP => $session->param('IsAdmin'));
+	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
 
 	return $tmpl;
 }
@@ -2471,6 +2472,7 @@ sub gen_add_split
 
 sub gen_manage_tgs
 {
+	my $session = $_[0];
 	my $tmpl = load_template('manage_transactions.html');
 	my %acct_names = get_acct_name_map;
 	my %dds = double_drainers;
@@ -2525,6 +2527,7 @@ sub gen_manage_tgs
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 	$tmpl->param(TGS => \@tglist, DEFCUR => (scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
+	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
 
 	return $tmpl;
 }
@@ -2591,7 +2594,7 @@ sub gen_tg
 
 	$tmpl->param(TG_ID => $edit_id);
 	$tmpl->param(RO => !$etoken);
-	$tmpl->param(EDITOK => $edit_id && !($edit_id =~ /^[A-Z]/));
+	$tmpl->param(EDITOK => $edit_id && !($edit_id =~ /^[A-Z]/) && $session->param('MayAddEditTGs'));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
@@ -2674,7 +2677,7 @@ sub despatch
 
 	despatch_admin($session) if $session->param('IsAdmin');
 
-	emit(gen_manage_tgs) if (defined $cgi->param('manage_tgs'));
+	emit(gen_manage_tgs($session)) if (defined $cgi->param('manage_tgs'));
 	emit(gen_ucp($session)) if (defined $cgi->param('to_acct'));
 	emit(gen_accts_disp) if (defined $cgi->param('disp_accts'));
 
@@ -2695,6 +2698,7 @@ sub despatch
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_swap' || $cgi->param('tmpl') eq 'add_vacct_swap') {
+		whinge('Action not permitted', gen_ucp($session)) unless $session->param('MayAddEditTGs');
 		my $swap = ($cgi->param('tmpl') eq 'add_swap');
 		my $tgfile;
 
@@ -2756,6 +2760,7 @@ sub despatch
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_split' || $cgi->param('tmpl') eq 'add_vacct_split') {
+		whinge('Action not permitted', gen_ucp($session)) unless $session->param('MayAddEditTGs');
 		my $vacct = ($cgi->param('tmpl') eq 'add_vacct_split'); 
 		my $tgfile;
 
@@ -2855,22 +2860,23 @@ sub despatch
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
-			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs);
+			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs($session));
 
 			emit(gen_tg($view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
-		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs, (defined $cgi->param('edit')));
+		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs($session), (defined $cgi->param('edit')));
+		whinge('Action not permitted', $edit_id ? gen_tg($edit_id, $session, undef) : gen_manage_tgs($session)) unless $session->param('MayAddEditTGs');
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('edit')) {
 			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, $session, undef)) if $edit_id =~ /^[A-Z]/;
 
-			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs) unless try_tg_lock($tgfile, $sessid);
+			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs($session)) unless try_tg_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
-				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs);
+				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs($session));
 			}
 			emit(gen_tg($edit_id, $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
@@ -2924,7 +2930,7 @@ sub despatch
 			# FIXME ought to check we're not creating a drain loop.  problem is, if other TGs are errorful, resolve_accts can't be expected to work fully.  without this, we have no loop checker.  disabling editing until TGs are fixed is self defeating...
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_manage_tgs) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
+			bad_token_whinge(gen_manage_tgs($session)) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
 			try_commit_and_unlock(sub {
 				$tgfile = new_uuidfile("$config{Root}/transaction_groups") unless ($tgfile);
 				write_tg($tgfile, %tg);
@@ -2942,7 +2948,7 @@ sub despatch
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;
-			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $etoken ? gen_ucp($session) : gen_manage_tgs);
+			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $etoken ? gen_ucp($session) : gen_manage_tgs($session));
 		}
 	}
 

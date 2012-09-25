@@ -12,10 +12,10 @@
 			<TMPL_UNLESS NAME=ACCT>
 			<input type="hidden" name="tmpl" value="ucp"/>
 
-			<div style="margin:1em 0"><TMPL_IF NAME=SIMPTRANS><input type="submit" name="add_vacct_swap" value="Add simple communal expense"/>
+			<div style="margin:1em 0"><TMPL_IF NAME=ADDTG><TMPL_IF NAME=SIMPTRANS><input type="submit" name="add_vacct_swap" value="Add simple communal expense"/>
 				<input type="submit" name="add_vacct_split" value="Add multi-creditor/category communal expense"/></TMPL_IF><br>
 				<input type="submit" name="add_swap" value="Add person-to-person swap"/>
-				<input type="submit" name="add_split" value="Add a set of expenses split across a number of people"/>
+				<input type="submit" name="add_split" value="Add a set of expenses split across a number of people"/></TMPL_IF>
 				<div style="float:right">Logged in as <TMPL_VAR NAME=LOGIN> <input type="submit" name="logout" value="Logout"/></div></div>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<hr />

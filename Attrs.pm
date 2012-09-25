@@ -22,7 +22,7 @@ sub init_attr_cfg
 
 sub get_sys_attrs
 {
-	return sort ( 'IsAdmin', 'IsPleb' );
+	return sort ( 'IsAdmin', 'IsPleb', 'MayAddEditTGs' );
 }
 
 sub get_attrs_full
