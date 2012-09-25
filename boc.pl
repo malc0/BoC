@@ -1422,13 +1422,6 @@ sub despatch_admin
 	my $cgi = $session->query();
 	my $etoken = $cgi->param('etoken');
 
-	return if (defined $cgi->param('logout'));
-	if (defined $cgi->param('degrade')) {
-		$session->param('IsAdmin', 0);
-		$session->flush();
-		emit(gen_ucp($session));
-	}
-
 	emit(gen_tcp) if defined $cgi->param('to_cp');
 
 	if ($cgi->param('tmpl') eq 'login') {
@@ -2335,6 +2328,7 @@ sub gen_ucp
 	$tmpl->param(CREDITS => \@credlist);
 	$tmpl->param(DEBITS => \@debtlist);
 	$tmpl->param(LOGIN => $session->param('User'));
+	$tmpl->param(TCP => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
@@ -2669,7 +2663,7 @@ sub clean_tg
 	return %newtg;
 }
 
-sub despatch_user
+sub despatch
 {
 	my $session = $_[0];
 	my $sessid = $session->id();
@@ -2678,8 +2672,10 @@ sub despatch_user
 
 	return if (defined $cgi->param('logout'));
 
+	despatch_admin($session) if $session->param('IsAdmin');
+
 	emit(gen_manage_tgs) if (defined $cgi->param('manage_tgs'));
-	emit(gen_ucp($session)) if (defined $cgi->param('to_cp'));
+	emit(gen_ucp($session)) if (defined $cgi->param('to_acct'));
 	emit(gen_accts_disp) if (defined $cgi->param('disp_accts'));
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
@@ -2980,7 +2976,7 @@ emit(load_template($cgi->param('serve') . '.css')) if defined $cgi->param('serve
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
 
-$session->param('IsAdmin') ? despatch_admin($session) : despatch_user($session);
+despatch($session);
 
 # the despatchers fall through if the requested action is unknown: make them log in again!
 get_new_session($session, $cgi);

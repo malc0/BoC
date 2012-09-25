@@ -19,7 +19,7 @@
 				<div style="float:right">Logged in as <TMPL_VAR NAME=LOGIN> <input type="submit" name="logout" value="Logout"/></div></div>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<hr />
-			<p><input type="submit" name="disp_accts" value="Accounts summary"/></p>
+			<p><input type="submit" name="disp_accts" value="Accounts summary"/><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel" style="float:right"/></TMPL_IF></p>
 			<TMPL_ELSE>
 			<input type="hidden" name="tmpl" value="view_acct"/>
 			</TMPL_UNLESS>
@@ -48,7 +48,7 @@
 			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
 			<TMPL_ELSE>
 			<p><input type="submit" name="disp_accts" value="Back to accounts summary"/></p>
-			<p><input type="submit" name="to_cp" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
+			<p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 			</TMPL_UNLESS>
 		</div>
