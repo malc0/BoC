@@ -1504,6 +1504,10 @@ sub despatch_admin
 					un_commit_lock;
 					$whinge->('Cannot perform account rename at present: meets busy');
 				}
+				if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
+					un_commit_lock;
+					$whinge->('Cannot perform account rename at present: config_fees busy');
+				}
 			}
 			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
 			if (defined $edit_acct and $edit_acct eq $session->param('User')) {
