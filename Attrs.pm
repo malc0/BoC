@@ -10,7 +10,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(init_attr_cfg get_attrs get_attr_synonyms);
+our @EXPORT = qw(init_attr_cfg get_sys_attrs get_attrs get_attrs_full get_attr_synonyms);
 
 my $cfg_file;
 
@@ -20,9 +20,29 @@ sub init_attr_cfg
 	return;
 }
 
+sub get_sys_attrs
+{
+	return sort ( 'IsAdmin' );
+}
+
+sub get_attrs_full
+{
+	my $no_sys = $_[0];
+	my @sys_attrs = get_sys_attrs;
+	my %cfg = read_htsv($cfg_file, 1);
+
+	$cfg{$_} = undef foreach (grep (!(exists $cfg{$_}), @sys_attrs));
+	$cfg{IsAdmin} = join (':', grep ($_ ne 'IsAdmin', @sys_attrs));
+	if ($no_sys) {
+		delete $cfg{$_} foreach (@sys_attrs);
+	}
+
+	return %cfg;
+}
+
 sub get_attrs
 {
-	return sort keys %{{read_htsv($cfg_file, 1)}};
+	return sort keys %{{get_attrs_full($_[0])}};
 }
 
 sub expand_syns
@@ -39,7 +59,7 @@ sub uniq {
 
 sub get_attr_synonyms
 {
-	my %attrs = read_htsv($cfg_file, 1);
+	my %attrs = get_attrs_full;
 	my %implied;
 	my %syns1;
 	my %synsx;

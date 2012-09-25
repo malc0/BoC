@@ -646,11 +646,18 @@ sub get_new_session
 	}
 	($expired ? whinge('Session expired', $tmpl) : emit($tmpl)) if $tmpl;
 
+	my %attr_syns = get_attr_synonyms;
+	my @sys_attrs = get_sys_attrs;
+	my %perms;
+	foreach my $sysattr (@sys_attrs) {
+		$perms{$sysattr} = grep (exists $userdetails{$_}, @{$attr_syns{$sysattr}});
+	}
+
 	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
 	print $session->header();
 	$session->param('User', $userdetails{User});
 	$session->param('Name', exists $userdetails{Name} ? $userdetails{Name} : $userdetails{User});
-	$session->param('IsAdmin', (exists $userdetails{IsAdmin}));
+	$session->param($_, $perms{$_}) foreach (@sys_attrs);
 	$session->expire('+10m');
 	$session->flush();
 
@@ -797,7 +804,7 @@ sub gen_add_edit_acc
 		$tmpl->param(ADDRESS => $acctdetails{Address});
 		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
-	my %attrs = read_htsv("$config{Root}/config_pers_attrs", 1);
+	my %attrs = get_attrs_full;
 	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_}), I => fmt_impl_attrs($attrs{$_}) }, keys %attrs);
 	$tmpl->param(ATTRS => \@attr_set);
 	$tmpl->param(USER_ACCT => 1) if $person;
@@ -873,7 +880,7 @@ sub gen_edit_fee_tmpl
 
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @curs = known_currs(%units_cfg);
-	my %rawattrs = read_htsv("$config{Root}/config_pers_attrs", 1);
+	my %rawattrs = get_attrs_full(1);
 	my %curs_in_use;
 	my %moreattrs;
 	foreach my $row (0 .. $#{$oldft{Fee}}) {
@@ -979,7 +986,7 @@ sub gen_edit_pers_attrs
 
 	my @types = ( 'Has', 'Is' );
 
-	my @attrs = get_attrs;
+	my @attrs = get_attrs(1);
 
 	my $num_rows = (scalar @attrs > 0) ? scalar @attrs + min(5, 30 - scalar @attrs) : 10;
 	push (@attrs, ('') x ($num_rows - scalar @attrs));
@@ -999,21 +1006,22 @@ sub gen_edit_attr_groups
 {
 	my $tmpl = load_template('edit_attr_groups.html', $_[0]);
 
-	my %cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
-	my @sorted_attrs = sort keys %cfg;
+	my %cfg = get_attrs_full;
+	my @sorted_attrs = get_attrs(1);
 	my %attr_syns = get_attr_synonyms;
 	my @extra_attrs = grep (!(exists $cfg{$_}), sort keys %attr_syns);
 
-	my @impsh = map ({ I => $_ }, (@sorted_attrs, @extra_attrs));
+	my @impsh = map ({ I => $_ }, (@sorted_attrs, get_sys_attrs, @extra_attrs));
 
 	my @attrs;
 	foreach my $attr (@sorted_attrs) {
 		my @imps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr) }; } @sorted_attrs;
+		my @simps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'system' }; } get_sys_attrs;
 		my @nimps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'unknown' }; } @extra_attrs;
-		push (@imps, @nimps);
+		push (@imps, (@simps, @nimps));
 		push (@attrs, { A => $attr, IMPS => \@imps });
 	}
-	$tmpl->param(NIMPS => (scalar @sorted_attrs + scalar @extra_attrs), IMPSH => \@impsh, ATTRS => \@attrs);
+	$tmpl->param(NIMPS => scalar @impsh, IMPSH => \@impsh, ATTRS => \@attrs);
 
 	return $tmpl;
 }
@@ -1891,7 +1899,7 @@ sub despatch_admin
 				my $cur;
 				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
 				my @conds;
-				foreach (get_attrs) {
+				foreach (get_attrs(1)) {
 					if ($cgi->param("${_}_$row") eq 'if') {
 						push (@conds, $_);
 					} elsif ($cgi->param("${_}_$row") eq 'unless') {
@@ -2024,7 +2032,7 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my %cfg;
-			my %oldcfg = read_htsv($cfg_file, 1);
+			my %oldcfg = get_attrs_full(1);
 			my $whinge = sub { whinge($_[0], gen_edit_pers_attrs($etoken)) };
 			my @types = ( 'Has', 'Is' );
 			my %rename;
@@ -2038,6 +2046,7 @@ sub despatch_admin
 				$whinge->('Attributes cannot have \':\' in them') if $attr =~ /:/;
 				$whinge->('Attributes cannot have spaces') unless clean_word($attr);
 				$attr = ucfirst $type . ucfirst $attr;
+				$whinge->("'$attr' is reserved for internal use") if grep ($_ eq $attr, get_sys_attrs);
 				$rename{$oldattr} = $attr if defined $oldattr && exists $oldcfg{$oldattr} && $oldattr ne $attr;
 				$whinge->('Attributes renames must have type prefix') if $rename{$oldattr} && !(defined $type && length $type);
 				$cfg{$attr} = (defined $oldattr && exists $oldcfg{$oldattr}) ? $oldcfg{$oldattr} : undef;
@@ -2084,7 +2093,7 @@ sub despatch_admin
 			my %cfg;
 			my $whinge = sub { whinge($_[0], gen_edit_attr_groups($etoken)) };
 
-			foreach my $attr (get_attrs) {
+			foreach my $attr (get_attrs(1)) {
 				$cfg{$attr} = join (':', map { s/^${attr}_//; $_ } grep (/^${attr}_/, $cgi->param()));
 			}
 
