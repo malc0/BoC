@@ -4,6 +4,7 @@ use 5.012;
 use strict;
 use warnings;
 
+use Attrs;
 use CleanData qw(clean_decimal);
 use HeadedTSV qw(read_htsv);
 use Units qw(known_currs known_units read_units_cfg validate_units);
@@ -90,7 +91,7 @@ sub valid_ft
 	my $unitcol = (exists $ft{Unit});
 	return if scalar @units && !$unitcol;
 
-	my %attrs = read_htsv("$root/config_pers_attrs", 1);
+	my @attrs = get_attrs;
 
 	my %curs_in_use;
 	foreach my $row (0 .. $#{$ft{Fee}}) {
@@ -106,10 +107,10 @@ sub valid_ft
 		next unless defined $ft{Condition}[$row];
 		(my $cond = $ft{Condition}[$row]) =~ s/\s*//g;
 		my @conds = split ('&amp;&amp;', $cond);
-		foreach (@conds) {
-			s/^!//;
-			return unless length $_;
-			return unless exists $attrs{$_};
+		foreach my $attr (@conds) {
+			$attr =~ s/^!//;
+			return unless length $attr;
+			return unless grep ($_ eq $attr, @attrs);
 		}
 	}
 

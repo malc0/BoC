@@ -23,6 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
+use Attrs;
 use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use FT;
 use HeadedTSV;
@@ -741,7 +742,7 @@ sub gen_manage_accts
 	my $tmpl = load_template('manage_accts.html');
 	my @accounts = $people ? glob ("$config{Root}/users/*") : glob ("$config{Root}/accounts/*");
 	my @acctlist;
-	my @attrs_list = keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}};
+	my @attrs_list = get_attrs;
 
 	foreach my $acct (@accounts) {
 		my %acctdetails = read_simp_cfg($acct);
@@ -968,8 +969,7 @@ sub gen_edit_pers_attrs
 
 	my @types = ( 'Has', 'Is' );
 
-	my %cfg = read_htsv("$config{Root}/config_pers_attrs", 1);
-	my @attrs = sort keys %cfg;
+	my @attrs = get_attrs;
 
 	my $num_rows = (scalar @attrs > 0) ? scalar @attrs + min(5, 30 - scalar @attrs) : 10;
 	push (@attrs, ('') x ($num_rows - scalar @attrs));
@@ -1451,7 +1451,7 @@ sub despatch_admin
 			if ($person) {
 				$userdetails{email} = $email;
 				$userdetails{Address} = $address;
-				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}});
+				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (get_attrs);
 			} else {
 				(mkdir $acct_path or die) unless (-d $acct_path);
 				(defined $cgi->param('is_negated')) ? $userdetails{IsNegated} = undef : delete $userdetails{IsNegated};
@@ -1850,7 +1850,7 @@ sub despatch_admin
 				my $cur;
 				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
 				my @conds;
-				foreach (keys %{{read_htsv("$config{Root}/config_pers_attrs", 1)}}) {
+				foreach (get_attrs) {
 					if ($cgi->param("${_}_$row") eq 'if') {
 						push (@conds, $_);
 					} elsif ($cgi->param("${_}_$row") eq 'unless') {
@@ -2883,6 +2883,7 @@ $ENV{PATH} = '/bin:/usr/bin';
 $git = Git::Wrapper->new($config{Root});
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
 
+init_attr_cfg("$config{Root}/config_pers_attrs");
 init_units_cfg("$config{Root}/config_units");
 set_ft_config_root($config{Root});
 
