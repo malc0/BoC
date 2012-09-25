@@ -152,7 +152,7 @@ sub redeem_edit_token
 	return ($@ or not $rv) ? undef : $rv;
 }
 
-sub try_lock
+sub try_lock_raw
 {
 	my ($file, $sessid) = @_;
 	my $lockfile = "$file.lock";
@@ -183,13 +183,13 @@ sub unlock
 	return unlink $lockfile;
 }
 
-sub try_lock_wait
+sub try_lock_wait_raw
 {
 	my ($file, $sessid) = @_;
 
 	my $ms_remaining = 1000;
 	while ($ms_remaining) {
-		return $sessid if (try_lock($file, $sessid) or $ms_remaining == 0);
+		return $sessid if (try_lock_raw($file, $sessid));
 		usleep(1000);
 		$ms_remaining--;
 	}
@@ -198,7 +198,7 @@ sub try_lock_wait
 
 sub try_commit_lock
 {
-	return try_lock_wait("$config{Root}/DSLOCK", $_[0]);
+	return try_lock_wait_raw("$config{Root}/DSLOCK", $_[0]);
 }
 
 sub un_commit_lock
@@ -206,12 +206,12 @@ sub un_commit_lock
 	return unlink "$config{Root}/.DSLOCK.lock";
 }
 
-sub try_tg_lock
+sub try_lock
 {
 	my ($file, $sessid) = @_;
 
 	return undef unless try_commit_lock($sessid);
-	my $rv = try_lock($file, $sessid);
+	my $rv = try_lock_raw($file, $sessid);
 	un_commit_lock;
 	return $rv;
 }
@@ -2897,7 +2897,7 @@ sub despatch
 		if (defined $cgi->param('edit')) {
 			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, $session, undef)) if $edit_id =~ /^[A-Z]/;
 
-			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs($session)) unless try_tg_lock($tgfile, $sessid);
+			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs($session)) unless try_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs($session));
