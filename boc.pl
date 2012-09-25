@@ -187,11 +187,11 @@ sub try_lock_wait_raw
 {
 	my ($file, $sessid) = @_;
 
-	my $ms_remaining = 1000;
+	my $ms_remaining = 5000;
 	while ($ms_remaining) {
 		return $sessid if (try_lock_raw($file, $sessid));
-		usleep(1000);
-		$ms_remaining--;
+		usleep(10000);
+		$ms_remaining -= 10;
 	}
 	return undef;
 }
