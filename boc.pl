@@ -2581,7 +2581,7 @@ sub gen_tg
 
 	$tmpl->param(TG_ID => $edit_id);
 	$tmpl->param(RO => !$etoken);
-	$tmpl->param(EDITOK => !($edit_id =~ /^[A-Z]/));
+	$tmpl->param(EDITOK => $edit_id && !($edit_id =~ /^[A-Z]/));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
