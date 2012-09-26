@@ -22,7 +22,7 @@ sub init_attr_cfg
 
 sub get_sys_attrs
 {
-	return sort ( 'IsAdmin' );
+	return sort ( 'IsAdmin', 'IsPleb' );
 }
 
 sub get_attrs_full

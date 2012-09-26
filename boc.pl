@@ -650,7 +650,7 @@ sub get_new_session
 	my @sys_attrs = get_sys_attrs;
 	my %perms;
 	foreach my $sysattr (@sys_attrs) {
-		$perms{$sysattr} = grep (exists $userdetails{$_}, @{$attr_syns{$sysattr}});
+		$perms{$sysattr} = grep (($_ eq 'IsPleb' || exists $userdetails{$_}), @{$attr_syns{$sysattr}});
 	}
 
 	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
@@ -756,7 +756,7 @@ sub gen_manage_accts
 		my %outputdetails;
 		next unless $acct =~ /.*\/(.*)/;
 		if ($people) {
-			my @attrs = map ({ C => (exists $acctdetails{$_}) }, @attrs_list);
+			my @attrs = map ({ C => (exists $acctdetails{$_} || $_ eq 'IsPleb') }, @attrs_list);
 			%outputdetails = (
 				ACCT => $1,
 				NAME => $acctdetails{Name},
@@ -805,7 +805,7 @@ sub gen_add_edit_acc
 		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
 	my %attrs = get_attrs_full;
-	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_}), I => fmt_impl_attrs($attrs{$_}) }, keys %attrs);
+	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_} || $_ eq 'IsPleb'), I => fmt_impl_attrs($attrs{$_}), D => ($_ eq 'IsPleb') }, keys %attrs);
 	$tmpl->param(ATTRS => \@attr_set);
 	$tmpl->param(USER_ACCT => 1) if $person;
 
@@ -1014,7 +1014,7 @@ sub gen_edit_attr_groups
 	my @impsh = map ({ I => $_ }, (@sorted_attrs, get_sys_attrs, @extra_attrs));
 
 	my @attrs;
-	foreach my $attr (@sorted_attrs) {
+	foreach my $attr (@sorted_attrs, 'IsPleb') {
 		my @imps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr) }; } @sorted_attrs;
 		my @simps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'system' }; } get_sys_attrs;
 		my @nimps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'unknown' }; } @extra_attrs;
@@ -1496,7 +1496,7 @@ sub despatch_admin
 			if ($person) {
 				$userdetails{email} = $email;
 				$userdetails{Address} = $address;
-				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (get_attrs);
+				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (grep ($_ ne 'IsPleb', get_attrs));
 			} else {
 				(mkdir $acct_path or die) unless (-d $acct_path);
 				(defined $cgi->param('is_negated')) ? $userdetails{IsNegated} = undef : delete $userdetails{IsNegated};
@@ -2032,7 +2032,7 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my %cfg;
-			my %oldcfg = get_attrs_full(1);
+			my %oldcfg = get_attrs_full;
 			my $whinge = sub { whinge($_[0], gen_edit_pers_attrs($etoken)) };
 			my @types = ( 'Has', 'Is' );
 			my %rename;
@@ -2047,10 +2047,12 @@ sub despatch_admin
 				$whinge->('Attributes cannot have spaces') unless clean_word($attr);
 				$attr = ucfirst $type . ucfirst $attr;
 				$whinge->("'$attr' is reserved for internal use") if grep ($_ eq $attr, get_sys_attrs);
+				$whinge->('no.') if grep ($_ eq $oldattr, get_sys_attrs);
 				$rename{$oldattr} = $attr if defined $oldattr && exists $oldcfg{$oldattr} && $oldattr ne $attr;
 				$whinge->('Attributes renames must have type prefix') if $rename{$oldattr} && !(defined $type && length $type);
 				$cfg{$attr} = (defined $oldattr && exists $oldcfg{$oldattr}) ? $oldcfg{$oldattr} : undef;
 			}
+			$cfg{IsPleb} = $oldcfg{IsPleb} if exists $oldcfg{IsPleb};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if (%rename) {
@@ -2093,9 +2095,10 @@ sub despatch_admin
 			my %cfg;
 			my $whinge = sub { whinge($_[0], gen_edit_attr_groups($etoken)) };
 
-			foreach my $attr (get_attrs(1)) {
+			foreach my $attr (get_attrs(1), 'IsPleb') {
 				$cfg{$attr} = join (':', map { s/^${attr}_//; $_ } grep (/^${attr}_/, $cgi->param()));
 			}
+			delete $cfg{IsPleb} unless length $cfg{IsPleb};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_attr_groups', $etoken);

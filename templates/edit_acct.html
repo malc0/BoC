@@ -28,8 +28,10 @@
 			<p><label>Real-world address/contact details: <textarea name="address" cols=40 rows=5><TMPL_VAR NAME=ADDRESS></textarea></label></p>
 			<TMPL_IF NAME=ATTRS>
 			<div><p>Attributes:</p>
-				<TMPL_LOOP NAME=ATTRS><label style="white-space:nowrap; margin:20px"><TMPL_VAR NAME=A><TMPL_IF NAME=I> (implies <TMPL_VAR NAME=I>)</TMPL_IF><input type="checkbox" name="<TMPL_VAR NAME=A>" value="" <TMPL_IF NAME=C>checked="checked"</TMPL_IF>/></label>
-				</TMPL_LOOP>
+				<p style="margin:10px">
+					<TMPL_LOOP NAME=ATTRS><label style="white-space:nowrap; margin:20px"><TMPL_VAR NAME=A><TMPL_IF NAME=I> (implies <TMPL_VAR NAME=I>)</TMPL_IF><input type="checkbox" name="<TMPL_VAR NAME=A>" value="" <TMPL_IF NAME=C>checked="checked"</TMPL_IF> <TMPL_IF NAME=D>disabled="disabled"</TMPL_IF>/></label>
+					</TMPL_LOOP>
+				</p>
 			</div>
 			</TMPL_IF>
 			<TMPL_ELSE>
