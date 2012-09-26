@@ -2346,6 +2346,7 @@ sub gen_ucp
 	$tmpl->param(LOGIN => $session->param('User'));
 	$tmpl->param(TCP => $session->param('IsAdmin'));
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
+	$tmpl->param(BANK => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
@@ -2462,14 +2463,21 @@ sub gen_add_swap
 
 sub gen_add_split
 {
-	my ($vacct, $etoken) = @_;
+	my ($bank, $vacct, $etoken) = @_;
 	my $tmpl = load_template('add_split.html', $etoken);
 
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my @pploptions = map ({ NAME => $accts{$_}, A => $_ }, sort_AoH(\%accts));
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $units_cfg{Default} eq $_ }, @units);
+
+	my @nas;
+	if ($bank) {
+		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+		@nas = map ({ NAME => $vaccts{$_}, A => $_ }, sort_AoH({ map (($_ => $vaccts{$_}), keys %neg_accts) }));
+	}
 
 	my @vaccts;
 	if ($vacct) {
@@ -2477,9 +2485,11 @@ sub gen_add_split
 		my %acct_names = get_acct_name_map;
 		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (defined $cfg{Fee}[$_] && length $cfg{Fee}[$_] && !($cfg{Fee}[$_] =~ /[A-Z]/ || true($cfg{IsBool}[$_]) || true($cfg{IsDrain}[$_])) && defined $cfg{Account}[$_] && exists $acct_names{$cfg{Account}[$_]} && defined $cfg{Description}[$_] && length $cfg{Description}[$_], 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
 		@vaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{Fee}[$_]" }, @sorteddescs);
+	} else {
+		@vaccts = map ({ NAME => $vaccts{$_}, A => $_ }, sort_AoH(\%vaccts));
 	}
 
-	$tmpl->param(VACCT => $vacct, PPL => \@pploptions, CUR => (scalar @units > 1), CURS => \@currencies, VACCTS => \@vaccts);
+	$tmpl->param(BANK => $bank, VACCT => $vacct, PPL => \@pploptions, NAS => \@nas, CUR => (scalar @units > 1), CURS => \@currencies, VACCTS => \@vaccts);
 
 	return $tmpl;
 }
@@ -2706,10 +2716,11 @@ sub despatch
 			my $swap = defined $cgi->param('add_swap');
 			emit(gen_add_swap($swap, $session->param('User'), get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap')));
 		}
-		if (defined $cgi->param('add_split') || defined $cgi->param('add_vacct_split')) {
+		if (defined $cgi->param('add_split') || defined $cgi->param('add_vacct_split') || defined $cgi->param('add_bank_split')) {
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;
+			my $bank = defined $cgi->param('add_bank_split');
 			my $vacct = defined $cgi->param('add_vacct_split');
-			emit(gen_add_split($vacct, get_edit_token($sessid, !$vacct ? 'add_split' : 'add_vacct_split')));
+			emit(gen_add_split($bank, $vacct, get_edit_token($sessid, !$vacct ? ($bank ? 'add_bank_split' : 'add_split') : 'add_vacct_split')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'add_swap' || $cgi->param('tmpl') eq 'add_vacct_swap') {
@@ -2774,22 +2785,25 @@ sub despatch
 			emit_with_status((defined $cgi->param('save')) ? "Expense saved ($1)" : 'Add expense cancelled', gen_ucp($session));
 		}
 	}
-	if ($cgi->param('tmpl') eq 'add_split' || $cgi->param('tmpl') eq 'add_vacct_split') {
+	if ($cgi->param('tmpl') eq 'add_split' || $cgi->param('tmpl') eq 'add_vacct_split' || $cgi->param('tmpl') eq 'add_bank_split') {
 		whinge('Action not permitted', gen_ucp($session)) unless $session->param('MayAddEditTGs');
+		my $bank = ($cgi->param('tmpl') eq 'add_bank_split'); 
+		whinge('Action not permitted', gen_ucp($session)) if $bank && !$session->param('IsAdmin');
 		my $vacct = ($cgi->param('tmpl') eq 'add_vacct_split'); 
 		my $tgfile;
 
 		if (defined $cgi->param('save')) {
 			my %tg;
-			my $whinge = sub { whinge($_[0], gen_add_split($vacct, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_add_split($bank, $vacct, $etoken)) };
 
-			$tg{Name} = 'Split' . ($vacct ? ' expense: ' : ': ') . clean_words($cgi->param('tg_name'));
+			$tg{Name} = ($bank ? 'Tied transaction: ' : 'Split' . ($vacct ? ' expense: ' : ': ')) . clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 
 			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
 			my %creds;
 			foreach my $acct (map { /^Cred_(.*)/; $1 } grep (/^Cred_.+$/, $cgi->param)) {
-				validate_acct($acct, \%ppl, $whinge);
+				validate_acct($acct, ($bank ? \%neg_accts : \%ppl), $whinge);
 				my $amnt = validate_decimal(scalar $cgi->param("Cred_$acct"), 'Creditor amount', undef, $whinge);
 				$creds{$acct} = $amnt unless $amnt == 0;
 			}
@@ -2821,7 +2835,7 @@ sub despatch
 				my $acct;
 				my $type;
 				unless ($dacct =~ /^V/) {
-					$acct = validate_acct($dacct, \%ppl, $whinge);
+					$acct = validate_acct($dacct, ($bank ? \%acct_names : \%ppl), $whinge);
 				} else {
 					my $fee = clean_word($dacct);
 					$fee =~ s/^V// if defined $fee;
@@ -2853,7 +2867,7 @@ sub despatch
 			validate_tg(undef, \%tg, $whinge);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, !$vacct ? 'add_split' : 'add_vacct_split', $etoken);
+			bad_token_whinge(gen_ucp($session)) unless redeem_edit_token($sessid, !$vacct ? ($bank ? 'add_bank_split' : 'add_split') : 'add_vacct_split', $etoken);
 			try_commit_and_unlock(sub {
 				$tgfile = new_uuidfile("$config{Root}/transaction_groups");
 				write_tg($tgfile, %tg);
@@ -2861,12 +2875,14 @@ sub despatch
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" created", $session);
 			});
 		} else {
-			redeem_edit_token($sessid, !$vacct ? 'add_split' : 'add_vacct_split', $etoken);
+			redeem_edit_token($sessid, !$vacct ? ($bank ? 'add_bank_split' : 'add_split') : 'add_vacct_split', $etoken);
 		}
 
 		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
 		if ($vacct) {
 			emit_with_status((defined $cgi->param('save')) ? "Split expense saved ($1)" : 'Add split expense cancelled', gen_ucp($session));
+		} elsif ($bank) {
+			emit_with_status((defined $cgi->param('save')) ? "Tied transaction saved ($1)" : 'Add tied transaction cancelled', gen_ucp($session));
 		} else {
 			emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : 'Add split cancelled', gen_ucp($session));
 		}
