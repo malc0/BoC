@@ -794,6 +794,7 @@ sub gen_add_edit_acc
 	my ($edit_acct, $person, $etoken) = @_;
 	my $tmpl = load_template('edit_acct.html', $etoken);
 	my %acctdetails;
+	my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
 
 	if ($edit_acct) {
 		$tmpl->param(EACCT => $edit_acct);
@@ -808,6 +809,32 @@ sub gen_add_edit_acc
 	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_} || $_ eq 'IsPleb'), I => fmt_impl_attrs($attrs{$_}), D => ($_ eq 'IsPleb') }, keys %attrs);
 	$tmpl->param(ATTRS => \@attr_set);
 	$tmpl->param(USER_ACCT => 1) if $person;
+	my @alts;
+	foreach my $alt (@{$addr_alts{Headings}}) {
+		my @extra = (!(defined $acctdetails{$alt}) || grep ($_ eq $acctdetails{$alt}, @{$addr_alts{$alt}})) ? () : ($acctdetails{$alt});
+		my @opts = map ({ V => $_, S => (defined $acctdetails{$alt} && $_ eq $acctdetails{$alt}) }, @{$addr_alts{$alt}}, @extra);
+		push (@alts, { T => $alt, OPTS => \@opts, CL => @extra ? 'unknown' : undef });
+	}
+	$tmpl->param(ADDR_ALTS => \@alts);
+
+	return $tmpl;
+}
+
+sub gen_edit_addr_alts
+{
+	my $tmpl = load_template('edit_addr_alts.html', $_[0]);
+	my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
+	my @alts = @{$addr_alts{Headings} // []};
+
+	push (@alts, ('') x ((scalar @alts > 0) ? min(2, 10 - scalar @alts) : 4));
+
+	my @altcols;
+	foreach my $altn (0 .. $#alts) {
+		my $defd += grep (defined, @{$addr_alts{$alts[$altn]}});
+		my @opts = map ({ O => $addr_alts{$alts[$altn]}[$_], R => $_ }, 0 .. ($defd + (($defd > 0) ? min(10, 50 - $defd) : 20) - 1));
+		push (@altcols, { TYPE => $alts[$altn], T => $altn, OPTS => \@opts });
+	}
+	$tmpl->param(COLS => \@altcols);
 
 	return $tmpl;
 }
@@ -1454,6 +1481,10 @@ sub despatch_admin
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
 		emit(gen_manage_meets) if (defined $cgi->param('manage_meets'));
+		if (defined $cgi->param('edit_addr_alts')) {
+			$whinge->() unless try_lock("$config{Root}/config_addr_alts", $sessid);
+			emit(gen_edit_addr_alts(get_edit_token($sessid, 'edit_addr_alts')));
+		}
 		if (defined $cgi->param('edit_inst_cfg')) {
 			$whinge->() unless try_lock("$config{Root}/config", $sessid);
 			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
@@ -1487,10 +1518,12 @@ sub despatch_admin
 		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
 			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
 
+			my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
 			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
 			my $fullname = clean_words($cgi->param('fullname'));
 			my $email = clean_email($cgi->param('email'));
 			my $address = clean_text($cgi->param('address'));
+			my $nalts = grep (length $cgi->param($_), @{$addr_alts{Headings}});
 			my $rename = ($edit_acct and $edit_acct ne $new_acct);
 			my $old_file = $file;
 			$file = "$acct_path/$new_acct";
@@ -1500,7 +1533,7 @@ sub despatch_admin
 			$whinge->('Full name too long') if length $fullname > 100;
 			if ($person) {
 				$whinge->('Not an email address') unless defined $email;
-				$whinge->('No real-world contact details given') unless defined $address;
+				$whinge->('No real-world contact details given') unless defined $address || $nalts;
 			}
 
 			my %userdetails;
@@ -1508,7 +1541,17 @@ sub despatch_admin
 			$userdetails{Name} = $fullname;
 			if ($person) {
 				$userdetails{email} = $email;
-				$userdetails{Address} = $address;
+				$address ? $userdetails{Address} = $address : delete $userdetails{Address};
+				foreach my $alt (@{$addr_alts{Headings}}) {
+					if (length $cgi->param($alt)) {
+						my $want = encode_for_html($cgi->param($alt));
+						my $row = first { defined $addr_alts{$alt}[$_] && $addr_alts{$alt}[$_] eq $want } 0 .. $#{$addr_alts{$alt}};
+						$whinge->('"' . $cgi->param($alt) . "\" is not a known $alt") unless defined $row;
+						$userdetails{$alt} = $addr_alts{$alt}[$row];
+					} else {
+						delete $userdetails{$alt};
+					}
+				}
 				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (grep ($_ ne 'IsPleb', get_attrs));
 			} else {
 				(mkdir $acct_path or die) unless (-d $acct_path);
@@ -1619,6 +1662,44 @@ sub despatch_admin
 		} else {
 			delete_common($acct_file, "account \"$acct\"", $session, sub { gen_manage_accts($person) });
 		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_addr_alts') {
+		my $cfg_file = "$config{Root}/config_addr_alts";
+
+		if (defined $cgi->param('save')) {
+			my %cfg;
+			my $whinge = sub { whinge($_[0], gen_edit_addr_alts($etoken)) };
+
+			foreach my $col (0 .. get_rows(10, $cgi, 'Type_', sub { $whinge->('No types?') })) {
+				next unless length $cgi->param("Type_$col");
+
+				my $type = clean_word($cgi->param("Type_$col"));
+				$whinge->('Bad type "' . $cgi->param("Type_$col") . '"') unless defined $type && length $type;
+
+				foreach my $row (0 .. get_rows(50, $cgi, "Opt_${col}_", sub { $whinge->("No options for \"$type\"?") })) {
+					next unless length $cgi->param("Opt_${col}_$row");
+
+					my $opt = clean_words($cgi->param("Opt_${col}_$row"));
+					$whinge->('Bad option "' . $cgi->param("Opt_${col}_$row") . '"') unless defined $opt && length $opt;
+
+					push (@{$cfg{$type}}, $opt);
+				}
+			}
+
+			@{$cfg{Headings}} = keys %cfg;
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_addr_alts', $etoken);
+			try_commit_and_unlock(sub {
+				write_htsv($cfg_file, \%cfg, 21);
+				add_commit($cfg_file, 'config_addr_alts: address alternatives configuration modified', $session);
+			}, $cfg_file);
+		} else {
+			unlock($cfg_file);
+			redeem_edit_token($sessid, 'edit_addr_alts', $etoken);
+		}
+
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to address alternatives config' : 'Edit address alternatives config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'manage_meets') {
 		if (defined $cgi->param('add')) {

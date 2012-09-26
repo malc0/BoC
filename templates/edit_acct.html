@@ -4,6 +4,7 @@
 		<title><TMPL_IF NAME=EACCT>Edit<TMPL_ELSE>Add new</TMPL_IF> <TMPL_VAR NAME=SN> <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
+		<style type="text/css">.unknown { background-color: red }</style>
 	</head>
 	<body>
 		<h1><TMPL_IF NAME=EACCT>Edit <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account "<TMPL_VAR NAME=ACCT>"<TMPL_ELSE>Add new <TMPL_IF NAME=USER_ACCT>user<TMPL_ELSE>virtual</TMPL_IF> account</TMPL_IF></h1>
@@ -24,8 +25,13 @@
 			<p><label>Full name: <input type="text" name="fullname" value="<TMPL_VAR NAME=NAME>"/></label></p>
 			<TMPL_IF NAME=USER_ACCT>
 			<p><label>e-mail: <input type="text" name="email" value="<TMPL_VAR NAME=EMAIL>"/></label></p>
-			<!-- FIXME: college drop-down -->
-			<p><label>Real-world address/contact details: <textarea name="address" cols=40 rows=5><TMPL_VAR NAME=ADDRESS></textarea></label></p>
+			<div><TMPL_IF NAME=ADDR_ALTS><p>Supply at least one of the following:</p>
+				<p style="margin:0px 20px">
+					<label style="margin:10px"><span style="vertical-align:top">Real-world address/contact details:</span> <textarea name="address" cols=40 rows=3><TMPL_VAR NAME=ADDRESS></textarea></label><br><TMPL_ELSE>
+				<p><label><span style="vertical-align:top">Real-world address/contact details:</span> <textarea name="address" cols=40 rows=3><TMPL_VAR NAME=ADDRESS></textarea></label></TMPL_IF>
+					<TMPL_LOOP NAME=ADDR_ALTS><label style="margin:10px" class="<TMPL_VAR NAME=CL>"><TMPL_VAR NAME=T>: <select name="<TMPL_VAR NAME=T>"><option value="">Select <TMPL_VAR NAME=T></option><TMPL_LOOP NAME=OPTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=V></option></TMPL_LOOP></select></label></TMPL_LOOP>
+				</p>
+			</div>
 			<TMPL_IF NAME=ATTRS>
 			<div><p>Attributes:</p>
 				<p style="margin:10px">
