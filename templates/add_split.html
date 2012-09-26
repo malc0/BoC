@@ -38,10 +38,14 @@
 				</TMPL_LOOP>
 			</div>
 
-			<h2>Step 4: distribute shares of debt to the relevant <TMPL_IF NAME=VACCT>categories<TMPL_ELSE>accounts</TMPL_IF> below</h2>
+			<h2>Step 4: distribute shares of debt to the relevant <TMPL_IF NAME=VACCT>categories/people<TMPL_ELSE>accounts</TMPL_IF> below</h2>
 			<h3>Shares must be non-negative and can be monetary amounts, or simple proportions<TMPL_UNLESS NAME=VACCT> -- put &quot;1&quot; in two accounts and each pays one half</TMPL_UNLESS></h3>
 			<div>
-				<TMPL_LOOP NAME=DEBTACCTS><TMPL_IF NAME=VACCT><span class="outerv"><label><span class="innerv"><TMPL_ELSE><span class="outerp"><label><span class="innerp"></TMPL_IF><TMPL_VAR NAME=NAME>: </span><input type="text" value=0 name="Debt_<TMPL_VAR NAME=A>" style="width:6ex" onclick="this.select()"/></label></span>
+				<TMPL_IF NAME=VACCT><h3>Expense categories:</h3>
+				<TMPL_LOOP NAME=VACCTS><span class="outerv"><label><span class="innerv"><TMPL_VAR NAME=NAME>: </span><input type="text" value=0 name="Debt_V<TMPL_VAR NAME=A>" style="width:6ex" onclick="this.select()"/></label></span>
+				</TMPL_LOOP>
+				<h3>People:</h3></TMPL_IF>
+				<TMPL_LOOP NAME=PPL><span class="outerp"><label><span class="innerp"><TMPL_VAR NAME=NAME>: </span><input type="text" value=0 name="Debt_<TMPL_VAR NAME=A>" style="width:6ex" onclick="this.select()"/></label></span>
 				</TMPL_LOOP>
 			</div>
 

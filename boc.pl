@@ -2471,17 +2471,15 @@ sub gen_add_split
 	my @units = known_units(%units_cfg);
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $units_cfg{Default} eq $_ }, @units);
 
-	my @debtaccts;
+	my @vaccts;
 	if ($vacct) {
 		my %cfg = read_htsv("$config{Root}/config_fees");
 		my %acct_names = get_acct_name_map;
 		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (defined $cfg{Fee}[$_] && length $cfg{Fee}[$_] && !($cfg{Fee}[$_] =~ /[A-Z]/ || true($cfg{IsBool}[$_]) || true($cfg{IsDrain}[$_])) && defined $cfg{Account}[$_] && exists $acct_names{$cfg{Account}[$_]} && defined $cfg{Description}[$_] && length $cfg{Description}[$_], 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
-		@debtaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{Fee}[$_]" }, @sorteddescs);
-	} else {
-		@debtaccts = @pploptions;
+		@vaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{Fee}[$_]" }, @sorteddescs);
 	}
 
-	$tmpl->param(VACCT => $vacct, PPL => \@pploptions, CUR => (scalar @units > 1), CURS => \@currencies, DEBTACCTS => \@debtaccts);
+	$tmpl->param(VACCT => $vacct, PPL => \@pploptions, CUR => (scalar @units > 1), CURS => \@currencies, VACCTS => \@vaccts);
 
 	return $tmpl;
 }
@@ -2788,10 +2786,10 @@ sub despatch
 			$tg{Name} = 'Split' . ($vacct ? ' expense: ' : ': ') . clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 
-			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 			my %creds;
 			foreach my $acct (map { /^Cred_(.*)/; $1 } grep (/^Cred_.+$/, $cgi->param)) {
-				validate_acct($acct, \%acct_names, $whinge);
+				validate_acct($acct, \%ppl, $whinge);
 				my $amnt = validate_decimal(scalar $cgi->param("Cred_$acct"), 'Creditor amount', undef, $whinge);
 				$creds{$acct} = $amnt unless $amnt == 0;
 			}
@@ -2813,28 +2811,31 @@ sub despatch
 			}
 
 			my %cf = read_htsv("$config{Root}/config_fees");
-			my %all_acct_names = get_acct_name_map;
+			my %acct_names = get_acct_name_map;
 			my @accts;
 			my @descstrs;
-			foreach my $acct (map { /^Debt_(.*)/; $1 } grep (/^Debt_.+$/, $cgi->param)) {
-				my $ds = validate_decimal(scalar $cgi->param("Debt_$acct"), 'Debt share', 1, $whinge);
+			foreach my $dacct (map { /^Debt_(.*)/; $1 } grep (/^Debt_.+$/, $cgi->param)) {
+				my $ds = validate_decimal(scalar $cgi->param("Debt_$dacct"), 'Debt share', 1, $whinge);
+				next unless $ds;
+
+				my $acct;
 				my $type;
-				if (!$vacct) {
-					validate_acct($acct, \%acct_names, $whinge);
+				unless ($dacct =~ /^V/) {
+					$acct = validate_acct($dacct, \%ppl, $whinge);
 				} else {
-					my $fee = clean_word($acct);
+					my $fee = clean_word($dacct);
+					$fee =~ s/^V// if defined $fee;
 					$whinge->('Broken expense type') unless defined $fee && !($fee =~ /[A-Z]/);
 					my $row = first { defined $cf{Fee}[$_] && $cf{Fee}[$_] eq $fee } 0 .. $#{$cf{Fee}};
 					$whinge->('Unknown expense type') unless defined $row;
 					$whinge->('Broken expense type') if true($cf{IsBool}[$row]) || true($cf{IsDrain}[$row]);
-					$acct = validate_acct($cf{Account}[$row], \%all_acct_names, $whinge);
+					$acct = validate_acct($cf{Account}[$row], \%acct_names, $whinge);
 					$type = $cf{Description}[$row];
 				}
-				if ($ds) {
-					$tg{$acct}[0] = (exists $tg{$acct}) ? $tg{$acct}[0] + $ds : $ds;
-					push (@accts, $acct) unless grep ($_ eq $acct, @accts);
-					push (@descstrs, "$type ($acct) -> $ds") if $vacct;
-				}
+
+				$tg{$acct}[0] = (exists $tg{$acct}) ? $tg{$acct}[0] + $ds : $ds;
+				push (@accts, $acct) unless grep ($_ eq $acct, @accts);
+				push (@descstrs, "$type ($acct) -> $ds") if $dacct =~ /^V/;
 			}
 
 			my $descstr = join (', ', @descstrs);
@@ -2864,10 +2865,10 @@ sub despatch
 		}
 
 		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
-		if (!$vacct) {
-			emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : 'Add split cancelled', gen_ucp($session));
-		} else {
+		if ($vacct) {
 			emit_with_status((defined $cgi->param('save')) ? "Split expense saved ($1)" : 'Add split expense cancelled', gen_ucp($session));
+		} else {
+			emit_with_status((defined $cgi->param('save')) ? "Split saved ($1)" : 'Add split cancelled', gen_ucp($session));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'accts_disp') {
