@@ -755,20 +755,17 @@ sub gen_manage_accts
 
 	foreach my $acct (@accounts) {
 		my %acctdetails = read_simp_cfg($acct);
-		my %outputdetails;
 		next unless $acct =~ /.*\/(.*)/;
+		my %outputdetails = ( ACCT => $1, ACCT_CL => clean_username($1) ? '' : 'broken', NAME => $acctdetails{Name}, NAME_CL => (defined $acctdetails{Name} && length $acctdetails{Name}) ? '' : 'broken' );
 		if ($people) {
 			my @attrs = map ({ C => (exists $acctdetails{$_} || $_ eq 'IsPleb') }, @attrs_list);
-			%outputdetails = (
-				ACCT => $1,
-				NAME => $acctdetails{Name},
+			%outputdetails = ( %outputdetails,
 				EMAIL => $acctdetails{email},
+				EMAIL_CL => clean_email($acctdetails{email}) ? '' : 'broken',
 				ATTRS => \@attrs,
 			);
 		} else {
-			%outputdetails = (
-				ACCT => $1,
-				NAME => $acctdetails{Name},
+			%outputdetails = ( %outputdetails,
 				IS_NEGATED => (exists $acctdetails{IsNegated}),
 			);
 		}
