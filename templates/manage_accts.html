@@ -14,14 +14,14 @@
 
 			<table border=1>
 				<TMPL_IF NAME=USER_ACCT>
-				<tr><th>User name</th><th>Real name</th><th>email</th><TMPL_LOOP NAME=ATTRSH><th><TMPL_VAR NAME=A></th></TMPL_LOOP></tr>
+				<tr><th>User name</th><th>Real name</th><th>email</th><TMPL_LOOP NAME=ATTRSH><th><TMPL_VAR NAME=A></th></TMPL_LOOP><th>Actions</th></tr>
 				<TMPL_LOOP NAME=ACCTS>
-				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=EMAIL></td><TMPL_LOOP NAME=ATTRS><td align="center"><TMPL_IF NAME=C>X</TMPL_IF></td></TMPL_LOOP><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete" onclick="return confirm('Really delete account &quot;<TMPL_VAR NAME=ACCT>&quot;?')"/></td></tr>
+				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td><TMPL_VAR NAME=EMAIL></td><TMPL_LOOP NAME=ATTRS><td align="center"><TMPL_IF NAME=C>X</TMPL_IF></td></TMPL_LOOP><td style="white-space:nowrap"><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete" onclick="return confirm('Really delete account &quot;<TMPL_VAR NAME=ACCT>&quot;?')"/></td></tr>
 				</TMPL_LOOP>
 				<TMPL_ELSE>
-				<tr><th>Short name</th><th>Long name</th><th>Is negated?</th></tr>
+				<tr><th>Short name</th><th>Long name</th><th>Is negated?</th><th>Actions</th></tr>
 				<TMPL_LOOP NAME=ACCTS>
-				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td align="center"><TMPL_IF NAME=IS_NEGATED>X</TMPL_IF></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/></td><td><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete" onclick="return confirm('Really delete account &quot;<TMPL_VAR NAME=ACCT>&quot;?')"/></td></tr>
+				<tr><td><TMPL_VAR NAME=ACCT></td><td><TMPL_VAR NAME=NAME></td><td align="center"><TMPL_IF NAME=IS_NEGATED>X</TMPL_IF></td><td style="white-space:nowrap"><input type="submit" name="edit_<TMPL_VAR NAME=ACCT>" value="Edit"/><input type="submit" name="del_<TMPL_VAR NAME=ACCT>" value="Delete" onclick="return confirm('Really delete account &quot;<TMPL_VAR NAME=ACCT>&quot;?')"/></td></tr>
 				</TMPL_LOOP>
 				</TMPL_IF>
 			</table>
