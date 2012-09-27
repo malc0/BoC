@@ -39,10 +39,26 @@
 				<tr><TMPL_LOOP NAME=HEADINGS><th class="<TMPL_VAR NAME=HEAD_CL>"><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=H></a><TMPL_ELSE><TMPL_VAR NAME=H></TMPL_IF></th></TMPL_LOOP></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr class="<TMPL_VAR NAME=ROW_CL>">
-					<td style="white-space:nowrap"><TMPL_IF NAME=RO><TMPL_LOOP NAME=CREDS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
-						<select name="Creditor_<TMPL_VAR NAME=R>">
-							<TMPL_LOOP NAME=CREDS><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+					<td style="white-space:nowrap"><TMPL_IF NAME=RO>
+						<TMPL_LOOP NAME=CREDUNK><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
+						<TMPL_LOOP NAME=CREDPPL><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
+						<TMPL_LOOP NAME=CREDVAS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
+						<TMPL_LOOP NAME=CREDTPS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
+						<TMPL_ELSE><select name="Creditor_<TMPL_VAR NAME=R>">
+							<TMPL_LOOP NAME=CREDUNK><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 							</TMPL_LOOP>
+							<optgroup label="People">
+								<TMPL_LOOP NAME=CREDPPL><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+								</TMPL_LOOP>
+							</optgroup>
+							<optgroup label="Virtual accounts">
+								<TMPL_LOOP NAME=CREDVAS><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+								</TMPL_LOOP>
+							</optgroup>
+							<optgroup label="Transfer pots">
+								<TMPL_LOOP NAME=CREDTPS><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+								</TMPL_LOOP>
+							</optgroup>
 						</select>
 					</TMPL_IF></td>
 					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=A><TMPL_ELSE><div style="white-space: nowrap"><input type="text" value="<TMPL_VAR NAME=A>" name="Amount_<TMPL_VAR NAME=R>" style="width:9ex" onclick="this.select()"/><script>
