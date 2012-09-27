@@ -131,7 +131,7 @@ sub clean_word
 sub clean_words
 {
 	return undef unless defined $_[0];
-	return undef unless $_[0] =~ /^\s*([^\n\r\v\f]+?)\s*$/;
+	return undef unless $_[0] =~ /^\s*((\S[^\v]*)?\S)\s*$/;
 	return encode_for_html($1);
 }
 
