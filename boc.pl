@@ -1423,13 +1423,13 @@ sub meet_to_tg
 
 sub valid_edit_id
 {
-	my ($id, $path, $type, $whinge_tmpl, $id_required) = @_;
+	my ($id, $path, $type, $whinge, $id_required) = @_;
 
-	whinge("No $type ID defined", $whinge_tmpl) if $id_required && !(defined $id);
+	$whinge->("No $type ID defined") if $id_required && !(defined $id);
 
 	my $edit_id = transcode_uri_for_html(clean_filename(encode_for_filename($id), $path));
 
-	whinge("No such $type \"$id\"", $whinge_tmpl) if (defined $id || $id_required) && !$edit_id;
+	$whinge->("No such $type \"$id\"") if (defined $id || $id_required) && !$edit_id;
 
 	return $edit_id;
 }
@@ -1514,7 +1514,7 @@ sub despatch_admin
 		my $person = defined $cgi->param('email');
 		my $root = $config{Root};
 		my $acct_path = $person ? "$root/users" : "$root/accounts";
-		my $edit_acct = valid_edit_id(scalar $cgi->param('eacct'), $acct_path, 'account', gen_manage_accts($person));
+		my $edit_acct = valid_edit_id(scalar $cgi->param('eacct'), $acct_path, 'account', sub { whinge($_[0], gen_manage_accts($person)) });
 		my $file = $edit_acct ? "$acct_path/$edit_acct" : undef;
 		my $new_acct;
 
@@ -1650,7 +1650,7 @@ sub despatch_admin
 			}
 		}
 
-		$acct = valid_edit_id($acct, $person ? "$config{Root}/users" : "$config{Root}/accounts", 'account', gen_manage_accts($person));
+		$acct = valid_edit_id($acct, $person ? "$config{Root}/users" : "$config{Root}/accounts", 'account', $whinge);
 		my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 		unless ($delete) {
 			if ($acct) {
@@ -1705,8 +1705,8 @@ sub despatch_admin
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to address alternatives config' : 'Edit address alternatives config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'manage_meets') {
+		my $whinge = sub { whinge($_[0], gen_manage_meets) };
 		if (defined $cgi->param('add')) {
-			my $whinge = sub { whinge($_[0], gen_manage_meets()) };
 			my %meet;
 			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 
@@ -1714,7 +1714,7 @@ sub despatch_admin
 			$meet{Date} = validate_date(scalar $cgi->param('date'), $whinge);
 			$meet{Duration} = validate_int(scalar $cgi->param('len'), 'Duration', 1, $whinge);
 			$meet{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
-			my $ft = ($cgi->param('fee_tmpl') eq 'none') ? undef : valid_edit_id(scalar $cgi->param('fee_tmpl'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_meets, 1);
+			my $ft = ($cgi->param('fee_tmpl') eq 'none') ? undef : valid_edit_id(scalar $cgi->param('fee_tmpl'), "$config{Root}/fee_tmpls", 'fee template', $whinge, 1);
 			$meet{Template} = $ft if $ft;
 
 			$whinge->('No meet name given') unless length $meet{Name};
@@ -1731,25 +1731,26 @@ sub despatch_admin
 		}
 		if (defined $cgi->param('view')) {
 			my %cf = valid_fee_cfg;
-			whinge('Cannot view meet: expenses config is broken', gen_manage_meets) unless %cf;
-			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
+			$whinge->('Cannot view meet: expenses config is broken') unless %cf;
+			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', $whinge, 1);
 
 			emit(gen_edit_meet($mid, \%cf, undef));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet') {
 		emit(gen_manage_meets) if defined $cgi->param('manage_meets');
+		my $whinge = sub { whinge($_[0], gen_manage_meets) };
 
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', $whinge, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
 		my %meet_cfg = valid_fee_cfg;
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
-			whinge('Cannot edit meet: expenses config is broken', gen_manage_meets) unless %meet_cfg;
-			whinge("Couldn't get edit lock for meet \"$edit_id\"", gen_manage_meets) unless try_lock($mt_file, $sessid);
+			$whinge->('Cannot edit meet: expenses config is broken') unless %meet_cfg;
+			$whinge->("Couldn't get edit lock for meet \"$edit_id\"") unless try_lock($mt_file, $sessid);
 			unless (-r $mt_file) {
 				unlock($mt_file);
-				whinge("Couldn't edit meet \"$edit_id\", file disappeared", gen_manage_meets);
+				$whinge->("Couldn't edit meet \"$edit_id\", file disappeared");
 			}
 
 			if (defined $cgi->param('edit')) {
@@ -1762,8 +1763,8 @@ sub despatch_admin
 		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
 		if (defined $cgi->param('save')) {
-			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless %meet_cfg;
-			my $whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $etoken)) };
+			$whinge->('Cannot save meet: expenses config is broken') unless %meet_cfg;
+			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $etoken)) };
 
 			delete $meet{Currency};
 			my @ppl = @{$meet{Person}};
@@ -1823,7 +1824,7 @@ sub despatch_admin
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%meet_cfg, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', gen_manage_meets, 1);
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets) }, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
 		my %cf = valid_fee_cfg;
 
@@ -1949,22 +1950,23 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
-			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls);
+			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', sub { whinge($_[0], gen_manage_fee_tmpls) });
 
 			emit(gen_edit_fee_tmpl($view, $view ? undef : get_edit_token($sessid, 'add_ft')));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_fee_tmpl') {
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
+		my $whinge = sub { whinge($_[0], gen_manage_fee_tmpls) };
 
-		my $edit_id = valid_edit_id(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls", 'fee template', gen_manage_fee_tmpls, (defined $cgi->param('edit')));
+		my $edit_id = valid_edit_id(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls", 'fee template', $whinge, (defined $cgi->param('edit')));
 		my $file = $edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef;
 
 		if (defined $cgi->param('edit')) {
-			whinge("Couldn't get edit lock for fee template \"$edit_id\"", gen_manage_fee_tmpls) unless try_lock($file, $sessid);
+			$whinge->("Couldn't get edit lock for fee template \"$edit_id\"") unless try_lock($file, $sessid);
 			unless (-r $file) {
 				unlock($file);
-				whinge("Couldn't edit fee template \"$edit_id\", file disappeared", gen_manage_fee_tmpls);
+				$whinge->("Couldn't edit fee template \"$edit_id\", file disappeared");
 			}
 			emit(gen_edit_fee_tmpl($edit_id, get_edit_token($sessid, "edit_$edit_id")));
 		}
@@ -1974,7 +1976,7 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			my %ft;
-			my $whinge = sub { whinge($_[0], gen_edit_fee_tmpl($edit_id, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_edit_fee_tmpl($edit_id, $etoken)) };
 
 			$whinge->('Missing fee template name') unless $new_id;
 			my $old_file = $file;
@@ -2983,31 +2985,32 @@ sub despatch
 		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
+		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
-			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs($session));
+			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', $whinge);
 
 			emit(gen_tg($view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
 		}
 		if (grep (/^del_.*$/, $cgi->param)) {
-			my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
 			my @dels = grep (/^del_.*$/, $cgi->param);
 			next unless $dels[0] =~ /^del_(.*)$/;
-			my $edit_id = valid_edit_id($1, "$config{Root}/transaction_groups", 'TG', gen_manage_tgs($session), 1);
+			my $edit_id = valid_edit_id($1, "$config{Root}/transaction_groups", 'TG', $whinge, 1);
 			delete_common("$config{Root}/transaction_groups/$edit_id", "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg') {
-		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', gen_manage_tgs($session), (defined $cgi->param('edit')));
+		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
+		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', $whinge, (defined $cgi->param('edit')));
 		whinge('Action not permitted', $edit_id ? gen_tg($edit_id, $session, undef) : gen_manage_tgs($session)) unless $session->param('MayAddEditTGs');
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('edit')) {
 			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, $session, undef)) if $edit_id =~ /^[A-Z]/;
 
-			whinge("Couldn't get edit lock for transaction group \"$edit_id\"", gen_manage_tgs($session)) unless try_lock($tgfile, $sessid);
+			$whinge->("Couldn't get edit lock for transaction group \"$edit_id\"") unless try_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
-				whinge("Couldn't edit transaction group \"$edit_id\", file disappeared", gen_manage_tgs($session));
+				$whinge->("Couldn't edit transaction group \"$edit_id\", file disappeared");
 			}
 			emit(gen_tg($edit_id, $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
@@ -3016,7 +3019,7 @@ sub despatch
 		my %tg;
 
 		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_tg($edit_id, $session, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_tg($edit_id, $session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
