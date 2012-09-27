@@ -993,13 +993,17 @@ sub gen_edit_fee_cfg
 	foreach my $row (0 .. $#fees) {
 		my $cf_row = first { @{$cfg{Fee}}[$_] eq $fees[$row] } 0 .. $#{$cfg{Fee}};
 		my $commod = exists $cds{$fees[$row]};
-		my @rowoptions = map ({ O => $acct_names{$_}, V => $_, S => (defined $cf_row && defined $cfg{Account}[$cf_row] && $cfg{Account}[$cf_row] eq $_) }, @sorted_accts);
+		my $broken_acct = defined $cf_row && (!defined $cfg{Account}[$cf_row] || !(exists $acct_names{$cfg{Account}[$cf_row]}));
+		my @unkaccts;
+		@unkaccts = map ({ O => $_, V => $_, S => 1 }, ($cfg{Account}[$cf_row])) if $broken_acct && defined $cfg{Account}[$cf_row];
+		my @vacctaccts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cf_row && defined $cfg{Account}[$cf_row] && $cfg{Account}[$cf_row] eq $_) }, @sorted_vaccts);
+		my @pplaccts = map ({ O => $ppl{$_}, V => $_, S => (defined $cf_row && defined $cfg{Account}[$cf_row] && $cfg{Account}[$cf_row] eq $_) }, sort_AoH(\%ppl));
 		my $broken_fee = (defined $seen{$fees[$row]} && $seen{$fees[$row]} > 1) || !(defined $fees[$row]) || clean_int($fees[$row]) || (!$commod && $fees[$row] =~ /[A-Z]/);
-		my $broken_acct = defined $cf_row && (!defined $cfg{Account}[$cf_row] || !grep ($_ eq $cfg{Account}[$cf_row], @sorted_accts));
-		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), ACCTS => \@rowoptions, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(defined $cfg{Description}[$cf_row] && length $cfg{Description}[$cf_row])) ? 'broken' : '', BD_CL => (!$commod && true($cfg{IsBool}[$cf_row]) && !true($cfg{IsDrain}[$cf_row])) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
+		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), UNKACCTS => \@unkaccts, PPLACCTS => \@pplaccts, VACCTS => \@vacctaccts, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(defined $cfg{Description}[$cf_row] && length $cfg{Description}[$cf_row])) ? 'broken' : '', BD_CL => (!$commod && true($cfg{IsBool}[$cf_row]) && !true($cfg{IsDrain}[$cf_row])) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
 	}
-	my @rowoptions = map ({ O => $acct_names{$_}, V => $_ }, @sorted_accts);
-	push (@feerows, { R => $_, FEEID => '', FEED => '', ACCTS => \@rowoptions }) foreach (((scalar keys %cds) + (scalar @drains)) .. ($num_rows - 1));
+	my @vacctaccts = map ({ O => $vaccts{$_}, V => $_ }, @sorted_vaccts);
+	my @pplaccts = map ({ O => $ppl{$_}, V => $_ }, sort_AoH(\%ppl));
+	push (@feerows, { R => $_, FEEID => '', FEED => '', PPLACCTS => \@pplaccts, VACCTS => \@vacctaccts }) foreach (((scalar keys %cds) + (scalar @drains)) .. ($num_rows - 1));
 
 	$tmpl->param(ACCTS => \@accts, FEEROWS => \@feerows);
 
