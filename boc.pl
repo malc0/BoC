@@ -2704,6 +2704,7 @@ sub gen_tg
 	$tmpl->param(TG_ID => $edit_id);
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(EDITOK => $edit_id && !($edit_id =~ /^[A-Z]/) && $session->param('MayAddEditTGs'));
+	$tmpl->param(DELTG => $session->param('IsAdmin') && $edit_id && !($edit_id =~ /^[A-Z]/));
 	$tmpl->param(NAME => $tgdetails{Name});
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
@@ -3011,6 +3012,9 @@ sub despatch
 				$whinge->("Couldn't edit transaction group \"$edit_id\", file disappeared");
 			}
 			emit(gen_tg($edit_id, $session, get_edit_token($sessid, "edit_$edit_id")));
+		}
+		if (defined $cgi->param('delete')) {
+			delete_common($tgfile, "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 		}
 
 		# only left with save and cancel now
