@@ -541,7 +541,7 @@ sub create_datastore
 
 sub validate_admins
 {
-	my @users = glob ("$config{Root}/users/*");
+	my @users = grep { (my $acct = $_) =~ s/^.*\///; clean_username($acct) } glob ("$config{Root}/users/*");
 
 	my @valid_admins;
 	foreach my $user (@users) {
@@ -670,12 +670,11 @@ sub query_all_htsv_in_path
 {
 	my ($path, $key, $all) = @_;
 
-	my @accts = glob ("$path/*");
+	my @accts = map { s/^.*\///; $_ } glob ("$path/*");
+	@accts = ($path =~ /(users|accounts)$/) ? grep (clean_username($_), @accts) : grep (length, @accts);
 	my %response;
 
 	foreach my $acct (@accts) {
-		next unless $acct =~ /.*\/(.*)/;
-		$acct = $1;
 		my %acctdetails = ($path =~ /transaction_groups$/) ? %{$tgds{$acct}} : read_htsv("$path/$acct");
 		$response{$acct} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
 	}
