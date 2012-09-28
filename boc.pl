@@ -2364,6 +2364,11 @@ sub date_sorted_htsvs
 	return map (@{$rds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf('%04d%02d%02d', (split /[.]/, $_)[2,1,0]) ], keys %rds));	# Schwartzian transform ftw
 }
 
+sub sprint_monetary
+{
+	return sprintf($_[0] ? '%+.2f' : '0.00', $_[0]);
+}
+
 sub gen_ucp
 {
 	my ($session, $acct) = @_;
@@ -2420,9 +2425,9 @@ sub gen_ucp
 	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (defined $cf{Fee}[$_] && length $cf{Fee}[$_] && !($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_]) || true($cf{IsDrain}[$_])) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]} && defined $cf{Description}[$_] && length $cf{Description}[$_], 0 .. $#{$cf{Description}}));
 	$tmpl->param(SIMPTRANS => scalar @simptransidcounts && !grep ($_ > 0, @simptransidcounts));
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
-	$tmpl->param(BAL => sprintf('%+.2f', $credsum + $debsum));
-	$tmpl->param(CRED_TOT => sprintf('%+.2f', $credsum));
-	$tmpl->param(DEB_TOT => sprintf('%+.2f', $debsum));
+	$tmpl->param(BAL => sprint_monetary($credsum + $debsum));
+	$tmpl->param(CRED_TOT => sprint_monetary($credsum));
+	$tmpl->param(DEB_TOT => sprint_monetary($debsum));
 	my @units = known_units();
 	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
 	$tmpl->param(CREDITS => \@credlist);
@@ -2497,7 +2502,7 @@ sub gen_accts_disp
 		my %outputdetails = (
 			ACC => $_,
 			NAME => (exists $acct_names{$_}) ? $acct_names{$_} : $_,
-			VAL => sprintf('%+.2f', $running{$_}),
+			VAL => sprint_monetary($running{$_}),
 			C => sprintf('#%02x%02x%02x', $r, $g, $b),
 			L => $running{$_} > 0 ? 0 : $pc,
 			R => $running{$_} <= 0 ? 0 : $pc,
