@@ -2629,6 +2629,7 @@ sub gen_manage_tgs
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_fail ? 'broken' : $tg_indet ? 'indet' : '',
 			SUMMARY => \@sum_str,
+			DELTG => $session->param('IsAdmin') && !($tg =~ /^[A-Z]/),
 		);
 		push (@tglist, \%outputdetails);
 	}
@@ -2636,7 +2637,6 @@ sub gen_manage_tgs
 	my @units = known_units(%units_cfg);
 	$tmpl->param(TGS => \@tglist, DEFCUR => (scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
-	$tmpl->param(DELTG => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
