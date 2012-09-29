@@ -266,7 +266,7 @@ sub read_htsv_encode
 
 	foreach my $key (keys %$content) {
 		$content->{$key} = encode_for_html($content->{$key}) unless (ref($content->{$key}) || !$content->{$key});
-		@{$content->{$key}} = map (encode_for_html($_), @{$content->{$key}}) if ref ($content->{$key});
+		@{$content->{$key}} = split ('&#9;', encode_for_html(join ('	', map ((defined) ? $_ : '', @{$content->{$key}})))) if ref ($content->{$key});
 		$content->{encode_for_html($key)} = delete $content->{$key};
 	}
 
