@@ -3105,6 +3105,11 @@ die 'Can\'t find value for "Root" key in ./boc_config' unless defined $config{Ro
 die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $config{TemplateDir};
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} and -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
+
+emit(load_template($cgi->param('serve') . '.html')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".html";
+emit(load_template($cgi->param('serve') . '.js')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".js";
+emit(load_template($cgi->param('serve') . '.css')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".css";
+
 $ENV{PATH} = '/bin:/usr/bin';
 $git = Git::Wrapper->new($config{Root});
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
@@ -3115,10 +3120,6 @@ set_ft_config_root($config{Root});
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;
-
-emit(load_template($cgi->param('serve') . '.html')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".html";
-emit(load_template($cgi->param('serve') . '.js')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".js";
-emit(load_template($cgi->param('serve') . '.css')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".css";
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
