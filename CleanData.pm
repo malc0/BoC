@@ -45,7 +45,9 @@ sub encode_for_filename
 sub encode_for_html
 {
 	return undef unless defined $_[0];
-	my $escaped = encode_entities(decode_entities($_[0]), '^A-Za-z0-9`!\$%^*()\-_=+{}\[\];:@#~,./?\\\| ');
+	my $in = $_[0];
+	return $in unless ($in =~ /[^A-Za-z0-9`!\$^*()\-_=+{}\[\];:@#~,.\/?\\| ]/);
+	my $escaped = encode_entities(decode_entities($in), '^A-Za-z0-9`!\$%^*()\-_=+{}\[\];:@#~,./?\\\| ');
 	$escaped =~ s/&#39;/&apos;/g;
 	return $escaped;
 }
