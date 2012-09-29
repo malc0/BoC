@@ -19,6 +19,7 @@ my $cfg_file;
 my $units_valid;
 my %rates;
 my %clean_dates;
+my %sorted_cfg;
 
 sub init_units_cfg
 {
@@ -227,10 +228,12 @@ sub get_rates
 
 	return %{$rates{$date}} if exists $rates{$date};
 
-	my %cfg = read_units_cfg($cfg_file);
-
-	validate_units(\%cfg, $die);
-	%cfg = date_sort_rates(%cfg);
+	unless (%sorted_cfg) {
+		%sorted_cfg = read_units_cfg($cfg_file);
+		validate_units(\%sorted_cfg, $die);
+		%sorted_cfg = date_sort_rates(%sorted_cfg);
+	}
+	my %cfg = %sorted_cfg;
 
 	my @units = known_units(%cfg);
 
