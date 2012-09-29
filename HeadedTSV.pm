@@ -1,6 +1,5 @@
 package HeadedTSV;
 
-use autodie;
 use strict;
 use warnings;
 use Carp;
@@ -43,7 +42,6 @@ sub read_htsv
 	my @defs;
 
 	if ($nexist_ok) {
-		no autodie qw(open);
 		open ($fh, '<', $file) or return %content;
 	} else {
 		open ($fh, '<', $file) or confess "$file: $!";
@@ -79,7 +77,7 @@ sub read_htsv
 			}
 		}
 	}
-	close $fh;
+	close $fh or die;
 
 	$read_encoder->(\%content) if ($read_encoder);
 
@@ -127,7 +125,7 @@ sub write_htsv
 
 	say $fh "\n# vim: ts=$ts" unless ($heading_only and not defined $given_ts);
 
-	close $fh;
+	close $fh or die;
 
 	rename ("$file.new", $file) or confess "$file: $!";
 
