@@ -6,7 +6,7 @@ use warnings;
 
 use Carp;
 
-use CleanData qw(clean_date validate_date validate_decimal);
+use CleanData qw(validate_date validate_decimal);
 use HeadedTSV;
 
 our $VERSION = '1.00';
@@ -18,6 +18,7 @@ our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_currs known
 my $cfg_file;
 my $units_valid;
 my %rates;
+my %clean_dates;
 
 sub init_units_cfg
 {
@@ -197,6 +198,12 @@ sub validate_units
 	$units_valid = 1;
 
 	return 1;
+}
+
+sub clean_date
+{
+	$clean_dates{$_[0]} = CleanData::clean_date($_[0]) unless (exists $clean_dates{$_[0]});
+	return $clean_dates{$_[0]};
 }
 
 sub date_sort_rates
