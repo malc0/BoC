@@ -2685,24 +2685,26 @@ sub gen_tg
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
 	my %acct_names = (%ppl, %vaccts);
-	my (%unknown, %in_use_ppl, %in_use_vaccts);
+	my (%unknown, %in_use_ppl, %in_use_vaccts, %in_use_unk);
 	my @tps_in_use;
 	foreach my $acct (@{$tgdetails{Headings}}[2 .. ($#{$tgdetails{Headings}} - 1)], @{$tgdetails{Creditor}}) {
 		$acct //= '';
 		next if $acct eq 'Currency';
 		$unknown{$acct} = $acct unless $acct =~ /^TrnsfrPot\d?$/ || exists $acct_names{$acct};
 		$tps_in_use[$1] = 1 if ($acct =~ /^TrnsfrPot(\d)$/);
-		next if exists $unknown{$acct} || $etoken;
+		next if $etoken || $acct =~ /^TrnsfrPot\d?$/;
 		my $has_data = 0;
 		foreach (@{$tgdetails{$acct}}) {
 			$has_data = 1 if defined $_ && $_ != 0;
 			last if $has_data;
 		}
-		$in_use_ppl{$acct} = $acct_names{$acct} if $has_data && exists $ppl{$acct} && !($acct =~ /^TrnsfrPot\d?$/);
-		$in_use_vaccts{$acct} = $acct_names{$acct} if $has_data && exists $vaccts{$acct} && !($acct =~ /^TrnsfrPot\d?$/);
+		next unless $has_data;
+		$in_use_ppl{$acct} = $acct_names{$acct} if exists $ppl{$acct};
+		$in_use_vaccts{$acct} = $acct_names{$acct} if exists $vaccts{$acct};
+		$in_use_unk{$acct} = $acct if exists $unknown{$acct};
 	}
 	my @sorted_accts = sort_AoH(\%unknown, \%ppl, \%vaccts);
-	my @sorted_in_use = $etoken ? @sorted_accts : sort_AoH(\%unknown, \%in_use_ppl, \%in_use_vaccts);
+	my @sorted_in_use = $etoken ? @sorted_accts : sort_AoH(\%in_use_unk, \%in_use_ppl, \%in_use_vaccts);
 
 	push (@{$tgdetails{$_}}, (0) x (scalar @{$tgdetails{Creditor}} - scalar @{$tgdetails{$_}})) foreach ('Amount', @sorted_in_use);
 
