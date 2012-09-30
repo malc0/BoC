@@ -352,7 +352,7 @@ sub nonfinite
 
 sub compute_tg_c
 {
-	my ($tg, $omit, $valid_accts, $neg_accts, $resolved, $die) = @_;
+	my ($tg, $omit, $neg_accts, $resolved, $die) = @_;
 
 	if (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units")) {
 		my ($fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
@@ -362,7 +362,7 @@ sub compute_tg_c
 		my %tgdetails = %{$tgds{$tg}};
 		return if $omit && exists $tgdetails{Omit};
 
-		my %computed = compute_tg($tg, \%tgdetails, $valid_accts, $neg_accts, $resolved, $die);
+		my %computed = compute_tg($tg, \%tgdetails, undef, $neg_accts, $resolved, $die);
 
 		# check for drains directly; this means resolution can be done without account validation,
 		# and account validation can be done separately from resolution
@@ -370,7 +370,7 @@ sub compute_tg_c
 		foreach (0 .. $#{$tgdetails{Creditor}}) {
 			$is_drain = 1 if $tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/);
 		}
-		if (!(exists $tgdetails{Omit}) && $valid_accts && !$is_drain) {
+		if (!(exists $tgdetails{Omit}) && !$is_drain) {
 			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
 			write_and_close($fh, %computed);
 		}
@@ -435,7 +435,7 @@ sub resolve_accts
 		foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 			$tg = $1 if $tg =~ /([^\/]*)$/;
 			next if exists $dds{$tg};
-			my %computed = eval { compute_tg_c($tg, 1, undef, \%neg_accts, \%resolved) };
+			my %computed = eval { compute_tg_c($tg, 1, \%neg_accts, \%resolved) };
 			return if $@;
 			foreach (keys %computed) {
 				$running{$_} = 0 unless exists $running{$_};
@@ -2369,6 +2369,13 @@ sub sprint_monetary
 	return sprintf($_[0] ? '%+.2f' : '0.00', $_[0]);
 }
 
+sub unk_computed_accts
+{
+	my ($va, $comp) = @_;
+
+	return grep (!(exists $va->{$_}), keys %$comp);
+}
+
 sub gen_ucp
 {
 	my ($session, $acct) = @_;
@@ -2384,9 +2391,9 @@ sub gen_ucp
 	my $debsum = 0;
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
-		my %computed = eval { compute_tg_c($tg, undef, \%acct_names, \%neg_accts, \%resolved) };
+		my %computed = eval { compute_tg_c($tg, undef, \%neg_accts, \%resolved) };
 		my $tg_indet = nonfinite(values %computed);
-		my $tg_broken = $@ ne '' || (%resolved && $tg_indet) || exists $dds{$tg};
+		my $tg_broken = $@ ne '' || unk_computed_accts(\%acct_names, \%computed) || (%resolved && $tg_indet) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
 		my %tgdetails = %{$tgds{$tg}};
@@ -2460,7 +2467,7 @@ sub gen_accts_disp
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;
 		}
-		my %computed = compute_tg_c($tg, 1, undef, \%neg_accts, \%resolved);
+		my %computed = compute_tg_c($tg, 1, \%neg_accts, \%resolved);
 		foreach (keys %computed) {
 			$running{$_} = 0 unless exists $running{$_};
 			$running{$_} += $computed{$_};
@@ -2596,12 +2603,14 @@ sub gen_manage_tgs
 	my %daterates;
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my $tg_fail;
-		my %computed = eval { compute_tg_c($tg, undef, \%acct_names, \%neg_accts, \%resolved, sub { $tg_fail = $_[0]; die }) };
+		my %computed = eval { compute_tg_c($tg, undef, \%neg_accts, \%resolved, sub { $tg_fail = $_[0]; die }) };
 		my %tgdetails = %{$tgds{$tg}};
 		my %rates = get_rates($tgdetails{Date}) unless $@;
+		my @unks = unk_computed_accts(\%acct_names, \%computed) unless $@;
+		$tg_fail = 'Non-existent account(s) "' . join ('", "', @unks) . '"' if @unks && !$@;
 		my $tg_indet = nonfinite(values %computed) ? 'TG depends on broken TG' : '';
 		$tg_fail = 'TGs drain in a loop!' if %resolved && $tg_indet && $tg_fail eq '';
-		$tg_fail = "Multiple drains of '$dds{$tg}'" if exists $dds{$tg};
+		$tg_fail = "Multiple drains of '$dds{$tg}'" if exists $dds{$tg} && $tg_fail eq '';
 
 		my @sum_str;
 		if ($tg_fail || $tg_indet) {
