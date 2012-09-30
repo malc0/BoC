@@ -79,6 +79,8 @@ sub validate_tg
 		validate_acct($_, $valid_accts, $whinge) if $valid_accts && !(defined $_ && $_ =~ /^TrnsfrPot[1-9]$/);
 	}
 
+	$whinge->('No creditors defined') unless exists $tg{Creditor};
+
 	my @valid_units = known_units();
 	$whinge->('No currency data') if scalar @valid_units > 1 and not exists $tg{Currency};
 
