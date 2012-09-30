@@ -2395,7 +2395,7 @@ sub gen_ucp
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my %computed = eval { compute_tg_c($tg, undef, \%neg_accts, \%resolved) };
 		my $tg_indet = nonfinite(values %computed);
-		my $tg_broken = $@ ne '' || unk_computed_accts(\%acct_names, \%computed) || (%resolved && $tg_indet) || exists $dds{$tg};
+		my $tg_broken = $@ ne '' || (%resolved && $tg_indet) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
 		my %tgdetails = %{$tgds{$tg}};
