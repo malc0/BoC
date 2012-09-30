@@ -2692,12 +2692,20 @@ sub sort_AoH
 
 sub gen_tg
 {
-	my ($edit_id, $session, $etoken) = @_;
+	my ($edit_id, $calced, $session, $etoken) = @_;
 
 	my @units;
 	my $tmpl = load_template('edit_tg.html', $etoken);
 
 	my %tgdetails = gen_ft_tg_common($edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef, 1, 10, !$etoken, 'Creditor', $session->param('User'), 'Currency', 5, 100, \@units, $tmpl);
+	my %dds;
+	if ($calced) {
+		my $whinge = sub { whinge("Can't display calculated values: $_[0]", gen_tg($edit_id, undef, $session, $etoken)) };
+		validate_tg($edit_id, \%tgdetails, $whinge);
+		validate_units(\%{{read_units_cfg("$config{Root}/config_units")}}, $whinge);
+		%dds = double_drainers;
+		$whinge->("Multiple drains of '$dds{$edit_id}'") if exists $dds{$edit_id};
+	}
 
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
@@ -2738,6 +2746,7 @@ sub gen_tg
 
 	$tmpl->param(TG_ID => $edit_id);
 	$tmpl->param(RO => !$etoken);
+	$tmpl->param(IN_CVS => $calced);
 	$tmpl->param(EDITOK => $edit_id && !($edit_id =~ /^[A-Z]/) && $session->param('MayAddEditTGs'));
 	$tmpl->param(DELTG => $session->param('IsAdmin') && $edit_id && !($edit_id =~ /^[A-Z]/));
 	$tmpl->param(NAME => $tgdetails{Name});
@@ -2753,6 +2762,26 @@ sub gen_tg
 	}
 	$tmpl->param(HEADINGS => \@heads);
 
+	my %resolved;
+	my %rates;
+	my @tp_per_share;
+	if ($calced) {
+		my $is_drain = 0;
+		my $has_tp = 0;
+
+		foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
+			my $cred = $tgdetails{Creditor}[$row] // '';
+			$is_drain = 1 if $tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/ && !($cred =~ /^TrnsfrPot\d$/);
+			$has_tp = 1 if ($cred =~ /^TrnsfrPot(\d)$/ || (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/));
+		}
+
+		%resolved = resolve_accts(\%dds, \%negated) if $is_drain;
+		if ($has_tp) {
+			%rates = get_rates($tgdetails{Date});
+		        @tp_per_share = tg_tp_amnt_per_share(\@sorted_in_use, $tgdetails{Creditor}, \%tgdetails, \%rates, \%resolved, \%negated);
+		}
+	}
+
 	my @rows;
 	foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
 		my $cred = $tgdetails{Creditor}[$row] // '';
@@ -2760,9 +2789,25 @@ sub gen_tg
 		my @credppl = map ({ O => $acct_names{$_}, V => $_, S => $cred eq $_ }, sort_AoH(\%ppl));
 		my @credvas = map ({ O => $acct_names{$_}, V => $_, S => $cred eq $_ }, sort_AoH(\%vaccts));
 		my @credtps = map ({ O => $acct_names{$_}, V => $_, S => $cred eq $_, CR_CL => 'tp' }, sort_AoH(\%tps));
+		my $amnt = $tgdetails{Amount}[$row];
+		my $per_share;
+		my $tp = 0;
+		if ($calced) {
+			my $is_drain = $amnt =~ /^\s*[*]\s*$/ && !($cred =~ /^TrnsfrPot\d$/);
+			$tp = $1 if ($cred =~ /^TrnsfrPot(\d)$/ || (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/));
+
+			$tgdetails{Currency}[$row] = $units[0] if scalar @units && $amnt =~ /^\s*[*]\s*$/;
+			# the '1 *' turns 0.000 into 0, etc.
+			$amnt = 1 * sprintf ('%.3f', ((exists $resolved{$cred}) ? -$resolved{$cred} : 0+'inf')) if $is_drain;
+
+			my $cur_cur = $tgdetails{Currency}[$row] ? $tgdetails{Currency}[$row] : $units[0];
+			my $row_tps = $tp_per_share[$tp] / ((scalar @units > 1 && $cur_cur ne $units[0]) ? $rates{$cur_cur} : 1) if $tp;
+			my $shares = sum map (CleanData::clean_decimal($tgdetails{$_}[$row]), @sorted_in_use);
+			$per_share = $tp ? -$row_tps : -$amnt / $shares;
+		}
 		my $unk_cur = (!(defined $tgdetails{Currency}[$row]) || !grep ($_ eq $tgdetails{Currency}[$row], @units));
 		my @currencies = map ({ C => $_, S => ((defined $tgdetails{Currency}[$row]) ? ($_ eq $tgdetails{Currency}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
-		my @rowcontents = map ({ D => $tgdetails{$_}[$row], N => "${_}_$row", D_CL => ((exists $unknown{$_}) ? 'unknown_d' : '') . ((exists $vaccts{$_}) ? ' vacct' : '') }, @sorted_in_use);
+		my @rowcontents = map ({ D => 1 * sprintf ('%.3f', (($calced && ((!$tp && (exists $negated{$cred})) xor (exists $negated{$_}))) ? -1 : 1) * $tgdetails{$_}[$row] * ($per_share // 1)), N => "${_}_$row", D_CL => ((exists $unknown{$_}) ? 'unknown_d' : '') . ((exists $vaccts{$_}) ? ' vacct' : '') }, @sorted_in_use);
 		my @tps = map ({ V => $_, S => ($tgdetails{TrnsfrPot}[$row] ? $tgdetails{TrnsfrPot}[$row] eq $_ : undef) }, 1 .. 9);
 		push (@rows, { ROW_CL => (exists $unknown{$cred}) ? 'unknown_c' : '',
 			       R => $row,
@@ -2772,7 +2817,7 @@ sub gen_tg
 			       CREDTPS => \@credtps,
 			       CUR_CL => (!(exists $tps{$cred}) && !($tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/) && (!$tgdetails{Currency}[$row] || !grep ($_ eq $tgdetails{Currency}[$row], @units))) ? 'unknown_u' : '',
 			       CURS => \@currencies,
-			       A => $tgdetails{Amount}[$row],
+			       A => $amnt,
 			       RC => \@rowcontents,
 	      		       TP => (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /[1-9]/) ? $tgdetails{TrnsfrPot}[$row] : 'N/A',
 			       TPS => \@tps,
@@ -3030,7 +3075,7 @@ sub despatch
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', $whinge);
 
-			emit(gen_tg($view, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
+			emit(gen_tg($view, undef, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
 		}
 		if (grep (/^del_.*$/, $cgi->param)) {
 			my @dels = grep (/^del_.*$/, $cgi->param);
@@ -3042,18 +3087,23 @@ sub despatch
 	if ($cgi->param('tmpl') eq 'edit_tg') {
 		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
 		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', $whinge, (defined $cgi->param('edit')));
-		whinge('Action not permitted', $edit_id ? gen_tg($edit_id, $session, undef) : gen_manage_tgs($session)) unless $session->param('MayAddEditTGs');
+
+		if (defined $cgi->param('showcvs') || defined $cgi->param('hidecvs')) {
+			emit(gen_tg($edit_id, (defined $cgi->param('showcvs')), $session, undef));
+		}
+
+		whinge('Action not permitted', $edit_id ? gen_tg($edit_id, undef, $session, undef) : gen_manage_tgs($session)) unless $session->param('MayAddEditTGs');
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('edit')) {
-			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, $session, undef)) if $edit_id =~ /^[A-Z]/;
+			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, undef, $session, undef)) if $edit_id =~ /^[A-Z]/;
 
 			$whinge->("Couldn't get edit lock for transaction group \"$edit_id\"") unless try_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				$whinge->("Couldn't edit transaction group \"$edit_id\", file disappeared");
 			}
-			emit(gen_tg($edit_id, $session, get_edit_token($sessid, "edit_$edit_id")));
+			emit(gen_tg($edit_id, undef, $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
 		if (defined $cgi->param('delete')) {
 			delete_common($tgfile, "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
@@ -3063,7 +3113,7 @@ sub despatch
 		my %tg;
 
 		if (defined $cgi->param('save')) {
-			$whinge = sub { whinge($_[0], gen_tg($edit_id, $session, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_tg($edit_id, undef, $session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
@@ -3122,7 +3172,7 @@ sub despatch
 
 		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($edit_id, $session, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($edit_id, undef, $session, undef));
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;

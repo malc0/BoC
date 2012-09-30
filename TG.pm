@@ -15,7 +15,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(read_tg write_tg validate_tg compute_tg);
+our @EXPORT = qw(read_tg write_tg validate_tg tg_tp_amnt_per_share compute_tg);
 
 my (%valid, %vavalid);
 
