@@ -69,7 +69,7 @@
 						b.onclick = function() {
 							total = 0;
 							for (i = 0; i < document.forms[0].elements.length; i++)
-								if (document.forms[0].elements[i].name.search(/^[^A-Z].*_<TMPL_VAR NAME=R>$/) >= 0)
+								if (document.forms[0].elements[i].name.search(/^[^A-Z].*_<TMPL_VAR NAME=R>$/) >= 0 && document.forms[0].elements[i].value.length)
 									total += parseFloat(document.forms[0].elements[i].value);
 							document.forms[0].elements['Amount_<TMPL_VAR NAME=R>'].value = Math.round(total * 1000000) / 1000000;
 						};
