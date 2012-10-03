@@ -2032,6 +2032,7 @@ sub despatch_admin
 					dir_mod_all('meets', 0, [ $edit_id ], sub { my ($meet, $old) = @_; $meet->{Template} =~ s/^$old$/$new_id/ if defined $meet->{Template} }, 11);
 					$git->mv($old_file, $file);
 				}
+				(mkdir "$config{Root}/fee_tmpls" or die) unless (-d "$config{Root}/fee_tmpls");
 				write_htsv($file, \%ft);
 				if ($rename) {
 					add_commit($file, 'Rename FT ' . unroot($old_file) . ' to ' . unroot($file), $session);
