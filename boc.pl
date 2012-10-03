@@ -1258,7 +1258,7 @@ sub gen_manage_meets
 
 		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => $meet{Template} // '', FTID => $ft_exists ? encode_for_filename($meet{Template}) : '' });
 	}
-	my @people = map ({ A => $_, N => $ppl{$_} }, keys %ppl);
+	my @people = map ({ A => $_, N => $ppl{$_} }, sort_AoH(\%ppl));
 	my @ftlist = map ({ FTN => $_ }, @fts);
 
 	$tmpl->param(MEETS => \@meetlist, PPL => \@people, FTS => \@ftlist);
