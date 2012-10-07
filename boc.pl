@@ -2459,7 +2459,7 @@ sub gen_ucp
 
 sub gen_accts_disp
 {
-	my $session = $_[0];
+	my ($nozeros) = @_;
 	my $tmpl = load_template('accts_disp.html');
 
 	my %dds = double_drainers;
@@ -2504,6 +2504,7 @@ sub gen_accts_disp
 	my ($sum_debts, $sum_creds) = (0, 0);
 	foreach ((sort @unknown), sort_AoH(\%ppl, \%vaccts)) {
 		next unless exists $running{$_};
+		next if $nozeros && abs $running{$_} < .005;
 
 		my $pc = 0;
 		if (exists $ppl{$_} && $maxp) {
@@ -2533,6 +2534,7 @@ sub gen_accts_disp
 			push (@unklist, \%outputdetails);
 		}
 	}
+	$tmpl->param(NOZEROS => $nozeros);
 	$tmpl->param(UNKNOWN => \@unklist) if scalar @unklist;
 	$tmpl->param(PPL => \@ppllist) if scalar @ppllist;
 	$tmpl->param(SDEBTS => -$sum_debts, SCREDS => $sum_creds);
@@ -3012,6 +3014,7 @@ sub despatch
 		if (defined $cgi->param('view')) {
 			emit(gen_ucp($session, scalar $cgi->param('view')));
 		}
+		emit(gen_accts_disp(defined $cgi->param('nozeros')));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };

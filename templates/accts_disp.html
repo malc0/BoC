@@ -12,6 +12,8 @@
 		<div>
 			<input type="hidden" name="tmpl" value="accts_disp"/>
 
+			<input type="submit" <TMPL_IF NAME=NOZEROS>name="showzeros" value="Show accounts with zero balance"<TMPL_ELSE>name="nozeros" value="Hide accounts with zero balance"</TMPL_IF>/>
+
 			<TMPL_IF NAME=BROKEN>
 			<h2 style="color:red">BROKEN!</h2>
 			<TMPL_ELSE>
