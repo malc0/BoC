@@ -1313,11 +1313,11 @@ sub gen_edit_meet
 		push (@unks, $hd) unless grep ($_ eq $hd, @{$meet_cfg{Fee}});
 	}
 
-	my @feesh = map ({ FEE => $cds{$meet_cfg{Fee}[$_]} }, @ccs);
-	push (@feesh, map ({ FEE => $meet_cfg{Description}[$_] }, @drains));
-	my @expsh = map ({ EXP => $meet_cfg{Description}[$_] }, @exps);
+	my @feesh = map ({ FEE => $cds{$meet_cfg{Fee}[$_]}, LINKA => $meet_cfg{Account}[$_] }, @ccs);
+	push (@feesh, map ({ FEE => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @drains));
+	my @expsh = map ({ EXP => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
-	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
+	$tmpl->param(MEETA => $meet_cfg{MeetAccount}, NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
 
 	my %ppl_seen;
 	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
