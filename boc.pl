@@ -2494,6 +2494,7 @@ sub gen_accts_disp
 		}
 	}
 	my (@unklist, @ppllist, @vacctslist);
+	my ($sum_debts, $sum_creds) = (0, 0);
 	foreach ((sort @unknown), sort_AoH(\%ppl, \%vaccts)) {
 		next unless exists $running{$_};
 
@@ -2517,6 +2518,7 @@ sub gen_accts_disp
 			L => $running{$_} > 0 ? 0 : $pc,
 			R => $running{$_} <= 0 ? 0 : $pc,
 		);
+		($running{$_} < 0) ? $sum_debts : $sum_creds += $running{$_} if exists $ppl{$_};
 		if (exists $acct_names{$_}) {
 			push (@{(exists $ppl{$_}) ? \@ppllist : \@vacctslist}, \%outputdetails);
 		} else {
@@ -2525,6 +2527,7 @@ sub gen_accts_disp
 	}
 	$tmpl->param(UNKNOWN => \@unklist) if scalar @unklist;
 	$tmpl->param(PPL => \@ppllist) if scalar @ppllist;
+	$tmpl->param(SDEBTS => -$sum_debts, SCREDS => $sum_creds);
 	$tmpl->param(VACCTS => \@vacctslist) if scalar @vacctslist;
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
