@@ -1448,7 +1448,7 @@ sub get_rows
 
 sub delete_common
 {
-	my ($file, $thing, $session, $done) = @_;
+	my ($file, $thing, $session, $done, $extra_file) = @_;
 
 	whinge("Couldn't get lock for $thing", $done->()) unless try_lock($file, $session->id());
 	unless (-r $file) {
@@ -1461,6 +1461,7 @@ sub delete_common
 	}
 	try_commit_and_unlock(sub {
 		$git->rm($file);
+		$git->rm($extra_file) if $extra_file;
 		commit(unroot($file) . ': deleted', $session);
 	}, $file);
 	return emit_with_status("Deleted $thing", $done->());
@@ -1729,6 +1730,12 @@ sub despatch_admin
 				add_commit($file, "$split_f[0]...: Meet \"$meet{Name}\" created", $session);
 			});
 			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets());
+		}
+		if (grep (/^del_.*$/, $cgi->param)) {
+			my @dels = grep (/^del_.*$/, $cgi->param);
+			next unless $dels[0] =~ /^del_(.*)$/;
+			my $mid = valid_edit_id($1, "$config{Root}/meets", 'meet', $whinge, 1);
+			delete_common("$config{Root}/meets/$mid", "meet \"$mid\"", $session, sub { gen_manage_meets }, "$config{Root}/transaction_groups/M$mid");
 		}
 		if (defined $cgi->param('view')) {
 			my %cf = valid_fee_cfg;
