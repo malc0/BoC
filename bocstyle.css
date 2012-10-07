@@ -97,6 +97,12 @@ th.negated {
   th.negated a {
     color: #008787;
   }
+td.negated {
+  background: #008787;
+}
+  td.negated a {
+    color: #fff;
+  }
 td.vacct {
   background: lavender;
 }
