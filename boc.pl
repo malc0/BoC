@@ -2513,6 +2513,7 @@ sub gen_accts_disp
 		my %outputdetails = (
 			ACC => $_,
 			NAME => (exists $acct_names{$_}) ? $acct_names{$_} : $_,
+			A_CL => (exists $neg_accts{$_}) ? 'negated' : '',
 			VAL => sprint_monetary($running{$_}),
 			C => sprintf('#%02x%02x%02x', $r, $g, $b),
 			L => $running{$_} > 0 ? 0 : $pc,

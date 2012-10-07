@@ -20,7 +20,7 @@
 			<table class="unknown_accts" border=1 width="90%">
 				<tr><th>Name</th><th>Balance</th></tr>
 				<TMPL_LOOP NAME=UNKNOWN>
-				<tr><td style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
+				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
 				</TMPL_LOOP>
 			</table>
 			</TMPL_IF>
@@ -29,7 +29,7 @@
 			<table border=1 width="90%">
 				<tr><th>Name</th><th>Balance</th></tr>
 				<TMPL_LOOP NAME=PPL>
-				<tr><td style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
+				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
 				</TMPL_LOOP>
 			</table>
 			<p>Accounts receivable: <TMPL_VAR NAME=SDEBTS></p>
@@ -39,7 +39,7 @@
 			<table border=1>
 				<tr><th>Name</th><th>Balance</th></tr>
 				<TMPL_LOOP NAME=VACCTS>
-				<tr><td style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><TMPL_IF 0><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></TMPL_IF></tr>
+				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><TMPL_IF 0><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></TMPL_IF></tr>
 				</TMPL_LOOP>
 			</table>
 			<TMPL_IF NAME=DEFCUR><p>All accounts denominated in <TMPL_VAR NAME=DEFCUR></p></TMPL_IF>
