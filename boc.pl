@@ -2500,7 +2500,8 @@ sub gen_accts_disp
 			push (@unknown, $_);
 		}
 	}
-	my @accts = grep (exists $running{$_}, (sort @unknown), sort_AoH(\%ppl, \%vaccts));
+	my @accts = ((sort @unknown), sort_AoH(\%ppl, \%vaccts));
+	$running{$_} = 0 foreach grep (!(exists $running{$_}), @accts);
 	my (@unklist, @ppllist, @vacctslist);
 	my ($sum_debts, $sum_creds) = (0, 0);
 	foreach ($by_bal ? map ($_->[0], sort { $a->[1] <=> $b->[1] } map ([ $_, $running{$_} ], @accts)) : @accts) {	# Schwartzian transform ftw
