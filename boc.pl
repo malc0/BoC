@@ -2628,8 +2628,8 @@ sub gen_manage_tgs
 		my @unks = unk_computed_accts(\%acct_names, \%computed) unless $@;
 		$tg_fail = 'Non-existent account(s) "' . join ('", "', @unks) . '"' if @unks && !$@;
 		my $tg_indet = nonfinite(values %computed) ? 'TG depends on broken TG' : '';
-		$tg_fail = 'TGs drain in a loop!' if %resolved && $tg_indet && $tg_fail eq '';
-		$tg_fail = "Multiple drains of '$dds{$tg}'" if exists $dds{$tg} && $tg_fail eq '';
+		$tg_fail = 'TGs drain in a loop!' if %resolved && $tg_indet && !$tg_fail;
+		$tg_fail = "Multiple drains of '$dds{$tg}'" if exists $dds{$tg} && !$tg_fail;
 
 		my @sum_str;
 		if ($tg_fail || $tg_indet) {
