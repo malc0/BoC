@@ -186,7 +186,7 @@ sub compute_tg
 
 		my $amnt;
 		if ($tg{Amount}[$row] =~ /^\s*[*]\s*$/ && !($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
-			$amnt = (exists $resolved{$tg{Creditor}[$row]}) ? -$resolved{$tg{Creditor}[$row]} : 0+'inf';
+			$amnt = (exists $resolved{$tg{Creditor}[$row]} && abs $resolved{$tg{Creditor}[$row]} != 0+'inf') ? -$resolved{$tg{Creditor}[$row]} : 0+'inf';
 		} elsif (!($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
 			$amnt = $tg{Amount}[$row] * ((scalar keys %rates < 2) ? 1 : $rates{$tg{Currency}[$row]});
 		}
@@ -204,6 +204,7 @@ sub compute_tg
 			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
 			my $share_sum = sum @shares;
 			foreach (0 .. $#head_accts) {
+				next if abs $relevant_accts{$head_accts[$_]} == 0+'inf';	# avoid inf-inf=nan cases
 				# inf * 0 = nan, not 0
 				my $samnt = $shares[$_] ? $amnt * $shares[$_] / $share_sum : 0;
 				# allow self-draining accts.  not exporting inf is ok, since other shares will still cause drain detection,
@@ -221,6 +222,7 @@ sub compute_tg
 		next if $tp_net[$tp] == 0;
 		my $share_sum = sum @{$tp_shares[$tp]};
 		foreach (0 .. $#head_accts) {
+			next if abs $relevant_accts{$head_accts[$_]} == 0+'inf';	# avoid inf-inf=nan cases
 			my $amnt = $tp_net[$tp] * $tp_shares[$tp][$_] / $share_sum;
 			if (exists $neg_accts{$head_accts[$_]}) {
 				$neg_error += 2 * $amnt;
