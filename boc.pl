@@ -932,8 +932,8 @@ sub gen_edit_fee_tmpl
 
 	my @fees;
 	foreach my $row (0 .. $#{$ft{Fee}}) {
-		my $unk_cur = (!(defined $ft{Unit}[$row]) || !grep ($_ eq $ft{Unit}[$row], @units));
-		my @currencies = map ({ C => $_, S => ((defined $ft{Unit}[$row]) ? ($_ eq $ft{Unit}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
+		my $unk_cur = !grep ($_ eq $ft{Unit}[$row], @units);
+		my @currencies = map ({ C => $_, S => ($_ eq $ft{Unit}[$row]) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
 		my @fattrs;
 		foreach (keys %rawattrs, keys %moreattrs) {
 			my $cond = '';
@@ -946,7 +946,7 @@ sub gen_edit_fee_tmpl
 			my $dc = !($if or $unless);
 			push (@fattrs, { A => $_, I => $if, U => $unless, D => $dc, A_CL => exists $moreattrs{$_} ? 'broken' : '' });
 		}
-		my $unit_cl = (((scalar @units) && defined $ft{Unit}[$row] && grep ($_ eq $ft{Unit}[$row], @units) && !(grep ($_ eq $ft{Unit}[$row], @curs) && scalar keys %curs_in_use > 1 && $row <= $#{$oldft{Fee}})) || (!(scalar @units) && !(defined $ft{Unit}[$row] && length $ft{Unit}[$row]))) ? '' : 'broken';
+		my $unit_cl = (((scalar @units) && grep ($_ eq $ft{Unit}[$row], @units) && !(grep ($_ eq $ft{Unit}[$row], @curs) && scalar keys %curs_in_use > 1 && $row <= $#{$oldft{Fee}})) || (!(scalar @units) && !(length $ft{Unit}[$row]))) ? '' : 'broken';
 		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs, F_CL => (defined CleanData::clean_decimal($ft{Fee}[$row])) ? '' : 'broken', C_CL => $unit_cl });
 	}
 
@@ -2815,8 +2815,8 @@ sub gen_tg
 			my $shares = sum map (CleanData::clean_decimal($tgdetails{$_}[$row]), @sorted_in_use);
 			$per_share = $tp ? -$row_tps : -$amnt / $shares;
 		}
-		my $unk_cur = (!(defined $tgdetails{Currency}[$row]) || !grep ($_ eq $tgdetails{Currency}[$row], @units));
-		my @currencies = map ({ C => $_, S => ((defined $tgdetails{Currency}[$row]) ? ($_ eq $tgdetails{Currency}[$row]) : (not defined $_)) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
+		my $unk_cur = !grep ($_ eq $tgdetails{Currency}[$row], @units);
+		my @currencies = map ({ C => $_, S => ($_ eq $tgdetails{Currency}[$row]) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
 		my @rowcontents = map ({ D => 1 * sprintf ('%.3f', (($calced && ((!$tp && (exists $negated{$cred})) xor (exists $negated{$_}))) ? -1 : 1) * $tgdetails{$_}[$row] * ($per_share // 1)), N => "${_}_$row", D_CL => ((exists $unknown{$_}) ? 'unknown_d' : '') . ((exists $vaccts{$_}) ? ' vacct' : '') }, @sorted_in_use);
 		my @tps = map ({ V => $_, S => ($tgdetails{TrnsfrPot}[$row] ? $tgdetails{TrnsfrPot}[$row] eq $_ : undef) }, 1 .. 9);
 		push (@rows, { ROW_CL => (exists $unknown{$cred}) ? 'unknown_c' : '',
@@ -2825,7 +2825,7 @@ sub gen_tg
 			       CREDPPL => \@credppl,
 			       CREDVAS => \@credvas,
 			       CREDTPS => \@credtps,
-			       CUR_CL => (!(exists $tps{$cred}) && !($tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/) && (!$tgdetails{Currency}[$row] || !grep ($_ eq $tgdetails{Currency}[$row], @units))) ? 'unknown_u' : '',
+			       CUR_CL => (!(exists $tps{$cred}) && !($tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/) && !grep ($_ eq $tgdetails{Currency}[$row], @units)) ? 'unknown_u' : '',
 			       CURS => \@currencies,
 			       A => $amnt,
 			       RC => \@rowcontents,
