@@ -151,6 +151,31 @@ sub stround
 	return $sign . substr ($abs + ('0.' . '0' x $places . '5'), 0, $places + length (int ($abs)) + 1);
 }
 
+sub tg_tp_amnt_per_share
+{
+	my ($head_accts, $cred_accts, $tg, $rates, $resolved, $neg_accts) = @_;
+
+	my @tp_net = (0) x 10;
+	my @tp_shares = (0) x 10;
+
+	foreach my $row (grep (defined $$cred_accts[$_], 0 .. $#$cred_accts)) {
+		next unless ($tg->{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ || (defined $tg->{TrnsfrPot}[$row] && $tg->{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/));
+		my $tp = $1;
+
+		my $amnt;
+		if ($tg->{Amount}[$row] =~ /^\s*[*]\s*$/) {
+			$amnt = (exists $resolved->{$tg->{Creditor}[$row]} && abs $resolved->{$tg->{Creditor}[$row]} != 0+'inf') ? -$resolved->{$tg->{Creditor}[$row]} : 0+'inf';
+		} else {
+			$amnt = $tg->{Amount}[$row] * ((scalar keys %$rates < 2) ? 1 : $rates->{$tg->{Currency}[$row]});
+		}
+
+		$tp_net[$tp] += (exists $neg_accts->{$tg->{Creditor}[$row]}) ? -$amnt : $amnt if (defined $tg->{TrnsfrPot}[$row] && $tg->{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/);
+		$tp_shares[$tp] += clean_decimal($tg->{$$head_accts[$_]}[$row]) foreach (0 .. $#$head_accts);
+	}
+
+	return map ($tp_shares[$_] ? $tp_net[$_] / $tp_shares[$_] : 0, (0 .. 9));
+}
+
 sub compute_tg
 {
 	my ($id, $tgr, $valid_accts, $nar, $rsr, $die) = @_;
@@ -178,8 +203,7 @@ sub compute_tg
 		$relevant_accts{$tg{Creditor}[$row]} = 0;
 	}
 
-	my @tp_net = (0) x 10;
-	my @tp_shares = map ([(0) x scalar @head_accts], (0 .. 9));
+	my @taps = tg_tp_amnt_per_share(\@head_accts, \@cred_accts, $tgr, \%rates, \%resolved, $nar);
 	my $neg_error = 0;
 	foreach my $row (0 .. $#cred_accts) {
 		next unless defined $cred_accts[$row];
@@ -196,39 +220,26 @@ sub compute_tg
 			$neg_error += 2 * $amnt;
 			$amnt *= -1;
 		}
-		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ or (defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
-			my $tp = $1;
-			$tp_net[$tp] += $amnt if defined $tg{TrnsfrPot}[$row] and $tg{TrnsfrPot}[$row] =~ /^\s*\d\s*$/;
-			$tp_shares[$tp][$_] += clean_decimal($tg{$head_accts[$_]}[$row]) foreach (0 .. $#head_accts);
+
+		my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
+		my $per_share;
+		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ || (defined $tg{TrnsfrPot}[$row] && $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
+			$per_share = $taps[$1];
 		} else {
-			my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
-			my $share_sum = sum @shares;
-			foreach (0 .. $#head_accts) {
-				next if abs $relevant_accts{$head_accts[$_]} == 0+'inf';	# avoid inf-inf=nan cases
-				# inf * 0 = nan, not 0
-				my $samnt = $shares[$_] ? $amnt * $shares[$_] / $share_sum : 0;
-				# allow self-draining accts.  not exporting inf is ok, since other shares will still cause drain detection,
-				# and if there are no other shares self-draining is a no-op
-				$samnt = 0 if $tg{Creditor}[$row] eq $head_accts[$_] && abs $amnt == 0+'inf';
-				if (exists $neg_accts{$head_accts[$_]}) {
-					$neg_error += 2 * $samnt;
-					$samnt *= -1;
-				}
-				$relevant_accts{$head_accts[$_]} -= $samnt;
-			}
+			$per_share = $amnt / sum @shares;
 		}
-	}
-	foreach my $tp (1 .. 9) {
-		next if $tp_net[$tp] == 0;
-		my $share_sum = sum @{$tp_shares[$tp]};
 		foreach (0 .. $#head_accts) {
 			next if abs $relevant_accts{$head_accts[$_]} == 0+'inf';	# avoid inf-inf=nan cases
-			my $amnt = $tp_net[$tp] * $tp_shares[$tp][$_] / $share_sum;
+			# inf * 0 = nan, not 0
+			my $samnt = $shares[$_] ? $per_share * $shares[$_] : 0;
+			# allow self-draining accts.  not exporting inf is ok, since other shares will still cause drain detection,
+			# and if there are no other shares self-draining is a no-op
+			$samnt = 0 if $tg{Creditor}[$row] eq $head_accts[$_] && abs $amnt == 0+'inf';
 			if (exists $neg_accts{$head_accts[$_]}) {
-				$neg_error += 2 * $amnt;
-				$amnt *= -1;
+				$neg_error += 2 * $samnt;
+				$samnt *= -1;
 			}
-			$relevant_accts{$head_accts[$_]} -= $amnt;
+			$relevant_accts{$head_accts[$_]} -= $samnt;
 		}
 	}
 
