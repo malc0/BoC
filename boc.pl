@@ -1336,6 +1336,7 @@ sub gen_edit_meet
 	}
         $tmpl->param(PPL => \@ppl);
         $tmpl->param(EDITOK => $session->param('IsAdmin'));
+        $tmpl->param(VALID => meet_valid(\%meet));
 
 	return $tmpl;
 }
@@ -2421,8 +2422,10 @@ sub gen_ucp
 			}
 		}
 
+		my $is_meet = $tg =~ /^M/;
 		my %outputdetails = (
-			ACC => $tg,
+			MEET => $is_meet,
+			ACC => $is_meet ? substr ($tg, 1) : $tg,
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
 			TO => \@to,
