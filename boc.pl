@@ -1216,6 +1216,8 @@ sub meet_valid
 		return 0 unless grep ($_ eq $hd, @{$meet{Headings}});
 	}
 
+	return 0 unless defined clean_date($meet{Date});
+
 	my @units = known_units;
 	return 0 if scalar @units > 1 && !(defined $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
 	return 0 if !(scalar @units) && defined $meet{Currency} && length $meet{Currency};
@@ -1373,6 +1375,7 @@ sub meet_to_tg
 	my %colsum;
 
 	unless (meet_valid(\%meet, 1)) {
+		$tg{Date} = 'now';
 		$tg{Name} .= ' (broken)';
 		$tg{Omit} = undef;
 		return %tg;
