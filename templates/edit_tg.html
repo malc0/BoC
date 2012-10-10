@@ -35,7 +35,7 @@
 			<p><label>Omit from inclusion?: <input type="checkbox" name="omit" value="" <TMPL_IF NAME=OMIT>checked="checked"</TMPL_IF> <TMPL_IF NAME=RO>disabled="disabled"</TMPL_IF>/></label></p>
 
 			<table border=1 class="widetable">
-				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><TMPL_IF NAME=CUROPTS><th rowspan=2>Currency</th></TMPL_IF><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th><th rowspan=2>Transfer Pot</th><th rowspan=2>Description</th></tr>
+				<tr><th rowspan=2>Creditor</th><th rowspan=2>Amount</th><TMPL_IF NAME=CUROPTS><th rowspan=2>Currency</th></TMPL_IF><TMPL_IF NAME=NOACCTS><th colspan=<TMPL_VAR NAME=NOACCTS>>Debt share</th></TMPL_IF><th rowspan=2>Transfer Pot</th><th rowspan=2>Description</th></tr>
 				<tr><TMPL_LOOP NAME=HEADINGS><th class="<TMPL_VAR NAME=HEAD_CL>"><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=H></a><TMPL_ELSE><TMPL_VAR NAME=H></TMPL_IF></th></TMPL_LOOP></tr>
 
 				<TMPL_LOOP NAME=ROWS><tr class="<TMPL_VAR NAME=ROW_CL>">
