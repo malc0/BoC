@@ -2860,10 +2860,8 @@ sub clean_tg
 
 	foreach my $row (0 .. $#$compact_creds) {
 		next unless $$compact_creds[$row];
-		if ($tg->{Creditor}[$row] =~ /^TrnsfrPot[1-9]$/) {
-			$tg->{Amount}[$row] = '*';
-			$tg->{Currency}[$row] = '';
-		}
+		$tg->{Amount}[$row] = '*' if $tg->{Creditor}[$row] =~ /^TrnsfrPot[1-9]$/;
+		$tg->{Currency}[$row] = '' if $tg->{Amount}[$row] =~ /^\s*[*]\s*$/;
 		push (@{$newtg{$_}}, $tg->{$_}[$row]) foreach (@{$tg->{Headings}});
 	}
 
