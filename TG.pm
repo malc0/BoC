@@ -179,7 +179,7 @@ sub compute_tg
 	}
 
 	my @tp_net = (0) x 10;
-	my @tp_shares = ([(0) x scalar @head_accts]) x 10;
+	my @tp_shares = map ([(0) x scalar @head_accts], (0 .. 9));
 	my $neg_error = 0;
 	foreach my $row (0 .. $#cred_accts) {
 		next unless defined $cred_accts[$row];
