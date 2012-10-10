@@ -660,6 +660,7 @@ sub get_new_session
 	$session->param('User', $userdetails{User});
 	$session->param('Name', exists $userdetails{Name} ? $userdetails{Name} : $userdetails{User});
 	$session->param($_, $perms{$_}) foreach (@sys_attrs);
+	$session->param('Instance', $config{Root});
 	$session->expire('+10m');
 	$session->flush();
 
@@ -3217,7 +3218,7 @@ create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") u
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
-$session = get_new_session($session, $cgi) if ($session->is_empty or (not defined $cgi->param('tmpl')) or $cgi->param('tmpl') =~ m/^login(_nopw)?$/);
+$session = get_new_session($session, $cgi) if ($session->is_empty || !(defined $cgi->param('tmpl')) || $cgi->param('tmpl') =~ m/^login(_nopw)?$/ || $session->param('Instance') ne $config{Root});
 
 despatch($session);
 
