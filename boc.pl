@@ -2765,15 +2765,25 @@ sub gen_tg
 	my %resolved;
 	my %rates;
 	my @tp_per_share;
+	my @tp_cur;
 	if ($calced) {
 		my $is_drain = 0;
 		my $has_tp = 0;
+		my @tp_curs;
 
 		foreach my $row (0 .. $#{$tgdetails{Creditor}}) {
 			my $cred = $tgdetails{Creditor}[$row] // '';
 			$is_drain = 1 if $tgdetails{Amount}[$row] =~ /^\s*[*]\s*$/ && !($cred =~ /^TrnsfrPot\d$/);
-			$has_tp = 1 if ($cred =~ /^TrnsfrPot(\d)$/ || (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/));
+			$has_tp = 1 if $cred =~ /^TrnsfrPot(\d)$/;
+
+			if (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/) {
+				$has_tp = 1;
+
+				# validate_tg has been previously called, so if there's a Currency column it has *only* valid values
+				$tp_curs[$1]{(exists $tgdetails{Currency} && !$is_drain) ? $tgdetails{Currency}[$row] : $units[0]} = 1 if scalar @units;
+			}
 		}
+		$tp_cur[$_] = (scalar keys %{$tp_curs[$_]} == 1) ? (keys %{$tp_curs[$_]})[0] : $units[0] foreach grep ($tp_curs[$_], (1 .. 9));
 
 		%resolved = resolve_accts(\%dds, \%negated) if $is_drain;
 		if ($has_tp) {
@@ -2796,7 +2806,7 @@ sub gen_tg
 			my $is_drain = $amnt =~ /^\s*[*]\s*$/ && !($cred =~ /^TrnsfrPot\d$/);
 			$tp = $1 if ($cred =~ /^TrnsfrPot(\d)$/ || (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/));
 
-			$tgdetails{Currency}[$row] = $units[0] if scalar @units && $amnt =~ /^\s*[*]\s*$/;
+			$tgdetails{Currency}[$row] = $tp ? $tp_cur[$tp] : $units[0] if scalar @units && $amnt =~ /^\s*[*]\s*$/;
 			# the '1 *' turns 0.000 into 0, etc.
 			$amnt = 1 * sprintf ('%.3f', ((exists $resolved{$cred}) ? -$resolved{$cred} : 0+'inf')) if $is_drain;
 
