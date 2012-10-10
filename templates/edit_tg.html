@@ -43,7 +43,7 @@
 						<TMPL_LOOP NAME=CREDUNK><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
 						<TMPL_LOOP NAME=CREDPPL><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
 						<TMPL_LOOP NAME=CREDVAS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
-						<TMPL_LOOP NAME=CREDTPS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></a></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
+						<TMPL_LOOP NAME=CREDTPS><TMPL_IF NAME=S><span class="<TMPL_VAR NAME=CR_CL>"><TMPL_VAR NAME=O></span></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=V></TMPL_IF></TMPL_LOOP>
 						<TMPL_ELSE><select name="Creditor_<TMPL_VAR NAME=R>">
 							<TMPL_LOOP NAME=CREDUNK><option value="<TMPL_VAR NAME=V>" class="<TMPL_VAR NAME=CR_CL>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
 							</TMPL_LOOP>
