@@ -5,7 +5,7 @@ use strict;
 use warnings;
 
 use Attrs;
-use CleanData qw(clean_decimal);
+use CleanData qw(clean_decimal true);
 use HeadedTSV qw(read_htsv);
 use Units qw(known_commod_descs read_units_cfg validate_units);
 
@@ -51,7 +51,7 @@ sub get_ft_fees
 
 sub valid_ft
 {
-	my ($ft_file) = @_;
+	my ($ft_file, $cf) = @_;
 	local $_;
 
 	return unless defined $ft_file;
@@ -77,12 +77,16 @@ sub valid_ft
 	my %cds = known_commod_descs;
 	my @attrs = get_attrs;
 
+	# duplicates get_cf_drains
+	my %drains;
+	$drains{$cf->{Fee}[$_]} = 1 foreach (grep (!($cf->{Fee}[$_] =~ /[A-Z]/) && true($cf->{IsDrain}[$_]), 0 .. $#{$cf->{Fee}}));
+
 	foreach my $row (0 .. $#{$ft{Fee}}) {
 		return unless defined $ft{Fee}[$row];
 		return unless defined clean_decimal($ft{Fee}[$row]);
 
 		return unless defined $ft{Unit}[$row];
-		return unless exists $cds{$ft{Unit}[$row]};
+		return unless exists $cds{$ft{Unit}[$row]} || exists $drains{$ft{Unit}[$row]};
 
 		next unless defined $ft{Condition}[$row];
 		(my $cond = $ft{Condition}[$row]) =~ s/\s*//g;

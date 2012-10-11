@@ -692,6 +692,7 @@ sub get_acct_name_map
 
 sub valid_fee_cfg
 {
+	local $_;
 	return unless -r "$config{Root}/config_fees";
 
 	my %cf = read_htsv("$config{Root}/config_fees");
@@ -732,6 +733,15 @@ sub valid_fee_cfg
 	return %cf;
 }
 
+sub get_cf_drains
+{
+	my %cf = @_;
+
+	my %drains;
+	$drains{$cf{Fee}[$_]} = 1 foreach (grep (!($cf{Fee}[$_] =~ /[A-Z]/) && true($cf{IsDrain}[$_]), 0 .. $#{$cf{Fee}}));
+	return %drains;
+}
+
 sub gen_tcp
 {
 	my $tmpl = load_template('treasurer_cp.html');
@@ -740,7 +750,8 @@ sub gen_tcp
 	validate_units(\%units_cfg, sub { $tmpl->param(STATUS => 'Units config broken: fix it!') }, 1);
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!valid_fee_cfg, COMMODS => !!(scalar keys %{{known_commod_descs}}));
+	my %cf = valid_fee_cfg;
+	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})));
 
 	return $tmpl;
 }
@@ -856,7 +867,7 @@ sub gen_manage_fee_tmpls
 {
 	my $tmpl = load_template('manage_fee_tmpls.html');
 
-	my @list = map ({ TMPL => $_, NAME => transcode_uri_for_html($_), CL => !!valid_ft("$config{Root}/fee_tmpls/$_") ? undef : 'broken' }, map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/fee_tmpls/*"));
+	my @list = map ({ TMPL => $_, NAME => transcode_uri_for_html($_), CL => !!valid_ft("$config{Root}/fee_tmpls/$_", \%{{valid_fee_cfg}}) ? undef : 'broken' }, map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/fee_tmpls/*"));
 	$tmpl->param(TMPLS => \@list);
 
 	return $tmpl;
@@ -889,8 +900,8 @@ sub gen_edit_fee_tmpl
 
 	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
 
-	my @units = keys ${{known_commod_descs}};
-	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units);
+	my @units = (keys ${{known_commod_descs}}, keys %{{get_cf_drains(valid_fee_cfg)}});
+	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 3, 30, \@units);
 	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id), undef, [ 'Unit', 'Condition' ]) : %ft;
 
 	my %rawattrs = get_attrs_full(1);
@@ -1230,7 +1241,7 @@ sub gen_manage_meets
 	my $session = $_[0];
 	my $tmpl = load_template('manage_meets.html');
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_), glob ("$config{Root}/fee_tmpls/*"));
+	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_, \%{{valid_fee_cfg}}), glob ("$config{Root}/fee_tmpls/*"));
 
 	my @meetlist;
 	foreach my $mid (date_sorted_htsvs('meets')) {
@@ -1842,21 +1853,21 @@ sub despatch_admin
 			}
 			@{$meet{Person}} = map { s/\..*$//; $_ } (@ppl);
 
-			my %ft = valid_ft((defined $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef);
+			my %ft = valid_ft((defined $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef, \%cf);
 			if (scalar @{$meet{Person}} && %ft) {
 				my %cds = known_commod_descs;
-				my @commods = grep (exists $cds{$_}, @{$cf{Fee}});
+				my %drains = get_cf_drains(%cf);
+				my @units = grep (exists $cds{$_} || exists $drains{$_}, @{$cf{Fee}});
 
 				splice (@{$meet{Headings}}, 1, 0, 'CustomFee') if !grep ($_ eq 'CustomFee', @{$meet{Headings}});
-				foreach my $commod (@commods) {
-					splice (@{$meet{Headings}}, 2, 0, $commod) if !grep ($_ eq $commod, @{$meet{Headings}});
+				foreach my $unit (@units) {
+					splice (@{$meet{Headings}}, 2, 0, $unit) if !grep ($_ eq $unit, @{$meet{Headings}});
 				}
 
 				foreach my $p_n (0 .. $#ppl) {
 					next if sum (map ((defined $meet{$_}[$p_n]), @{$meet{Headings}})) > 1;
 					my %def_fees = get_ft_fees($meet{Person}[$p_n], %ft);
-					#FIXME: not just commods?
-					$meet{$_}[$p_n] = $def_fees{$_} foreach (@commods);
+					$meet{$_}[$p_n] = $def_fees{$_} foreach (@units);
 				}
 			}
 			foreach my $p_n (0 .. $#ppl) {
@@ -1956,9 +1967,10 @@ sub despatch_admin
 			$whinge->('Fee template name is already in use') if (-e $file && (!(defined $edit_id) || $rename));
 
 			my @commods = keys %{{known_commod_descs}};
+			my %drains = get_cf_drains(valid_fee_cfg);
 
-			foreach my $row (0 .. get_rows(10, $cgi, 'Fee_', sub { $whinge->('No fees?') })) {
-				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
+			foreach my $row (0 .. get_rows(30, $cgi, 'Fee_', sub { $whinge->('No fees?') })) {
+				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee/Drain amount', undef, $whinge);
 
 				my @conds;
 				foreach (get_attrs(1)) {
@@ -1970,11 +1982,15 @@ sub despatch_admin
 				}
 				my $cond = join (' && ', @conds);
 
-				$whinge->('Missing fee amount (but condition set)') if length $cond && $amnt == 0;
+				$whinge->('Missing fee/drain amount (but condition set)') if length $cond && $amnt == 0;
 				next if $amnt == 0;
 
 				my $cur;
-				$cur = validate_unit(scalar $cgi->param("Unit_$row"), \@commods, $whinge);
+				if (exists $drains{$cgi->param("Unit_$row")}) {
+					$cur = $cgi->param("Unit_$row");
+				} else {
+					$cur = validate_unit(scalar $cgi->param("Unit_$row"), \@commods, $whinge);
+				}
 
 				push (@{$ft{Fee}}, $amnt);
 				push (@{$ft{Unit}}, $cur);
@@ -2064,6 +2080,7 @@ sub despatch_admin
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if (keys %recode) {
+				unlock_dir('fee_tmpls', $sessid, $whinge, 'fee recode', 'fee templates');
 				unlock_dir('meets', $sessid, $whinge, 'fee recode', 'meets');
 			}
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
@@ -2071,6 +2088,7 @@ sub despatch_admin
 				my $commit_msg = 'config_fees: expense configuration modified';
 
 				if (keys %recode) {
+					dir_mod_all('fee_tmpls', 0, [ keys %recode ], sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$recode{$old}/ if $_; } });
 					dir_mod_all('meets', 0, [ keys %recode ], sub { my ($meet, $old) = @_; s/^$old$/$recode{$old}/ foreach (@{$meet->{Headings}}); $meet->{$recode{$old}} = delete $meet->{$old} if exists $meet->{$old}; }, 11);
 					$commit_msg .= ' AND CODES ALTERED';
 				}
