@@ -1226,7 +1226,7 @@ sub meet_valid
 	return 0 unless %meet_cfg;
 
 	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
-		return 0 unless $hd eq 'BaseFee' || grep ($_ eq $hd, grep (defined, @{$meet_cfg{Fee}}));
+		return 0 unless $hd eq 'CustomFee' || grep ($_ eq $hd, grep (defined, @{$meet_cfg{Fee}}));
 		foreach (@{$meet{$hd}}) {
 			return 0 unless defined CleanData::clean_decimal($_);
 		}
@@ -1283,11 +1283,7 @@ sub gen_edit_meet
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 
-	my $ft_file = (defined $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
-	my %ft = valid_ft($ft_file);
-	my $def_cur = (%ft && defined get_ft_currency(%ft)) ? get_ft_currency(%ft) : $units_cfg{Default};
-
-	my $sel_cur = $def_cur;
+	my $sel_cur = $units_cfg{Default};
 	if (exists $meet{Currency}) {
 		$sel_cur = $meet{Currency};
 		if (@units) {
@@ -1312,15 +1308,16 @@ sub gen_edit_meet
 	my @drains = grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}});
 	my @exps = grep (!(exists $cds{$meet_cfg{Fee}[$_]} || true($meet_cfg{IsDrain}[$_])), 0 .. $#{$meet_cfg{Fee}});
 	my @unks;
-	foreach my $hd (grep (!/^(Person|BaseFee|Notes)$/, @{$meet{Headings}})) {
+	foreach my $hd (grep (!/^(Person|CustomFee|Notes)$/, @{$meet{Headings}})) {
 		push (@unks, $hd) unless grep ($_ eq $hd, @{$meet_cfg{Fee}});
 	}
 
-	my @feesh = map ({ FEE => $cds{$meet_cfg{Fee}[$_]}, LINKA => $meet_cfg{Account}[$_] }, @ccs);
+	my @feesh = ({ FEE => 'Custom Fee', LINKA => $meet_cfg{MeetAccount} });
+	push (@feesh, map ({ FEE => $cds{$meet_cfg{Fee}[$_]}, LINKA => $meet_cfg{Account}[$_] }, @ccs));
 	push (@feesh, map ({ FEE => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @drains));
 	my @expsh = map ({ EXP => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
-	$tmpl->param(MEETA => $meet_cfg{MeetAccount}, NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
+	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
 
 	my %ppl_seen;
 	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
@@ -1328,10 +1325,11 @@ sub gen_edit_meet
 	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @ppl;
 	foreach my $row (0 .. $#{$meet{Person}}) {
-		my @rfees = map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row] ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken' }, (@ccs, @drains, @exps));
+		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row], D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
+		push (@rfees, map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row] ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken' }, (@ccs, @drains, @exps)));
 		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
 		my $a = $meet{Person}[$row] // '';
-		push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, BASEV => $meet{BaseFee}[$row], FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
+		push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
 	}
         $tmpl->param(PPL => \@ppl);
         $tmpl->param(EDITOK => $session->param('IsAdmin'));
@@ -1414,9 +1412,9 @@ sub meet_to_tg
 				push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
 				push (@{$tg{Description}}, $meet_cfg{Description}[$mc_row]);
 			}
-		} elsif ($hd eq 'BaseFee') {
+		} elsif ($hd eq 'CustomFee') {
 			push (@{$tg{Creditor}}, $meet_cfg{MeetAccount});
-			push (@{$tg{Amount}}, $colsum{BaseFee});
+			push (@{$tg{Amount}}, $colsum{CustomFee});
 			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
 			push (@{$tg{Description}}, 'Meet fee');
 		}
@@ -1787,8 +1785,8 @@ sub despatch_admin
 			foreach my $pers (@{$meet{Person}}) {
 				$pers //= '';
 				$pers_count{$pers} = 0 unless exists $pers_count{$pers};
-				my @arr = $cgi->param("${pers}_Base");
-				push (@{$meet{BaseFee}}, validate_decimal($arr[$pers_count{$pers}], 'Base fee', 1, $whinge));
+				my @arr = $cgi->param("${pers}_Custom");
+				push (@{$meet{CustomFee}}, validate_decimal($arr[$pers_count{$pers}], 'Custom fee', 1, $whinge));
 				foreach (0 .. $#{$meet_cfg{Fee}}) {
 					@arr = $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]");
 					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{@{$meet_cfg{Fee}}[$_]}) ? $cds{@{$meet_cfg{Fee}}[$_]} : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
@@ -1798,7 +1796,7 @@ sub despatch_admin
 				$pers_count{$pers}++;
 			}
 
-			@{$meet{Headings}} = ( 'Person', 'BaseFee', @{$meet_cfg{Fee}}, 'Notes' ) if scalar @{$meet{Person}};
+			@{$meet{Headings}} = ( 'Person', 'CustomFee', @{$meet_cfg{Fee}}, 'Notes' ) if scalar @{$meet{Person}};
 
 			my %tg = meet_to_tg(%meet);
 
@@ -1870,26 +1868,20 @@ sub despatch_admin
 			}
 			@{$meet{Person}} = map { s/\..*$//; $_ } (@ppl);
 
-			my $ft_file = (defined $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef;
-			my %ft = valid_ft($ft_file);
-			if (%ft) {
-				my $cur = get_ft_currency(%ft) unless exists $meet{Currency};
-				$meet{Currency} = $cur if $cur && length $cur;
-			}
+			my %ft = valid_ft((defined $meet{Template}) ? "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template}) : undef);
 			if (scalar @{$meet{Person}} && %ft) {
 				my %cds = known_commod_descs;
 				my @commods = grep (exists $cds{$_}, @{$cf{Fee}});
 
-				splice (@{$meet{Headings}}, 1, 0, 'BaseFee') if !grep ($_ eq 'BaseFee', @{$meet{Headings}});
+				splice (@{$meet{Headings}}, 1, 0, 'CustomFee') if !grep ($_ eq 'CustomFee', @{$meet{Headings}});
 				foreach my $commod (@commods) {
 					splice (@{$meet{Headings}}, 2, 0, $commod) if !grep ($_ eq $commod, @{$meet{Headings}});
 				}
 
-				my $ft_curr = get_ft_currency(%ft);
 				foreach my $p_n (0 .. $#ppl) {
 					next if sum (map ((defined $meet{$_}[$p_n]), @{$meet{Headings}})) > 1;
 					my %def_fees = get_ft_fees($meet{Person}[$p_n], %ft);
-					$meet{BaseFee}[$p_n] = $def_fees{$ft_curr} if defined $ft_curr;
+					#FIXME: not just commods?
 					$meet{$_}[$p_n] = $def_fees{$_} foreach (@commods);
 				}
 			}

@@ -13,7 +13,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(get_ft_currency get_ft_fees set_ft_config_root valid_ft);
+our @EXPORT = qw(get_ft_fees set_ft_config_root valid_ft);
 
 my $root;
 
@@ -21,21 +21,6 @@ sub set_ft_config_root
 {
 	$root = $_[0];
 	return;
-}
-
-sub get_ft_currency
-{
-	my (%ft) = @_;
-
-	return '' if exists $ft{Fee} && scalar @{$ft{Fee}} && !(exists $ft{Unit} && scalar @{$ft{Unit}});
-
-	my @curs = known_currs(read_units_cfg("$root/config_units"));
-
-	foreach my $ft_unit (grep (defined, @{$ft{Unit}})) {
-		return $ft_unit if grep ($_ eq $ft_unit, @curs);
-	}
-
-	return undef;
 }
 
 sub get_ft_fees
