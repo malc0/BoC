@@ -45,10 +45,10 @@
 
 			<!-- add swaps/splits? FIXME? -->
 
-			<p><TMPL_IF NAME=RO><input type="submit" name="edit_ppl" value="Add/Edit participants"/><TMPL_IF NAME=PPL><input type="submit" name="edit" value="Edit values"/></TMPL_IF><TMPL_ELSE>
-			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p>
+			<TMPL_IF NAME=EDITOK><p><TMPL_IF NAME=RO><input type="submit" name="edit_ppl" value="Add/Edit participants"/><TMPL_IF NAME=PPL><input type="submit" name="edit" value="Edit values"/></TMPL_IF><TMPL_ELSE>
+			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p></TMPL_IF>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_cp" value="Return to control panel"/><input type="submit" name="manage_meets" value="See all meets"/></p></TMPL_UNLESS>
+			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_meets" value="See all meets"/></p></TMPL_UNLESS>
 			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>

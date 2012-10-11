@@ -1248,6 +1248,7 @@ sub meet_valid
 
 sub gen_manage_meets
 {
+	my $session = $_[0];
 	my $tmpl = load_template('manage_meets.html');
 	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
 	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_), glob ("$config{Root}/fee_tmpls/*"));
@@ -1259,19 +1260,19 @@ sub gen_manage_meets
 		my $ft_state = (!(defined $meet{Template}) || !!grep ($_ eq $meet{Template}, @fts));
 		my $ft_exists = defined $meet{Template} && -r "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template});
 
-		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => $meet{Template} // '', FTID => $ft_exists ? encode_for_filename($meet{Template}) : '' });
+		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => $meet{Template} // '', FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename($meet{Template}) : '' });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, sort_AoH(\%ppl));
 	my @ftlist = map ({ FTN => $_ }, @fts);
 
-	$tmpl->param(MEETS => \@meetlist, PPL => \@people, FTS => \@ftlist);
+	$tmpl->param(MEETS => \@meetlist, PPL => \@people, FTS => \@ftlist, ADDDELOK => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
 
 sub gen_edit_meet
 {
-	my ($edit_id, $mcr, $etoken) = @_;
+	my ($edit_id, $mcr, $session, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet.html', $etoken);
 	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
@@ -1334,6 +1335,7 @@ sub gen_edit_meet
 		push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, BASEV => $meet{BaseFee}[$row], FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
 	}
         $tmpl->param(PPL => \@ppl);
+        $tmpl->param(EDITOK => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
@@ -1489,7 +1491,6 @@ sub despatch_admin
 		my $whinge = sub { whinge('Couldn\'t get edit lock for configuration file', gen_tcp) };
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
-		emit(gen_manage_meets) if (defined $cgi->param('manage_meets'));
 		if (defined $cgi->param('edit_addr_alts')) {
 			$whinge->() unless try_lock("$config{Root}/config_addr_alts", $sessid);
 			emit(gen_edit_addr_alts(get_edit_token($sessid, 'edit_addr_alts')));
@@ -1711,7 +1712,7 @@ sub despatch_admin
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to address alternatives config' : 'Edit address alternatives config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'manage_meets') {
-		my $whinge = sub { whinge($_[0], gen_manage_meets) };
+		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
 		if (defined $cgi->param('add')) {
 			my %meet;
 			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
@@ -1733,26 +1734,17 @@ sub despatch_admin
 				my @split_f = split('-', unroot($file));
 				add_commit($file, "$split_f[0]...: Meet \"$meet{Name}\" created", $session);
 			});
-			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets());
+			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets($session));
 		}
 		if (grep (/^del_.*$/, $cgi->param)) {
 			my @dels = grep (/^del_.*$/, $cgi->param);
 			next unless $dels[0] =~ /^del_(.*)$/;
 			my $mid = valid_edit_id($1, "$config{Root}/meets", 'meet', $whinge, 1);
-			delete_common("$config{Root}/meets/$mid", "meet \"$mid\"", $session, sub { gen_manage_meets }, "$config{Root}/transaction_groups/M$mid");
-		}
-		if (defined $cgi->param('view')) {
-			my %cf = valid_fee_cfg;
-			$whinge->('Cannot view meet: expenses config is broken') unless %cf;
-			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', $whinge, 1);
-
-			emit(gen_edit_meet($mid, \%cf, undef));
+			delete_common("$config{Root}/meets/$mid", "meet \"$mid\"", $session, sub { gen_manage_meets($session) }, "$config{Root}/transaction_groups/M$mid");
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet') {
-		emit(gen_manage_meets) if defined $cgi->param('manage_meets');
-		my $whinge = sub { whinge($_[0], gen_manage_meets) };
-
+		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
 		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', $whinge, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
 		my %meet_cfg = valid_fee_cfg;
@@ -1766,7 +1758,7 @@ sub despatch_admin
 			}
 
 			if (defined $cgi->param('edit')) {
-				emit(gen_edit_meet($edit_id, \%meet_cfg, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_meet($edit_id, \%meet_cfg, $session, get_edit_token($sessid, "edit_$edit_id")));
 			} else {
 				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
 			}
@@ -1776,7 +1768,7 @@ sub despatch_admin
 
 		if (defined $cgi->param('save')) {
 			$whinge->('Cannot save meet: expenses config is broken') unless %meet_cfg;
-			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $session, $etoken)) };
 
 			delete $meet{Currency};
 			my @ppl = @{$meet{Person}};
@@ -1811,7 +1803,7 @@ sub despatch_admin
 			my %tg = meet_to_tg(%meet);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 			try_commit_and_unlock(sub {
 				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
 				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
@@ -1833,10 +1825,10 @@ sub despatch_admin
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%meet_cfg, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%meet_cfg, $session, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets) }, 1);
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets($session)) }, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
 		my %cf = valid_fee_cfg;
 
@@ -1848,7 +1840,7 @@ sub despatch_admin
 		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
 		if (defined $cgi->param('save')) {
-			whinge('Cannot save meet: expenses config is broken', gen_manage_meets) unless %cf;
+			whinge('Cannot save meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
 			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
 
@@ -1909,7 +1901,7 @@ sub despatch_admin
 			%tg = meet_to_tg(%meet) if (scalar @{$meet{Person}});
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_manage_meets) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 			pop_session_data($sessid, "${etoken}_add_accts");
 			try_commit_and_unlock(sub {
 				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
@@ -1933,7 +1925,7 @@ sub despatch_admin
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, $session, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
@@ -2457,6 +2449,7 @@ sub gen_ucp
 	$tmpl->param(TCP => $session->param('IsAdmin'));
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
 	$tmpl->param(BANK => $session->param('IsAdmin'));
+	$tmpl->param(MEETS => !!valid_fee_cfg);
 
 	return $tmpl;
 }
@@ -2883,11 +2876,12 @@ sub despatch
 
 	return if (defined $cgi->param('logout'));
 
-	despatch_admin($session) if $session->param('IsAdmin');
-
 	emit(gen_manage_tgs($session)) if (defined $cgi->param('manage_tgs'));
+	emit(gen_manage_meets($session)) if (defined $cgi->param('manage_meets'));
 	emit(gen_ucp($session)) if (defined $cgi->param('to_acct'));
 	emit(gen_accts_disp) if (defined $cgi->param('disp_accts'));
+
+	despatch_admin($session) if $session->param('IsAdmin');
 
 	if ($cgi->param('tmpl') eq 'login_nopw') {
 		my $tmpl = gen_ucp($session);
@@ -3189,6 +3183,16 @@ sub despatch
 			$etoken = pop_session_data($sessid, $etoken);
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;
 			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $etoken ? gen_ucp($session) : gen_manage_tgs($session));
+		}
+	}
+	if ($cgi->param('tmpl') eq 'manage_meets') {
+		if (defined $cgi->param('view')) {
+			my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
+			my %cf = valid_fee_cfg;
+			$whinge->('Cannot view meet: expenses config is broken') unless %cf;
+			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', $whinge, 1);
+
+			emit(gen_edit_meet($mid, \%cf, $session, undef));
 		}
 	}
 

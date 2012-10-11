@@ -46,7 +46,7 @@
 				<tr><td colspan=2>Total debits</td><td style="text-align:right"><TMPL_VAR NAME=DEB_TOT></td></tr>
 			</table>
 			<TMPL_UNLESS NAME=ACCT>
-			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
+			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/><TMPL_IF NAME=MEETS><input type="submit" name="manage_meets" value="See all meets"/></TMPL_IF></p>
 			<TMPL_ELSE>
 			<p><input type="submit" name="disp_accts" value="Back to accounts summary"/></p>
 			<p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
