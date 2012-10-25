@@ -7,7 +7,7 @@ use warnings;
 use Attrs;
 use CleanData qw(clean_decimal);
 use HeadedTSV qw(read_htsv);
-use Units qw(known_currs known_units read_units_cfg validate_units);
+use Units qw(known_units read_units_cfg validate_units);
 
 our $VERSION = '1.00';
 
@@ -77,13 +77,11 @@ sub valid_ft
 	return if $bad;
 
 	my @units = known_units(%units_cfg);
-	my @curs = known_currs(%units_cfg);
 	my $unitcol = (exists $ft{Unit});
 	return if scalar @units && !$unitcol;
 
 	my @attrs = get_attrs;
 
-	my %curs_in_use;
 	foreach my $row (0 .. $#{$ft{Fee}}) {
 		return unless defined $ft{Fee}[$row];
 		return unless defined clean_decimal($ft{Fee}[$row]);
@@ -91,7 +89,6 @@ sub valid_ft
 		if ($unitcol) {
 			return unless (defined $ft{Unit}[$row] && length $ft{Unit}[$row]) || !(scalar @units);
 			return unless grep ($_ eq $ft{Unit}[$row], @units);
-			$curs_in_use{$ft{Unit}[$row]} = 1 if grep ($_ eq $ft{Unit}[$row], @curs);
 		}
 
 		next unless defined $ft{Condition}[$row];
@@ -103,8 +100,6 @@ sub valid_ft
 			return unless grep ($_ eq $attr, @attrs);
 		}
 	}
-
-	return if scalar keys %curs_in_use > 1;
 
 	return %ft;
 }

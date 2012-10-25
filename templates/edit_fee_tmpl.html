@@ -21,8 +21,6 @@
 
 			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Template name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="name"/></label></h2></TMPL_IF>
 
-			<TMPL_IF NAME=CURS><p><b>Note: only one currency unit can be employed</b></p></TMPL_IF>
-
 			<table border=1>
 				<tr><th rowspan=2 class="<TMPL_VAR NAME=FH_CL>">Fee</th><TMPL_IF NAME=NATTRS><th rowspan=2 class="<TMPL_VAR NAME=AH_CL>">Condition</th><th colspan=<TMPL_VAR NAME=NATTRS> class="<TMPL_VAR NAME=AH_CL>">Attributes</th></tr>
 				<tr><TMPL_LOOP NAME=ATTRS><th class="<TMPL_VAR NAME=A_CL>"><TMPL_VAR NAME=A><TMPL_IF NAME=I> (implies <TMPL_VAR NAME=I>)</TMPL_IF></th></TMPL_LOOP><TMPL_ELSE></tr><tr></TMPL_IF></tr>

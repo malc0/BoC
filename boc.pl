@@ -904,15 +904,9 @@ sub gen_edit_fee_tmpl
 	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units, $tmpl);
 	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id), undef, [ 'Unit', 'Condition' ]) : %ft;
 
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");
-	my @curs = known_currs(%units_cfg);
 	my %rawattrs = get_attrs_full(1);
-	my %curs_in_use;
 	my %moreattrs;
 	foreach my $row (0 .. $#{$oldft{Fee}}) {
-		next unless defined $oldft{Unit}[$row] && length $oldft{Unit}[$row];
-		$curs_in_use{$oldft{Unit}[$row]} = 1 if grep ($_ eq $oldft{Unit}[$row], @curs);
-
 		next unless defined $ft{Condition}[$row];
 		(my $cond = $ft{Condition}[$row]) =~ s/\s*//g;
 		my @conds = split ('&amp;&amp;', $cond);
@@ -946,7 +940,7 @@ sub gen_edit_fee_tmpl
 			my $dc = !($if or $unless);
 			push (@fattrs, { A => $_, I => $if, U => $unless, D => $dc, A_CL => exists $moreattrs{$_} ? 'broken' : '' });
 		}
-		my $unit_cl = (((scalar @units) && grep ($_ eq $ft{Unit}[$row], @units) && !(grep ($_ eq $ft{Unit}[$row], @curs) && scalar keys %curs_in_use > 1 && $row <= $#{$oldft{Fee}})) || (!(scalar @units) && !(length $ft{Unit}[$row]))) ? '' : 'broken';
+		my $unit_cl = (!(scalar @units) && !(exists $ft{Unit} && length $ft{Unit}[$row])) || (grep ($_ eq $ft{Unit}[$row], @units)) ? '' : 'broken';
 		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs, F_CL => (defined CleanData::clean_decimal($ft{Fee}[$row])) ? '' : 'broken', C_CL => $unit_cl });
 	}
 
@@ -1981,10 +1975,7 @@ sub despatch_admin
 			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
 			$whinge->('Fee template name is already in use') if (-e $file && (!(defined $edit_id) || $rename));
 
-			my %units_cfg = read_units_cfg("$config{Root}/config_units");
-			my @units = known_units(%units_cfg);
-			my @curs = known_currs(%units_cfg);
-			my @are_curs;
+			my @units = known_units;
 
 			foreach my $row (0 .. get_rows(10, $cgi, 'Fee_', sub { $whinge->('No fees?') })) {
 				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
@@ -2006,13 +1997,9 @@ sub despatch_admin
 				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
 
 				push (@{$ft{Fee}}, $amnt);
-				if (scalar @units) {
-					push (@{$ft{Unit}}, $cur);
-					push (@are_curs, $cur) if grep ($_ eq $cur, @curs) && !grep ($_ eq $cur, @are_curs);
-				}
+				push (@{$ft{Unit}}, $cur) if $cur;
 				push (@{$ft{Condition}}, $cond);
 			}
-			$whinge->('More than one currency in use') if scalar @are_curs > 1;
 
 			if (exists $ft{Fee}) {
 				@{$ft{Headings}} = ( 'Fee', 'Condition' );
