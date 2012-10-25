@@ -881,7 +881,7 @@ sub gen_ft_tg_common
 	# saved by autovivification if the columns don't exist!
 	push (@{$htsv{$key_col}}, ($key_fill) x ($max_rows - scalar @{$htsv{$key_col}}));
 	push (@{$htsv{$cur_col}}, ('') x ($init_rows - scalar @{$htsv{$cur_col}})) if scalar @{$units} > 1;
-	push (@{$htsv{$cur_col}}, ($units_cfg{Default}) x ($max_rows - scalar @{$htsv{$cur_col}})) if scalar @{$units};
+	push (@{$htsv{$cur_col}}, ((scalar @{$units}) ? $$units[0] : '') x ($max_rows - scalar @{$htsv{$cur_col}})) if scalar @{$units} || exists $htsv{$cur_col};
 
 	my @allunits = @{$units};
 	foreach my $cur (@{$htsv{$cur_col}}) {
