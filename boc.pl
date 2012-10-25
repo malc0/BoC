@@ -918,7 +918,6 @@ sub gen_edit_fee_tmpl
 		my @conds = split ('&amp;&amp;', $cond);
 		foreach (@conds) {
 			s/^!//;
-			$moreattrs{''} = 1 unless length $_;
 			$moreattrs{$_} = 1 unless exists $rawattrs{$_};
 		}
 	}
