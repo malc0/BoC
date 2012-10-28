@@ -1,0 +1,29 @@
+<!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+	<head>
+		<title><TMPL_VAR NAME=SN> event types</title>
+		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
+		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
+		<style type="text/css">.broken { background-color: red }</style>
+	</head>
+	<body>
+		<h1>Event types</h1>
+
+		<form action="boc.pl" method="post">
+		<div>
+			<input type="hidden" name="tmpl" value="manage_event_types"/>
+
+			<table border=1>
+				<tr><th>Type</th><th>Columns</th></tr>
+				<TMPL_LOOP NAME=ETS>
+				<tr><td class="<TMPL_VAR NAME=NAME_CL>"><TMPL_VAR NAME=NAME></td><td class="<TMPL_VAR NAME=CL>"><TMPL_VAR NAME=COLS></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ET>" value="Edit"/><input type="submit" name="del_<TMPL_VAR NAME=ET>" value="Delete" onclick="return confirm('Really delete event type &quot;<TMPL_VAR NAME=NAME>&quot;?')"/></td></tr>
+				</TMPL_LOOP>
+			</table>
+			<p><input type="submit" name="add" value="Add new event type"/></p>
+			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
+			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
+			<p><input type="submit" name="logout" value="Logout"/></p>
+		</div>
+		</form>
+	</body>
+</html>

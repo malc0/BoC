@@ -1,8 +1,10 @@
-package Meets;
+package Events;
 
 use 5.012;
 use strict;
 use warnings;
+
+use Scalar::Util qw(looks_like_number);
 
 use Accts qw(grep_acct_key);
 use Attrs;
@@ -14,14 +16,47 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(set_meet_config_root get_ft_fees valid_ft meet_valid);
+our @EXPORT = qw(set_event_config_root valid_event_type get_event_types get_ft_fees valid_ft meet_valid);
 
 my $root;
 
-sub set_meet_config_root
+sub set_event_config_root
 {
 	$root = $_[0];
 	return;
+}
+
+sub valid_event_type
+{
+	my ($et_f, $cf) = @_;
+	local $_;
+
+	return unless $et_f;
+	return unless -r $et_f;
+
+	(my $et_id = $et_f) =~ s/.*\/([^\/]+)/$1/;
+	return if $et_id eq 'none' || $et_id =~ /[.]/;
+
+	my %cf_fees;
+	$cf_fees{$_} = 1 foreach (@{$cf->{Fee}});
+
+	my %et = read_htsv($et_f, undef, [ 'Unit' ]);
+	return ( Empty => 1 ) unless exists $et{Headings};
+	return if scalar grep (!(exists $cf_fees{$_}), @{$et{Unit}});
+
+	@{$et{Column}} = () unless exists $et{Column};
+	@{$et{Unusual}} = () unless exists $et{Unusual};
+	return %et;
+}
+
+sub get_event_types
+{
+	my ($et, $drains, $rows) = @_;
+
+	my @fees = map ($_->[0], sort { (looks_like_number($a->[1]) && looks_like_number($b->[1])) ? $a->[1] <=> $b->[1] : $a->[1] cmp $b->[1] } map ([ $rows ? $_ : $et->{Unit}[$_], $et->{Column}[$_] // 99999998 ], grep (!(defined $et->{Column}[$_] && looks_like_number($et->{Column}[$_]) && $et->{Column}[$_] < 0) && (defined $et->{Unit}[$_]) && ($et->{Unit}[$_] =~ /[A-Z]/ || exists $drains->{$et->{Unit}[$_]}), 0 .. $#{$et->{Unit}})));	# Schwartzian transform ftw.  Magic number sorts columns with missing ordering to just before 99999999 magic number...
+	my @exps = map ($_->[0], sort { (looks_like_number($a->[1]) && looks_like_number($b->[1])) ? $a->[1] <=> $b->[1] : $a->[1] cmp $b->[1] } map ([ $rows ? $_ : $et->{Unit}[$_], $et->{Column}[$_] // 99999998 ], grep (!(defined $et->{Column}[$_] && looks_like_number($et->{Column}[$_]) && $et->{Column}[$_] < 0) && (defined $et->{Unit}[$_]) && !($et->{Unit}[$_] =~ /[A-Z]/ || exists $drains->{$et->{Unit}[$_]}), 0 .. $#{$et->{Unit}})));
+
+	return (\@fees, \@exps);
 }
 
 sub get_ft_fees

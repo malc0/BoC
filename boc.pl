@@ -26,7 +26,7 @@ use lib '.';
 use Accts;
 use Attrs;
 use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words true validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
-use Meets;
+use Events;
 use HeadedTSV;
 use TG;
 use Units;
@@ -729,7 +729,7 @@ sub gen_tcp
 
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %cf = valid_fee_cfg;
-	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})));
+	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})), CF_UNITS => (exists $cf{Fee} && scalar @{$cf{Fee}}));
 
 	return $tmpl;
 }
@@ -837,6 +837,72 @@ sub gen_edit_inst_cfg
 		$tmpl->param($param => $inst_cfg{$param});
 		$tmpl->param($param => '" data-noop="') if exists $inst_cfg{$param} and not defined $inst_cfg{$param};
 	}
+
+	return $tmpl;
+}
+
+sub gen_manage_event_types
+{
+	my $tmpl = load_template('manage_event_types.html');
+
+	my %cf = valid_fee_cfg;
+	my (%cfcds, %drain_descs, %exp_descs);
+	foreach (0 .. $#{$cf{Fee}}) {
+		$cfcds{$cf{Fee}[$_]} = 1 if $cf{Fee}[$_] =~ /[A-Z]/;
+		next if $cf{Fee}[$_] =~ /[A-Z]/;
+		$drain_descs{$cf{Fee}[$_]} = $cf{Description}[$_] if true($cf{IsDrain}[$_]);
+		$exp_descs{$cf{Fee}[$_]} = $cf{Description}[$_] unless true($cf{IsDrain}[$_]);
+	}
+	my %comb_descs = (%{{ known_commod_descs }}, %drain_descs, %exp_descs);
+	my %comb_exists = (%cfcds, %drain_descs, %exp_descs);
+
+	my @list;
+	foreach my $et_f (map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/event_types/*")) {
+		my %et = read_htsv("$config{Root}/event_types/$et_f", undef, [ 'Unit' ]);
+		my ($fees, $exps) = get_event_types(\%et, \%drain_descs);
+		my @cols = map ((defined $comb_descs{$_} && length $comb_descs{$_}) ? $comb_descs{$_} : $_, (@$fees, @$exps));
+		push (@list, { ET => $et_f, NAME => transcode_uri_for_html($et_f), NAME_CL => ($et_f eq 'none' || $et_f =~ /[.]/) ? 'broken' : '', COLS => join (', ', @cols), CL => (scalar grep (!(exists $comb_exists{$_}), (@$fees, @$exps))) ? 'broken' : '' });
+	}
+	$tmpl->param(ETS => \@list);
+
+	return $tmpl;
+}
+
+sub gen_edit_et
+{
+	my ($edit_id, $etoken) = @_;
+	my $tmpl = load_template('edit_event_type.html', $etoken);
+
+	my %et;
+	%et = read_htsv("$config{Root}/event_types/$edit_id", undef, [ 'Unit' ]) if $edit_id;
+
+	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
+
+	my %cds = known_commod_descs;
+	my %cf = valid_fee_cfg;
+	foreach my $thing (@{$cf{Fee}}) {
+		next if grep (defined $_ && $_ eq $thing, @{$et{Unit}});
+		my $pos = push (@{$et{Unit}}, $thing);
+		@{$et{Column}}[$pos - 1] = 99999999;	# magic number -- attempt to sort to last in list
+	}
+
+	my %drains = get_cf_drains(%cf);
+	my ($fee_rows, $exp_rows) = get_event_types(\%et, \%drains, 1);
+
+	my (@fees, @exps);
+	foreach my $ord (0 .. $#$fee_rows) {
+		my $row = @$fee_rows[$ord];
+		my $dr_row = (grep (@{$cf{Fee}}[$_] eq $et{Unit}[$row], 0 .. $#{$cf{Fee}}))[0] if exists $drains{$et{Unit}[$row]};
+		my $unit_cl = ($et{Unit}[$row] =~ /[A-Z]/ && grep ($_ eq $et{Unit}[$row], @{$cf{Fee}})) || (exists $drains{$et{Unit}[$row]}) ? '' : 'broken';
+		push (@fees, { CODE => $et{Unit}[$row], UNIT => (exists $drains{$et{Unit}[$row]}) ? @{$cf{Description}}[$dr_row] : $cds{$et{Unit}[$row]} // $et{Unit}[$row], N => $row, C_CL => $unit_cl, COL => (defined $et{Column}[$row] && $et{Column}[$row] == 99999999) ? -1 : $ord * 10 + 10, EX => true($et{Unusual}[$row]) });
+	}
+	foreach my $ord (0 .. $#$exp_rows) {
+		my $row = @$exp_rows[$ord];
+		my $exp_row = (grep (@{$cf{Fee}}[$_] eq $et{Unit}[$row], grep (!exists $drains{$et{Unit}[$row]}, 0 .. $#{$cf{Fee}})))[0];
+		push (@exps, { CODE => $et{Unit}[$row], UNIT => (defined $exp_row) ? @{$cf{Description}}[$exp_row] : $et{Unit}[$row], N => $row, C_CL => $exp_row ? '' : 'broken', COL => (defined $et{Column}[$row] && $et{Column}[$row] == 99999999) ? -1 : $ord * 10 + 10, EX => true($et{Unusual}[$row]) });
+	}
+
+	$tmpl->param(FEES => \@fees, EXPS => \@exps);
 
 	return $tmpl;
 }
@@ -1130,6 +1196,7 @@ sub commit_config_units
 	$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 	if (keys %$rename) {
 		unlock_dir('transaction_groups', $sessid, $whinge, 'unit recode', 'transaction groups');
+		unlock_dir('event_types', $sessid, $whinge, 'unit recode', 'event types');
 		unlock_dir('fee_tmpls', $sessid, $whinge, 'unit recode', 'fee templates');
 		unlock_dir('meets', $sessid, $whinge, 'unit recode', 'meets');
 		if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
@@ -1144,6 +1211,7 @@ sub commit_config_units
 		if (keys %$rename) {
 			my @renames = keys %$rename;
 			dir_mod_all('transaction_groups', 1, \@renames, sub { my ($tg, $old) = @_; foreach (@{$tg->{Currency}}) { s/^$old$/$rename->{$old}/ if $_; } });
+			dir_mod_all('event_types', 0, \@renames, sub { my ($et, $old) = @_; foreach (@{$et->{Unit}}) { s/^$old$/$rename->{$old}/ if $_; } });
 			dir_mod_all('fee_tmpls', 0, \@renames, sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$rename->{$old}/ if $_; } });
 			dir_mod_all('meets', 0, \@renames, sub { my ($meet, $old) = @_;
 				$meet->{Currency} =~ s/^$old$/$rename->{$old}/ if defined $meet->{Currency};
@@ -1423,6 +1491,7 @@ sub despatch_admin
 			$whinge->() unless try_lock("$config{Root}/config", $sessid);
 			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
 		}
+		emit(gen_manage_event_types) if (defined $cgi->param('manage_event_types'));
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
 		if (defined $cgi->param('edit_fee_cfg')) {
 			$whinge->() unless try_lock("$config{Root}/config_fees", $sessid);
@@ -1864,6 +1933,110 @@ sub despatch_admin
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to installation config' : 'Edit installation config cancelled', gen_tcp);
 	}
+	if ($cgi->param('tmpl') eq 'manage_event_types') {
+		my $et;
+		my $delete = 0;
+		my $whinge = sub { whinge($_[0], gen_manage_event_types) };
+
+		foreach my $p ($cgi->param) {
+			if ($p =~ /^edit_(.+)$/) {
+				$et = $1;
+				last;
+			}
+			if ($p =~ /^del_(.+)$/) {
+				$et = $1;
+				$delete = 1;
+				last;
+			}
+		}
+
+		$et = valid_edit_id($et, "$config{Root}/event_types", 'event type', $whinge);
+		my $et_file = "$config{Root}/event_types/$et" if $et;
+		unless ($delete) {
+			if ($et) {
+				$whinge->("Couldn't get edit lock for event type \"$et\"") unless try_lock($et_file, $sessid);
+				unless (-r $et_file) {
+					unlock($et_file);
+					$whinge->("Couldn't edit event type \"$et\", file disappeared");
+				}
+			}
+			$etoken = get_edit_token($sessid, $et ? "edit_$et" : 'add_et');
+			emit(gen_edit_et($et, $etoken));
+		} else {
+			delete_common($et_file, "event type \"$et\"", $session, sub { gen_manage_event_types });
+		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_event_type') {
+		my $whinge = sub { whinge($_[0], gen_manage_event_types) };
+
+		my $edit_id = valid_edit_id(scalar $cgi->param('et_id'), "$config{Root}/event_types", 'event type', $whinge);
+		my $file = $edit_id ? "$config{Root}/event_types/" . encode_for_filename($edit_id) : undef;
+
+		# only left with save and cancel now
+		my $new_id = clean_words($cgi->param('name'));
+
+		if (defined $cgi->param('save')) {
+			my %et;
+			$whinge = sub { whinge($_[0], gen_edit_et($edit_id, $etoken)) };
+
+			$whinge->('Missing event type name') unless $new_id;
+			$whinge->('"none" is a reserved type') if $new_id eq 'none';
+			my $old_file = $file;
+			$file = "$config{Root}/event_types/" . encode_for_filename($new_id);
+			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
+			$whinge->('Event type is already in use') if (-e $file && (!(defined $edit_id) || $rename));
+
+			my %cf = valid_fee_cfg;
+
+			foreach my $row (0 .. get_rows(30, $cgi, 'Col_', sub { $whinge->('No columns?') })) {
+				my $cur = $cgi->param("Unit_$row");
+				my $col = validate_int(scalar $cgi->param("Col_$row"), 'Column ordering', undef, $whinge);
+				next if $col < 0;
+
+				$whinge->('Missing unit') unless defined $cur;
+				if ($cur =~ /[A-Z]/) {
+					$whinge->("Commodity \"$cur\" unknown to config_fees") unless grep ($_ eq $cur, @{$cf{Fee}});
+				} else {
+					$whinge->("Unknown drain/expense \"$cur\"") unless grep ($_ eq $cur, @{$cf{Fee}});
+				}
+
+				push (@{$et{Unit}}, $cur);
+				push (@{$et{Column}}, $col);
+				push (@{$et{Unusual}}, (defined $cgi->param("Ex_$row")));
+			}
+
+			@{$et{Headings}} = ( 'Unit', 'Column', 'Unusual' ) if exists $et{Unit};
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			# FIXME: renaming: FTs and meets?
+#			if ($rename) {
+#				unlock_dir('meets', $sessid, $whinge, 'ET rename', 'meets');
+#			}
+			bad_token_whinge(gen_manage_event_types) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_et', $etoken);
+			try_commit_and_unlock(sub {
+				if ($rename) {
+#					dir_mod_all('meets', 0, [ $edit_id ], sub { my ($meet, $old) = @_; $meet->{Template} =~ s/^$old$/$new_id/ if defined $meet->{Template} }, 11);
+					$git->mv($old_file, $file);
+				}
+				(mkdir "$config{Root}/event_types" or die) unless (-d "$config{Root}/event_types");
+				write_htsv($file, \%et);
+				if ($rename) {
+					add_commit($file, 'Rename ET ' . unroot($old_file) . ' to ' . unroot($file), $session);
+				} else {
+					add_commit($file, unroot($file) . ": ET \"$new_id\" " . ($edit_id ? 'modified' : 'created'), $session);
+				}
+			}, $rename ? $old_file : ($edit_id) ? $file : undef);
+		} else {
+			unlock($file) if $file;
+			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_et', $etoken);
+		}
+
+		if ($edit_id) {
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$new_id\" event type" : 'Edit cancelled', gen_manage_event_types);
+		} else {
+			emit_with_status((defined $cgi->param('save')) ? "Added event type \"$new_id\"" : 'Add event type cancelled', gen_manage_event_types);
+		}
+	}
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', sub { whinge($_[0], gen_manage_fee_tmpls) });
@@ -2015,6 +2188,7 @@ sub despatch_admin
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if (keys %recode) {
+				unlock_dir('event_types', $sessid, $whinge, 'fee recode', 'event types');
 				unlock_dir('fee_tmpls', $sessid, $whinge, 'fee recode', 'fee templates');
 				unlock_dir('meets', $sessid, $whinge, 'fee recode', 'meets');
 			}
@@ -2023,6 +2197,7 @@ sub despatch_admin
 				my $commit_msg = 'config_fees: expense configuration modified';
 
 				if (keys %recode) {
+					dir_mod_all('event_types', 0, [ keys %recode ], sub { my ($et, $old) = @_; foreach (@{$et->{Unit}}) { s/^$old$/$recode{$old}/ if $_; } });
 					dir_mod_all('fee_tmpls', 0, [ keys %recode ], sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$recode{$old}/ if $_; } });
 					dir_mod_all('meets', 0, [ keys %recode ], sub { my ($meet, $old) = @_; s/^$old$/$recode{$old}/ foreach (@{$meet->{Headings}}); $meet->{$recode{$old}} = delete $meet->{$old} if exists $meet->{$old}; }, 11);
 					$commit_msg .= ' AND CODES ALTERED';
@@ -3145,7 +3320,7 @@ update_global_config(read_simp_cfg("$config{Root}/config", 1));
 set_accts_config_root($config{Root});
 init_attr_cfg("$config{Root}/config_pers_attrs");
 init_units_cfg("$config{Root}/config_units");
-set_meet_config_root($config{Root});
+set_event_config_root($config{Root});
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;
