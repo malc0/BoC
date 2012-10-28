@@ -2046,7 +2046,7 @@ sub despatch_admin
 			}, $rename ? $old_file : ($edit_id) ? $file : undef);
 		} else {
 			unlock($file) if $file;
-			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_fee_tmpl', $etoken);
+			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken);
 		}
 
 		if ($edit_id) {
