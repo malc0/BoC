@@ -72,6 +72,9 @@ sub valid_ft
 	return unless defined $ft_file;
 	return unless -r $ft_file;
 
+	(my $ft_id = $ft_file) =~ s/.*\/([^\/]+)/$1/;
+	return if $ft_id eq 'none';
+
 	my %ft = read_htsv($ft_file, undef, [ 'Unit', 'Condition' ]);
 
 	return ( Empty => 1 ) unless exists $ft{Headings};

@@ -1983,6 +1983,7 @@ sub despatch_admin
 			$whinge = sub { whinge($_[0], gen_edit_fee_tmpl($edit_id, $etoken)) };
 
 			$whinge->('Missing fee template name') unless $new_id;
+			$whinge->('"none" is a reserved name') if $new_id eq 'none';
 			my $old_file = $file;
 			$file = "$config{Root}/fee_tmpls/" . encode_for_filename($new_id);
 			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
