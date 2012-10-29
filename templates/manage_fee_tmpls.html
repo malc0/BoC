@@ -16,7 +16,12 @@
 			<TMPL_LOOP NAME=TMPLS><p><a href="boc.pl?tmpl=manage_fee_tmpls&amp;view=<TMPL_VAR NAME=TMPL>" class="<TMPL_VAR NAME=CL>"><TMPL_VAR NAME=NAME></a></p>
 			</TMPL_LOOP>
 
-			<p><input type="submit" name="add" value="Add new fee template"/></p>
+			<p>New <select name="event_type">
+				<option value="">Select event type</option>
+				<TMPL_LOOP NAME=ETS><option value="<TMPL_VAR NAME=ET>"><TMPL_VAR NAME=ET></option>
+				</TMPL_LOOP>
+				<option value="none">Unspecified</option>
+				</select> fee template <input type="submit" name="add" value="... add!"/></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>

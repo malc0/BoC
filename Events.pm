@@ -96,6 +96,16 @@ sub valid_ft
 	(my $ft_id = $ft_file) =~ s/.*\/([^\/]+)/$1/;
 	return if $ft_id eq 'none';
 
+	my %et;
+	if ($ft_id =~ /([^.]+)\.(.+)/) {
+		return if $2 eq 'none';
+		return if $2 =~ /[.]/;
+		%et = valid_event_type("$root/event_types/$1", $cf);
+		return unless %et;
+	} else {
+		return if $ft_id =~ /[.]/;
+	}
+
 	my %ft = read_htsv($ft_file, undef, [ 'Unit', 'Condition' ]);
 
 	return ( Empty => 1 ) unless exists $ft{Headings};
@@ -123,6 +133,7 @@ sub valid_ft
 
 		return unless defined $ft{Unit}[$row];
 		return unless exists $cds{$ft{Unit}[$row]} || exists $drains{$ft{Unit}[$row]};
+		return unless !(exists $et{Unit}) || grep ($ft{Unit}[$row] eq $_, @{$et{Unit}});
 
 		next unless defined $ft{Condition}[$row];
 		(my $cond = $ft{Condition}[$row]) =~ s/\s*//g;

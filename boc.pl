@@ -907,12 +907,20 @@ sub gen_edit_et
 	return $tmpl;
 }
 
+sub format_ft_name
+{
+	(my $name = $_[0]) =~ s/\./: /;
+	return $name;
+}
+
 sub gen_manage_fee_tmpls
 {
 	my $tmpl = load_template('manage_fee_tmpls.html');
 
-	my @list = map ({ TMPL => $_, NAME => transcode_uri_for_html($_), CL => !!valid_ft("$config{Root}/fee_tmpls/$_", \%{{valid_fee_cfg}}) ? undef : 'broken' }, map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/fee_tmpls/*"));
-	$tmpl->param(TMPLS => \@list);
+	my %cf = valid_fee_cfg;
+	my @list = map ({ TMPL => $_, NAME => format_ft_name(transcode_uri_for_html($_)), CL => !!valid_ft("$config{Root}/fee_tmpls/$_", \%cf) ? undef : 'broken' }, map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/fee_tmpls/*"));
+	my @ets = map { /.*\/([^\/]*)/; { ET => transcode_uri_for_html($1) } } grep (!!valid_event_type($_, \%cf), glob ("$config{Root}/event_types/*"));
+	$tmpl->param(TMPLS => \@list, ETS => \@ets);
 
 	return $tmpl;
 }
@@ -940,11 +948,19 @@ sub gen_ft_tg_common
 
 sub gen_edit_fee_tmpl
 {
-	my ($edit_id, $etoken) = @_;
+	my ($edit_id, $etoken, $et_id, $etr) = @_;
 
 	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
 
-	my @units = (keys ${{known_commod_descs}}, keys %{{get_cf_drains(valid_fee_cfg)}});
+	my @units;
+	my %drains = get_cf_drains(valid_fee_cfg);
+	if (%$etr) {
+		my ($fees, $exps) = get_event_types($etr, \%drains);
+		@units = @$fees;
+	} else {
+		@units = (keys %{{known_commod_descs}}, keys %drains);
+	}
+
 	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 3, 30, \@units);
 	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id), undef, [ 'Unit', 'Condition' ]) : %ft;
 
@@ -963,7 +979,13 @@ sub gen_edit_fee_tmpl
 	my @attrs = map ({ A => $_, I => fmt_impl_attrs($rawattrs{$_}), A_CL => exists $moreattrs{$_} ? 'broken' : '' }, (keys %rawattrs, keys %moreattrs));
 
 	$tmpl->param(RO => !$etoken);
-	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
+	$tmpl->param(FTID => transcode_uri_for_html($edit_id));
+	my $name = transcode_uri_for_html($edit_id) // '';
+	if ($et_id && $name =~ /^[^\/.]+\.([^\/]+)$/) {
+		$name = $1;
+	}
+	$tmpl->param(NAME => $name) if length $name;
+	$tmpl->param(ET => transcode_uri_for_html($et_id));
 	$tmpl->param(NATTRS => scalar @attrs + scalar keys %moreattrs);
 	$tmpl->param(FH_CL => (!$edit_id || !(exists $oldft{Headings}) || (exists $oldft{Fee} && exists $oldft{Unit})) ? '' : 'broken');
 	$tmpl->param(AH_CL => (!$edit_id || !(exists $oldft{Headings}) || exists $oldft{Condition}) ? '' : 'broken');
@@ -1981,6 +2003,7 @@ sub despatch_admin
 
 			$whinge->('Missing event type name') unless $new_id;
 			$whinge->('"none" is a reserved type') if $new_id eq 'none';
+			$whinge->('Type cannot contain \'.\'') if $new_id =~ /[.]/;
 			my $old_file = $file;
 			$file = "$config{Root}/event_types/" . encode_for_filename($new_id);
 			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
@@ -2008,13 +2031,21 @@ sub despatch_admin
 			@{$et{Headings}} = ( 'Unit', 'Column', 'Unusual' ) if exists $et{Unit};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			# FIXME: renaming: FTs and meets?
-#			if ($rename) {
+			# FIXME: renaming: meets
+			if ($rename) {
+				unlock_dir('fee_tmpls', $sessid, $whinge, 'ET rename', 'fee templates');
 #				unlock_dir('meets', $sessid, $whinge, 'ET rename', 'meets');
-#			}
+			}
 			bad_token_whinge(gen_manage_event_types) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_et', $etoken);
 			try_commit_and_unlock(sub {
 				if ($rename) {
+					(my $from = $old_file) =~ s/event_types/fee_tmpls/;
+					(my $to = $file) =~ s/event_types/fee_tmpls/;
+					foreach my $ft (grep (/$from\..+/, glob ("$config{Root}/fee_tmpls/*"))) {
+						$ft = untaint($ft);
+						(my $ft_id = $ft) =~ s/$from\.//;
+						$git->mv($ft, "$to.$ft_id");
+					}
 #					dir_mod_all('meets', 0, [ $edit_id ], sub { my ($meet, $old) = @_; $meet->{Template} =~ s/^$old$/$new_id/ if defined $meet->{Template} }, 11);
 					$git->mv($old_file, $file);
 				}
@@ -2038,10 +2069,21 @@ sub despatch_admin
 		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_fee_tmpls') {
-		if (defined $cgi->param('view') or defined $cgi->param('add')) {
-			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', sub { whinge($_[0], gen_manage_fee_tmpls) });
+		if (defined $cgi->param('view') || defined $cgi->param('add')) {
+			my $whinge = sub { whinge($_[0], gen_manage_fee_tmpls) };
+			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/fee_tmpls", 'fee template', $whinge);
+			my $et_id;
+			if (defined $cgi->param('view')) {
+				if ($view =~ /^([^\/.]+)\.[^\/]+$/) {
+					$et_id = $1;
+				}
+			} else {
+				$et_id = ($cgi->param('event_type') eq 'none') ? undef : valid_edit_id(scalar $cgi->param('event_type'), "$config{Root}/event_types", 'event type', $whinge, 1);
+			}
 
-			emit(gen_edit_fee_tmpl($view, $view ? undef : get_edit_token($sessid, 'add_ft')));
+			my %et = $et_id ? valid_event_type("$config{Root}/event_types/$et_id", \%{{valid_fee_cfg}}) : ();
+			$whinge->('Cannot ' . ((defined $cgi->param('view')) ? 'view' : 'add') . ' fee template: associated event type is broken') unless %et || !$et_id;
+			emit(gen_edit_fee_tmpl($view, $view ? undef : get_edit_token($sessid, 'add_ft'), $et_id, \%et));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_fee_tmpl') {
@@ -2049,6 +2091,9 @@ sub despatch_admin
 		my $whinge = sub { whinge($_[0], gen_manage_fee_tmpls) };
 
 		my $edit_id = valid_edit_id(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls", 'fee template', $whinge, (defined $cgi->param('edit')));
+		my $et_id = $cgi->param('event_type') ? valid_edit_id(scalar $cgi->param('event_type'), "$config{Root}/event_types", 'event type', $whinge, 1) : undef;
+		my %cf = valid_fee_cfg;
+		my %et = $et_id ? valid_event_type("$config{Root}/event_types/$et_id", \%cf) : ();
 		my $file = $edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef;
 
 		if (defined $cgi->param('edit')) {
@@ -2057,25 +2102,29 @@ sub despatch_admin
 				unlock($file);
 				$whinge->("Couldn't edit fee template \"$edit_id\", file disappeared");
 			}
-			emit(gen_edit_fee_tmpl($edit_id, get_edit_token($sessid, "edit_$edit_id")));
+			$whinge->('Cannot edit fee template: associated event type is broken') unless %et || !$et_id;
+			emit(gen_edit_fee_tmpl($edit_id, get_edit_token($sessid, "edit_$edit_id"), $et_id, \%et));
 		}
 
 		# only left with save and cancel now
-		my $new_id = clean_words($cgi->param('name'));
+		my $new_id = ($et_id ? "$et_id." : '') . (clean_words($cgi->param('name')) // '');
 
 		if (defined $cgi->param('save')) {
+			$whinge->('Cannot save fee template: associated event type is broken') unless %et || !$et_id;
 			my %ft;
-			$whinge = sub { whinge($_[0], gen_edit_fee_tmpl($edit_id, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_edit_fee_tmpl($edit_id, $etoken, $et_id, \%et)) };
 
-			$whinge->('Missing fee template name') unless $new_id;
-			$whinge->('"none" is a reserved name') if $new_id eq 'none';
+			my $new_ft_id = clean_words($cgi->param('name'));
+			$whinge->('Missing fee template name') unless $new_ft_id;
+			$whinge->('"none" is a reserved name') if $new_ft_id eq 'none';
+			$whinge->('Name cannot contain \'.\'') if $new_ft_id =~ /[.]/;
 			my $old_file = $file;
 			$file = "$config{Root}/fee_tmpls/" . encode_for_filename($new_id);
 			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
 			$whinge->('Fee template name is already in use') if (-e $file && (!(defined $edit_id) || $rename));
 
 			my @commods = keys %{{known_commod_descs}};
-			my %drains = get_cf_drains(valid_fee_cfg);
+			my %drains = get_cf_drains(%cf);
 
 			foreach my $row (0 .. get_rows(30, $cgi, 'Fee_', sub { $whinge->('No fees?') })) {
 				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee/Drain amount', undef, $whinge);
@@ -2132,7 +2181,7 @@ sub despatch_admin
 		}
 
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$new_id\" fee template" : 'Edit cancelled', gen_edit_fee_tmpl((defined $cgi->param('save')) ? $new_id : $edit_id, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$new_id\" fee template" : 'Edit cancelled', gen_edit_fee_tmpl((defined $cgi->param('save')) ? $new_id : $edit_id, undef, $et_id, \%et));
 		} else {
 			emit_with_status((defined $cgi->param('save')) ? "Added fee template \"$new_id\"" : 'Add fee template cancelled', gen_manage_fee_tmpls);
 		}
