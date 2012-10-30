@@ -7,7 +7,7 @@ use warnings;
 use Attrs;
 use CleanData qw(clean_decimal);
 use HeadedTSV qw(read_htsv);
-use Units qw(known_units read_units_cfg validate_units);
+use Units qw(known_commod_descs read_units_cfg validate_units);
 
 our $VERSION = '1.00';
 
@@ -43,7 +43,7 @@ sub get_ft_fees
 			}
 		}
 
-		$def_fees{$ft{Unit}[$_] ? $ft{Unit}[$_] : ''} += $ft{Fee}[$_] if $relevant;
+		$def_fees{$ft{Unit}[$_]} += $ft{Fee}[$_] if $relevant;
 	}
 
 	return %def_fees;
@@ -64,32 +64,25 @@ sub valid_ft
 
 	return ( Empty => 1 ) unless exists $ft{Headings};
 
-	foreach my $hd ('Fee', 'Condition') {
+	foreach my $hd ('Fee', 'Unit', 'Condition') {
 		return unless grep ($_ eq $hd, @{$ft{Headings}});
 		return unless exists $ft{$hd};
 	}
-	return if grep ($_ eq 'Unit', @{$ft{Headings}}) && !(exists $ft{Unit});
 
-	my %units_cfg = read_units_cfg("$root/config_units");
 	my $bad = 0;
 	my $whinge = sub { $bad = 1 };
-	validate_units(\%units_cfg, $whinge, 1);
+	validate_units(\%{{read_units_cfg("$root/config_units")}}, $whinge, 1);
 	return if $bad;
 
-	my @units = known_units(%units_cfg);
-	my $unitcol = (exists $ft{Unit});
-	return if scalar @units && !$unitcol;
-
+	my %cds = known_commod_descs;
 	my @attrs = get_attrs;
 
 	foreach my $row (0 .. $#{$ft{Fee}}) {
 		return unless defined $ft{Fee}[$row];
 		return unless defined clean_decimal($ft{Fee}[$row]);
 
-		if ($unitcol) {
-			return unless (defined $ft{Unit}[$row] && length $ft{Unit}[$row]) || !(scalar @units);
-			return unless grep ($_ eq $ft{Unit}[$row], @units);
-		}
+		return unless defined $ft{Unit}[$row];
+		return unless exists $cds{$ft{Unit}[$row]};
 
 		next unless defined $ft{Condition}[$row];
 		(my $cond = $ft{Condition}[$row]) =~ s/\s*//g;

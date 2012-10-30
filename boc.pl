@@ -740,7 +740,7 @@ sub gen_tcp
 	validate_units(\%units_cfg, sub { $tmpl->param(STATUS => 'Units config broken: fix it!') }, 1);
 
 	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!valid_fee_cfg);
+	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!valid_fee_cfg, COMMODS => !!(scalar keys %{{known_commod_descs}}));
 
 	return $tmpl;
 }
@@ -864,7 +864,7 @@ sub gen_manage_fee_tmpls
 
 sub gen_ft_tg_common
 {
-	my ($file, $is_tg, $max_rows, $view, $key_col, $key_fill, $cur_col, $d_row, $row_lim, $units, $tmpl) = @_;
+	my ($file, $is_tg, $max_rows, $view, $key_col, $key_fill, $cur_col, $d_row, $row_lim, $units) = @_;
 
 	my %htsv;
 	my $init_rows = 0;
@@ -875,21 +875,10 @@ sub gen_ft_tg_common
 		$max_rows = $init_rows + ($view ? 0 : min($d_row, $row_lim - $init_rows)) if $init_rows || $view;
 	}
 
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");
-	@{$units} = known_units(%units_cfg);
-
 	# saved by autovivification if the columns don't exist!
 	push (@{$htsv{$key_col}}, ($key_fill) x ($max_rows - scalar @{$htsv{$key_col}}));
 	push (@{$htsv{$cur_col}}, ('') x ($init_rows - scalar @{$htsv{$cur_col}})) if scalar @{$units} > 1;
 	push (@{$htsv{$cur_col}}, ((scalar @{$units}) ? $$units[0] : '') x ($max_rows - scalar @{$htsv{$cur_col}})) if scalar @{$units} || exists $htsv{$cur_col};
-
-	my @allunits = @{$units};
-	foreach my $cur (@{$htsv{$cur_col}}) {
-		push (@allunits, $cur) if defined $cur && !grep ($_ eq $cur, @allunits);
-	}
-
-	$tmpl->param(CUROPTS => scalar @allunits > 1);
-	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? ((scalar @{$units}) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : "$allunits[0] (UNKNOWN!)") : undef);
 
 	return %htsv;
 }
@@ -898,10 +887,10 @@ sub gen_edit_fee_tmpl
 {
 	my ($edit_id, $etoken) = @_;
 
-	my @units;
 	my $tmpl = load_template('edit_fee_tmpl.html', $etoken);
 
-	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units, $tmpl);
+	my @units = keys ${{known_commod_descs}};
+	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 2, 10, \@units);
 	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id), undef, [ 'Unit', 'Condition' ]) : %ft;
 
 	my %rawattrs = get_attrs_full(1);
@@ -921,7 +910,7 @@ sub gen_edit_fee_tmpl
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
 	$tmpl->param(NATTRS => scalar @attrs + scalar keys %moreattrs);
-	$tmpl->param(FH_CL => (!$edit_id || !(exists $oldft{Headings}) || (exists $oldft{Fee} && (!(scalar @units) || exists $oldft{Unit}))) ? '' : 'broken');
+	$tmpl->param(FH_CL => (!$edit_id || !(exists $oldft{Headings}) || (exists $oldft{Fee} && exists $oldft{Unit})) ? '' : 'broken');
 	$tmpl->param(AH_CL => (!$edit_id || !(exists $oldft{Headings}) || exists $oldft{Condition}) ? '' : 'broken');
 
 	my @fees;
@@ -940,8 +929,7 @@ sub gen_edit_fee_tmpl
 			my $dc = !($if or $unless);
 			push (@fattrs, { A => $_, I => $if, U => $unless, D => $dc, A_CL => exists $moreattrs{$_} ? 'broken' : '' });
 		}
-		my $unit_cl = (!(scalar @units) && !(exists $ft{Unit} && length $ft{Unit}[$row])) || (grep ($_ eq $ft{Unit}[$row], @units)) ? '' : 'broken';
-		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs, F_CL => (defined CleanData::clean_decimal($ft{Fee}[$row])) ? '' : 'broken', C_CL => $unit_cl });
+		push (@fees, { F => $ft{Fee}[$row], N => $row, CURS => \@currencies, FATTRS => \@fattrs, F_CL => (defined CleanData::clean_decimal($ft{Fee}[$row])) ? '' : 'broken', C_CL => $unk_cur ? 'broken' : '' });
 	}
 
 	$tmpl->param(ATTRS => \@attrs, FEES => \@fees);
@@ -1975,7 +1963,7 @@ sub despatch_admin
 			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
 			$whinge->('Fee template name is already in use') if (-e $file && (!(defined $edit_id) || $rename));
 
-			my @units = known_units;
+			my @commods = keys %{{known_commod_descs}};
 
 			foreach my $row (0 .. get_rows(10, $cgi, 'Fee_', sub { $whinge->('No fees?') })) {
 				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
@@ -1994,10 +1982,10 @@ sub despatch_admin
 				next if $amnt == 0;
 
 				my $cur;
-				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
+				$cur = validate_unit(scalar $cgi->param("Unit_$row"), \@commods, $whinge);
 
 				push (@{$ft{Fee}}, $amnt);
-				push (@{$ft{Unit}}, $cur) if $cur;
+				push (@{$ft{Unit}}, $cur);
 				push (@{$ft{Condition}}, $cond);
 			}
 
@@ -2675,15 +2663,17 @@ sub gen_tg
 {
 	my ($edit_id, $calced, $session, $etoken) = @_;
 
-	my @units;
 	my $tmpl = load_template('edit_tg.html', $etoken);
 
-	my %tgdetails = gen_ft_tg_common($edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef, 1, 10, !$etoken, 'Creditor', $session->param('User'), 'Currency', 5, 100, \@units, $tmpl);
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
+	my %tgdetails = gen_ft_tg_common($edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef, 1, 10, !$etoken, 'Creditor', $session->param('User'), 'Currency', 5, 100, \@units);
+
 	my %dds;
 	if ($calced) {
 		my $whinge = sub { whinge("Can't display calculated values: $_[0]", gen_tg($edit_id, undef, $session, $etoken)) };
 		validate_tg($edit_id, \%tgdetails, $whinge);
-		validate_units(\%{{read_units_cfg("$config{Root}/config_units")}}, $whinge);
+		validate_units(\%units_cfg, $whinge);
 		%dds = double_drainers;
 		$whinge->("Multiple drains of '$dds{$edit_id}'") if exists $dds{$edit_id};
 	}
@@ -2815,6 +2805,14 @@ sub gen_tg
 			       DESC => $tgdetails{Description}[$row] });
 	}
 	$tmpl->param(ROWS => \@rows);
+
+	my @allunits = @units;
+	foreach my $cur (grep (defined, @{$tgdetails{Currency}})) {
+		push (@allunits, $cur) unless grep ($_ eq $cur, @allunits);
+	}
+
+	$tmpl->param(CUROPTS => scalar @allunits > 1);
+	$tmpl->param(DEFCUR => (scalar @allunits == 1) ? ((scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : "$allunits[0] (UNKNOWN!)") : undef);
 
 	return $tmpl;
 }
