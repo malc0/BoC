@@ -1996,8 +1996,7 @@ sub despatch_admin
 
 			foreach my $row (0 .. get_rows(10, $cgi, 'Fee_', sub { $whinge->('No fees?') })) {
 				my $amnt = validate_decimal(scalar $cgi->param("Fee_$row"), 'Fee amount', undef, $whinge);
-				my $cur;
-				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
+
 				my @conds;
 				foreach (get_attrs(1)) {
 					if ($cgi->param("${_}_$row") eq 'if') {
@@ -2010,6 +2009,9 @@ sub despatch_admin
 
 				$whinge->('Missing fee amount (but condition set)') if length $cond && $amnt == 0;
 				next if $amnt == 0;
+
+				my $cur;
+				($cur = (scalar @units > 1) ? validate_unit(scalar $cgi->param("Unit_$row"), \@units, $whinge) : $units[0]) if scalar @units;
 
 				push (@{$ft{Fee}}, $amnt);
 				if (scalar @units) {
