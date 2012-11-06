@@ -667,26 +667,20 @@ sub get_new_session
 	return $session;
 }
 
-sub query_all_htsv_in_path
+sub grep_acct_key
 {
-	my ($path, $key, $all) = @_;
+	my ($flavour, $key) = @_;
 
-	my @accts = map { s/^.*\///; $_ } glob ("$path/*");
-	@accts = ($path =~ /(users|accounts)$/) ? grep (clean_username($_), @accts) : grep (length, @accts);
+	my %raw = grep_htsv_key("$config{Root}/$flavour/*", $key);
 	my %response;
-
-	foreach my $acct (@accts) {
-		my %acctdetails = ($path =~ /transaction_groups$/) ? %{$tgds{$acct}} : read_htsv("$path/$acct");
-		$response{$acct} = $acctdetails{$key} if ($all or exists $acctdetails{$key});
-	}
-
+	$response{$_} = $raw{$_} foreach (grep (clean_username($_), keys %raw));
 	return %response;
 }
 
 sub get_acct_name_map
 {
-	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my %ppl = grep_acct_key('users', 'Name');
+	my %vaccts = grep_acct_key('accounts', 'Name');
 	return (%ppl, %vaccts);
 }
 
@@ -749,7 +743,7 @@ sub gen_tcp
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	validate_units(\%units_cfg, sub { $tmpl->param(STATUS => 'Units config broken: fix it!') }, 1);
 
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %cf = valid_fee_cfg;
 	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})));
 
@@ -954,7 +948,7 @@ sub gen_edit_fee_cfg
 
 	my %cfg = read_htsv("$config{Root}/config_fees", 1);
 
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my %vaccts = grep_acct_key('accounts', 'Name');
 	my @sorted_vaccts = sort_AoH(\%vaccts);
 
 	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{MeetAccount} && $cfg{MeetAccount} eq $_) }, @sorted_vaccts);
@@ -963,7 +957,7 @@ sub gen_edit_fee_cfg
 		$tmpl->param(SEL_CL => 'broken');
 	}
 
-	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %ppl = grep_acct_key('users', 'Name');
 	my %acct_names = (%vaccts, %ppl);
 	my @sorted_accts = (@sorted_vaccts, sort_AoH(\%ppl));
 
@@ -1224,7 +1218,7 @@ sub meet_valid
 	}
 
 	my %ppl;
-	%ppl = query_all_htsv_in_path("$config{Root}/users", 'Name') unless $skip_ppl_chk;
+	%ppl = grep_acct_key('users', 'Name') unless $skip_ppl_chk;
 	my %seen;
 	foreach (@{$meet{Person}}) {
 		return 0 unless defined;
@@ -1240,7 +1234,7 @@ sub gen_manage_meets
 {
 	my $session = $_[0];
 	my $tmpl = load_template('manage_meets.html');
-	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %ppl = grep_acct_key('users', 'Name');
 	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_, \%{{valid_fee_cfg}}), glob ("$config{Root}/fee_tmpls/*"));
 
 	my @meetlist;
@@ -1313,7 +1307,7 @@ sub gen_edit_meet
 	my %ppl_seen;
 	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
 
-	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %accts = grep_acct_key('users', 'Name');
 	my @ppl;
 	foreach my $row (0 .. $#{$meet{Person}}) {
 		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row], D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
@@ -1336,7 +1330,7 @@ sub gen_edit_meet_ppl
 	my $tmpl = load_template('edit_meet_ppl.html', $etoken);
 	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
 
-	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %accts = grep_acct_key('users', 'Name');
 	my @unks = grep (!(exists $accts{$_}), map ($_ // '', @{$meet{Person}}));
 
 	my %ppl_seen;
@@ -1698,7 +1692,7 @@ sub despatch_admin
 		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
 		if (defined $cgi->param('add')) {
 			my %meet;
-			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %ppl = grep_acct_key('users', 'Name');
 
 			$meet{Name} = clean_words($cgi->param('name'));
 			$meet{Date} = validate_date(scalar $cgi->param('date'), $whinge);
@@ -1825,7 +1819,7 @@ sub despatch_admin
 		if (defined $cgi->param('save')) {
 			whinge('Cannot save meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
-			my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %accts = grep_acct_key('users', 'Name');
 
 			my @ppl;
 			my %seen_ppl;
@@ -2037,8 +2031,8 @@ sub despatch_admin
 			my %oldcf = read_htsv($cfg_file, 1);
 			my $whinge = sub { whinge($_[0], gen_edit_fee_cfg($etoken)) };
 
-			my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
-			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %vaccts = grep_acct_key('accounts', 'Name');
+			my %ppl = grep_acct_key('users', 'Name');
 			my %acct_names = (%vaccts, %ppl);
 
 			$whinge->('Missing account name') unless clean_username($cgi->param('MeetAcct'));
@@ -2331,7 +2325,15 @@ sub despatch_admin
 
 sub date_sorted_htsvs
 {
-	my %dates = query_all_htsv_in_path("$config{Root}/$_[0]", 'Date', 1);
+	my $flavour = $_[0];
+
+	my %dates;
+	if ($flavour eq 'transaction_groups') {
+		$dates{$_} = $tgds{$_}{Date} foreach (keys %tgds);
+	} else {
+		%dates = grep_htsv_key("$config{Root}/$flavour/*", 'Date', 1);
+	}
+
 	my %rds;
 	foreach (keys %dates) {
 		$dates{$_} = '0.0.0' unless defined $dates{$_} and $dates{$_} =~ /^\s*\d+\s*[.]\s*\d+\s*[.]\s*\d+\s*$/;
@@ -2360,7 +2362,7 @@ sub gen_ucp
 
 	my %acct_names = get_acct_name_map;
 	my %dds = double_drainers;
-	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts);
 
 	my $credsum = 0;
@@ -2432,7 +2434,7 @@ sub gen_accts_disp
 	my $tmpl = load_template('accts_disp.html');
 
 	my %dds = double_drainers;
-	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts);
 	if ($@ || !%resolved || nonfinite(values %resolved)) {
 		$tmpl->param(BROKEN => 1);
@@ -2454,8 +2456,8 @@ sub gen_accts_disp
 		}
 	}
 
-	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my %ppl = grep_acct_key('users', 'Name');
+	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %acct_names = (%ppl, %vaccts);
 	my @unknown;
 	my ($maxu, $maxp, $maxv) = (0, 0, 0);
@@ -2523,7 +2525,7 @@ sub gen_add_swap
 	my ($swap, $def_cred, $etoken) = @_;
 	my $tmpl = load_template('add_swap.html', $etoken);
 
-	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
+	my %accts = grep_acct_key('users', 'Name');
 	my @sorted_accts = sort_AoH(\%accts);
 	my @pploptions = map ({ O => $accts{$_}, V => $_, S => $def_cred eq $_ }, @sorted_accts);
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
@@ -2550,8 +2552,8 @@ sub gen_add_split
 	my ($bank, $vacct, $etoken) = @_;
 	my $tmpl = load_template('add_split.html', $etoken);
 
-	my %accts = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my %accts = grep_acct_key('users', 'Name');
+	my %vaccts = grep_acct_key('accounts', 'Name');
 	my @pploptions = map ({ NAME => $accts{$_}, A => $_ }, sort_AoH(\%accts));
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
@@ -2559,7 +2561,7 @@ sub gen_add_split
 
 	my @nas;
 	if ($bank) {
-		my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+		my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 		@nas = map ({ NAME => $vaccts{$_}, A => $_ }, sort_AoH({ map (($_ => $vaccts{$_}), keys %neg_accts) }));
 	}
 
@@ -2584,7 +2586,7 @@ sub gen_manage_tgs
 	my $tmpl = load_template('manage_transactions.html');
 	my %acct_names = get_acct_name_map;
 	my %dds = double_drainers;
-	my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts);
 
 	my @tglist;
@@ -2678,8 +2680,8 @@ sub gen_tg
 		$whinge->("Multiple drains of '$dds{$edit_id}'") if exists $dds{$edit_id};
 	}
 
-	my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-	my %vaccts = query_all_htsv_in_path("$config{Root}/accounts", 'Name');
+	my %ppl = grep_acct_key('users', 'Name');
+	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %acct_names = (%ppl, %vaccts);
 	my (%unknown, %in_use_ppl, %in_use_vaccts, %in_use_unk);
 	my @tps_in_use;
@@ -2724,7 +2726,7 @@ sub gen_tg
 	$tmpl->param(DATE => $tgdetails{Date});
 	$tmpl->param(OMIT => 1) if exists $tgdetails{Omit};
 	$tmpl->param(NOACCTS => scalar @sorted_in_use);
-	my %negated = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+	my %negated = grep_acct_key('accounts', 'IsNegated');
 	my @heads;
 	foreach (@sorted_in_use) {
 		my $class = (exists $negated{$_}) ? 'negated' : '';
@@ -2891,7 +2893,7 @@ sub despatch
 			my %tg;
 			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session->param('User'), $etoken)) };
 
-			my %acct_names = query_all_htsv_in_path("$config{Root}/users", 'Name');
+			my %acct_names = grep_acct_key('users', 'Name');
 			my @units = known_units();
 
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
@@ -2958,8 +2960,8 @@ sub despatch
 			$tg{Name} = ($bank ? 'Tied transaction: ' : 'Split' . ($vacct ? ' expense: ' : ': ')) . clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 
-			my %ppl = query_all_htsv_in_path("$config{Root}/users", 'Name');
-			my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+			my %ppl = grep_acct_key('users', 'Name');
+			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 			my %creds;
 			foreach my $acct (map { /^Cred_(.*)/; $1 } grep (/^Cred_.+$/, $cgi->param)) {
 				validate_acct($acct, ($bank ? \%neg_accts : \%ppl), $whinge);
@@ -3141,7 +3143,7 @@ sub despatch
 			%tg = clean_tg(\%tg, \@cred_accts);
 			$whinge->('No transactions?') unless exists $tg{Creditor};
 
-			my %neg_accts = query_all_htsv_in_path("$config{Root}/accounts", 'IsNegated');
+			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 			eval { compute_tg($edit_id, \%tg, undef, \%neg_accts, undef, $whinge) };
 			# FIXME ought to check we're not creating a drain loop.  problem is, if other TGs are errorful, resolve_accts can't be expected to work fully.  without this, we have no loop checker.  disabling editing until TGs are fixed is self defeating...
 

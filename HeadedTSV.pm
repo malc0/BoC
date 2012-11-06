@@ -8,7 +8,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(set_htsv_encoders read_htsv write_htsv);
+our @EXPORT = qw(set_htsv_encoders read_htsv write_htsv grep_htsv_key);
 
 my $read_encoder;
 my $write_encoder;
@@ -35,6 +35,7 @@ sub dedup_headings {
 sub read_htsv
 {
 	my ($file, $nexist_ok, $to_undef, $hdg_key) = @_;
+	local $_;
 	$hdg_key //= 'Headings';
 	my $fh;
 	my %content;
@@ -130,6 +131,20 @@ sub write_htsv
 	rename ("$file.new", $file) or confess "$file: $!";
 
 	return;
+}
+
+sub grep_htsv_key
+{
+	my ($path, $key, $all) = @_;
+
+	my %response;
+	foreach (grep (-f, glob ($path))) {
+		my %contents = read_htsv($_);
+		(my $file = $_) =~ s/^.*\///;
+		$response{$file} = $contents{$key} if ($all || exists $contents{$key});
+	}
+
+	return %response;
 }
 
 1;
