@@ -26,7 +26,7 @@ use lib '.';
 use Accts;
 use Attrs;
 use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words true validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
-use FT;
+use Meets;
 use HeadedTSV;
 use TG;
 use Units;
@@ -1170,56 +1170,13 @@ sub commit_config_units
 	}, $cfg_file);
 }
 
-sub meet_valid
-{
-	my ($mt, $skip_ppl_chk) = @_;
-	my %meet = %$mt;
-
-	# no check on Leader or Template -- gen_manage_meets is sufficient for now
-
-	foreach (@{$meet{Headings}}) {
-		return 0 unless exists $meet{$_};
-	}
-	foreach my $hd (grep (ref $meet{$_} && $_ ne 'Headings', keys %meet)) {
-		return 0 unless grep ($_ eq $hd, @{$meet{Headings}});
-	}
-
-	return 0 unless defined clean_date($meet{Date});
-
-	my @units = known_units;
-	return 0 if scalar @units > 1 && !(defined $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
-	return 0 if !(scalar @units) && defined $meet{Currency} && length $meet{Currency};
-	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep ($_ eq $meet{Currency}, @units));
-
-	my %meet_cfg = valid_fee_cfg;
-	return 0 unless %meet_cfg;
-
-	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
-		return 0 unless $hd eq 'CustomFee' || grep ($_ eq $hd, grep (defined, @{$meet_cfg{Fee}}));
-		foreach (@{$meet{$hd}}) {
-			return 0 unless defined CleanData::clean_decimal($_);
-		}
-	}
-
-	my %ppl;
-	%ppl = grep_acct_key('users', 'Name') unless $skip_ppl_chk;
-	my %seen;
-	foreach (@{$meet{Person}}) {
-		return 0 unless defined;
-		return 0 unless $skip_ppl_chk || exists $ppl{$_};
-		$seen{$_}++
-	}
-	return 0 if grep ($_ > 1, values %seen);
-
-	return 1;
-}
-
 sub gen_manage_meets
 {
 	my $session = $_[0];
 	my $tmpl = load_template('manage_meets.html');
 	my %ppl = grep_acct_key('users', 'Name');
-	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_, \%{{valid_fee_cfg}}), glob ("$config{Root}/fee_tmpls/*"));
+	my %cf = valid_fee_cfg;
+	my @fts = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_, \%cf), glob ("$config{Root}/fee_tmpls/*"));
 
 	my @meetlist;
 	foreach my $mid (date_sorted_htsvs('meets')) {
@@ -1228,7 +1185,7 @@ sub gen_manage_meets
 		my $ft_state = (!(defined $meet{Template}) || !!grep ($_ eq $meet{Template}, @fts));
 		my $ft_exists = defined $meet{Template} && -r "$config{Root}/fee_tmpls/" . encode_for_filename($meet{Template});
 
-		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => $meet{Template} // '', FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename($meet{Template}) : '' });
+		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet, \%cf)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => $ft_state ? '' : 'unknown', FT => $meet{Template} // '', FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename($meet{Template}) : '' });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, sort_AoH(\%ppl));
 	my @ftlist = map ({ FTN => $_ }, @fts);
@@ -1302,7 +1259,7 @@ sub gen_edit_meet
 	}
         $tmpl->param(PPL => \@ppl);
         $tmpl->param(EDITOK => $session->param('IsAdmin'));
-        $tmpl->param(VALID => meet_valid(\%meet));
+        $tmpl->param(VALID => meet_valid(\%meet, $mcr));
 
 	return $tmpl;
 }
@@ -1343,7 +1300,8 @@ sub meet_to_tg
 	my %tg = ( Date => $meet{Date}, Name => "Meet: " . ($meet{Name} // '') );
 	my %colsum;
 
-	unless (meet_valid(\%meet, 1)) {
+	my %meet_cfg = read_htsv("$config{Root}/config_fees");	# world breaks if doesn't exist (need MeetAccount)
+	unless (meet_valid(\%meet, \%meet_cfg, 1)) {
 		$tg{Date} = 'now';
 		$tg{Name} .= ' (broken)';
 		$tg{Omit} = undef;
@@ -1360,7 +1318,6 @@ sub meet_to_tg
 
 	my @units = known_units;
 	my %cds = known_commod_descs;
-	my %meet_cfg = read_htsv("$config{Root}/config_fees");	# world breaks if doesn't exist (need MeetAccount)
 
 	foreach my $hd (@{$meet{Headings}}) {
 		next if ($hd eq 'Person' || $hd eq 'Notes');
@@ -3188,7 +3145,7 @@ update_global_config(read_simp_cfg("$config{Root}/config", 1));
 set_accts_config_root($config{Root});
 init_attr_cfg("$config{Root}/config_pers_attrs");
 init_units_cfg("$config{Root}/config_units");
-set_ft_config_root($config{Root});
+set_meet_config_root($config{Root});
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless validate_admins;

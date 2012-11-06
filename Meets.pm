@@ -1,23 +1,24 @@
-package FT;
+package Meets;
 
 use 5.012;
 use strict;
 use warnings;
 
+use Accts qw(grep_acct_key);
 use Attrs;
-use CleanData qw(clean_decimal true);
+use CleanData qw(clean_date clean_decimal true);
 use HeadedTSV qw(read_htsv);
-use Units qw(known_commod_descs read_units_cfg validate_units);
+use Units qw(known_commod_descs known_units read_units_cfg validate_units);
 
 our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(get_ft_fees set_ft_config_root valid_ft);
+our @EXPORT = qw(set_meet_config_root get_ft_fees valid_ft meet_valid);
 
 my $root;
 
-sub set_ft_config_root
+sub set_meet_config_root
 {
 	$root = $_[0];
 	return;
@@ -99,6 +100,49 @@ sub valid_ft
 	}
 
 	return %ft;
+}
+
+sub meet_valid
+{
+	my ($mt, $cf, $skip_ppl_chk) = @_;
+	my %meet = %$mt;
+
+	# no check on Leader or Template -- gen_manage_meets is sufficient for now
+
+	foreach (@{$meet{Headings}}) {
+		return 0 unless exists $meet{$_};
+	}
+	foreach my $hd (grep (ref $meet{$_} && $_ ne 'Headings', keys %meet)) {
+		return 0 unless grep ($_ eq $hd, @{$meet{Headings}});
+	}
+
+	return 0 unless defined clean_date($meet{Date});
+
+	my @units = known_units;
+	return 0 if scalar @units > 1 && !(defined $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
+	return 0 if !(scalar @units) && defined $meet{Currency} && length $meet{Currency};
+	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep ($_ eq $meet{Currency}, @units));
+
+	return 0 unless %$cf;
+
+	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
+		return 0 unless $hd eq 'CustomFee' || grep ($_ eq $hd, grep (defined, @{$cf->{Fee}}));
+		foreach (@{$meet{$hd}}) {
+			return 0 unless defined clean_decimal($_);
+		}
+	}
+
+	my %ppl;
+	%ppl = grep_acct_key('users', 'Name') unless $skip_ppl_chk;
+	my %seen;
+	foreach (@{$meet{Person}}) {
+		return 0 unless defined;
+		return 0 unless $skip_ppl_chk || exists $ppl{$_};
+		$seen{$_}++
+	}
+	return 0 if grep ($_ > 1, values %seen);
+
+	return 1;
 }
 
 1;
