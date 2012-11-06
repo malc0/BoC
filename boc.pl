@@ -24,7 +24,7 @@ use YAML::XS;
 
 use lib '.';
 use Attrs;
-use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
+use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words true validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use FT;
 use HeadedTSV;
 use TG;
@@ -935,11 +935,6 @@ sub gen_edit_fee_tmpl
 	$tmpl->param(ATTRS => \@attrs, FEES => \@fees);
 
 	return $tmpl;
-}
-
-sub true
-{
-	return defined $_[0] && !!($_[0] =~ /^\s*[^fn0]/i);
 }
 
 sub gen_edit_fee_cfg
