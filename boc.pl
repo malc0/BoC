@@ -23,6 +23,7 @@ use UUID::Tiny;
 use YAML::XS;
 
 use lib '.';
+use Accts;
 use Attrs;
 use CleanData qw(untaint encode_for_commit encode_for_file encode_for_filename encode_for_html transcode_uri_for_html clean_date clean_email clean_filename clean_int clean_text clean_unit clean_username clean_word clean_words true validate_acct validate_acctname validate_date validate_decimal validate_int validate_unitname validate_unit);
 use FT;
@@ -665,23 +666,6 @@ sub get_new_session
 	$session->flush();
 
 	return $session;
-}
-
-sub grep_acct_key
-{
-	my ($flavour, $key) = @_;
-
-	my %raw = grep_htsv_key("$config{Root}/$flavour/*", $key);
-	my %response;
-	$response{$_} = $raw{$_} foreach (grep (clean_username($_), keys %raw));
-	return %response;
-}
-
-sub get_acct_name_map
-{
-	my %ppl = grep_acct_key('users', 'Name');
-	my %vaccts = grep_acct_key('accounts', 'Name');
-	return (%ppl, %vaccts);
 }
 
 sub valid_fee_cfg
@@ -3201,6 +3185,7 @@ $ENV{PATH} = '/bin:/usr/bin';
 $git = Git::Wrapper->new($config{Root});
 update_global_config(read_simp_cfg("$config{Root}/config", 1));
 
+set_accts_config_root($config{Root});
 init_attr_cfg("$config{Root}/config_pers_attrs");
 init_units_cfg("$config{Root}/config_units");
 set_ft_config_root($config{Root});
