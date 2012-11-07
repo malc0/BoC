@@ -994,7 +994,7 @@ sub gen_edit_fee_tmpl
 	my @fees;
 	foreach my $row (0 .. $#{$ft{Fee}}) {
 		my $unk_cur = !grep ($_ eq $ft{Unit}[$row], @units);
-		my @currencies = map ({ C => $_, S => ($_ eq $ft{Unit}[$row]) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units);
+		my @currencies = (exists $ft{Unit}) ? map ({ C => $_, S => ($_ eq $ft{Unit}[$row]) }, $unk_cur ? (@units, $ft{Unit}[$row]) : @units) : ();
 		my @fattrs;
 		foreach (keys %rawattrs, keys %moreattrs) {
 			my $cond = '';
