@@ -1345,10 +1345,12 @@ sub gen_edit_meet
 	my %drains = get_cf_drains(%meet_cfg);
 
 	my (@ccs, @exps);
+	my %unusual;
 	if (%et) {
-		my ($fees, $exps) = get_event_types(\%et, \%drains);
-		@ccs = map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (@$fees);
-		@exps = map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (@$exps);
+		my ($fee_rows, $exp_rows) = get_event_types(\%et, \%drains, 1);
+		@ccs = map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (map ($et{Unit}[$_], @$fee_rows));
+		@exps = map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (map ($et{Unit}[$_], @$exp_rows));
+		$unusual{$et{Unit}[$_]} = 1 foreach (grep (true($et{Unusual}[$_]), (@$fee_rows, @$exp_rows)));
 	} else {
 		@ccs = grep (exists $cds{$meet_cfg{Fee}[$_]}, 0 .. $#{$meet_cfg{Fee}});
 		push (@ccs, grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}}));
@@ -1372,7 +1374,7 @@ sub gen_edit_meet
 	my @ppl;
 	foreach my $row (0 .. $#{$meet{Person}}) {
 		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row], D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
-		push (@rfees, map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row] ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken' }, (@ccs, @exps)));
+		push (@rfees, map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row] ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken', EXCPT => (exists $unusual{$meet_cfg{Fee}[$_]}) }, (@ccs, @exps)));
 		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
 		my $a = $meet{Person}[$row] // '';
 		push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] });

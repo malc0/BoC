@@ -14,10 +14,17 @@
 		<form action="boc.pl" method="post" onsubmit="if ('save' in this && this.save.clicked) {
 				this.save.clicked = false;
 				var sub = true;
-				for (i = 0; sub && i < this.elements.length; i++)
+				var whinged = new Object();
+				for (i = 0; sub && i < this.elements.length; i++) {
 					if (this.elements[i].name.search(/^(.+)_Custom$/) >= 0 && this.elements[i].defaultValue != this.elements[i].value)
 						if (!confirm('Really set/change custom fee for participant \'' + RegExp.$1 + '\'?'))
 							sub = false;
+					if ('exceptional' in this.elements[i].dataset && !(this.elements[i].dataset.exceptional in whinged) && this.elements[i].defaultValue != this.elements[i].value) {
+						if (!confirm('Really set/modify value(s) in \'' + this.elements[i].dataset.exceptional + '\' column?'))
+							sub = false;
+						whinged[this.elements[i].dataset.exceptional] = 1;
+					}
+				}
 				return sub;
 			} return true">
 		<div>
@@ -35,7 +42,7 @@
 				<TMPL_LOOP NAME=PPL><tr class="<TMPL_VAR NAME=PER_CL>">
 					<td style="white-space:nowrap"><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=NAME></a><TMPL_ELSE><TMPL_VAR NAME=NAME></TMPL_IF></td>
 					<TMPL_LOOP NAME=FEES>
-					<td align="center" class="<TMPL_VAR NAME=D_CL>"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5 onclick="this.select()"/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
+					<td align="center" class="<TMPL_VAR NAME=D_CL>"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF> <TMPL_IF NAME=EXCPT>data-exceptional="<TMPL_VAR NAME=F>"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5 onclick="this.select()" <TMPL_IF NAME=EXCPT>data-exceptional="<TMPL_VAR NAME=F>"</TMPL_IF>/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
 					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=NOTEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=NOTEV>" name="<TMPL_VAR NAME=A>_Notes" size=60/></TMPL_IF></td>
 				</tr>
 				</TMPL_LOOP>
