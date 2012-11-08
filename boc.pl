@@ -2637,8 +2637,10 @@ sub gen_ucp
 	$tmpl->param(BAL => sprint_monetary($credsum + $debsum));
 	$tmpl->param(CRED_TOT => sprint_monetary($credsum));
 	$tmpl->param(DEB_TOT => sprint_monetary($debsum));
-	my @units = known_units();
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my @units = known_units(%units_cfg);
 	$tmpl->param(DEFCUR => (scalar @units) ? $units[0] : undef);
+	$tmpl->param(DEFCURDESC => (scalar @units) ? $units_cfg{$units[0]} : undef);
 	$tmpl->param(CREDITS => \@credlist);
 	$tmpl->param(DEBITS => \@debtlist);
 	$tmpl->param(LOGIN => $session->param('User'));
