@@ -75,9 +75,9 @@
 						};
 						document.forms[0].elements['Amount_<TMPL_VAR NAME=R>'].parentNode.appendChild(b);
 						</script></div></TMPL_IF></td>
-					<TMPL_IF NAME=CUROPTS><td class="<TMPL_VAR NAME=CUR_CL>"><TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><TMPL_VAR NAME=C></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
+					<TMPL_IF NAME=CUROPTS><td class="<TMPL_VAR NAME=CUR_CL>"><TMPL_IF NAME=RO><TMPL_LOOP NAME=CURS><TMPL_IF NAME=S><span title="1 <TMPL_VAR NAME=CDESC> : <TMPL_VAR NAME=RATE>"><TMPL_VAR NAME=C></span></TMPL_IF></TMPL_LOOP><TMPL_ELSE>
 						<select name="Currency_<TMPL_VAR NAME=R>">
-							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option>
+							<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=C></option><TMPL_IF 0><TMPL_VAR NAME=CDESC><TMPL_VAR NAME=RATE></TMPL_IF>
 							</TMPL_LOOP>
 						</select>
 					</TMPL_IF></td></TMPL_IF>

@@ -2961,6 +2961,9 @@ sub gen_tg
 
 	my %resolved;
 	my %rates;
+	if (!$etoken && clean_date($tgdetails{Date})) {
+		%rates = get_rates($tgdetails{Date});
+	}
 	my @tp_per_share;
 	my @tp_cur;
 	if ($calced) {
@@ -2984,7 +2987,6 @@ sub gen_tg
 
 		%resolved = resolve_accts(\%dds, \%negated) if $is_drain;
 		if ($has_tp) {
-			%rates = get_rates($tgdetails{Date});
 		        @tp_per_share = tg_tp_amnt_per_share(\@sorted_in_use, $tgdetails{Creditor}, \%tgdetails, \%rates, \%resolved, \%negated);
 		}
 	}
@@ -3013,7 +3015,7 @@ sub gen_tg
 			$per_share = $tp ? -$row_tps : -$amnt / $shares;
 		}
 		my $unk_cur = !grep ($_ eq $tgdetails{Currency}[$row], @units);
-		my @currencies = map ({ C => $_, S => ($_ eq $tgdetails{Currency}[$row]) }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
+		my @currencies = map ({ C => $_, S => ($_ eq $tgdetails{Currency}[$row]), CDESC => ($units_cfg{$_} // $_), RATE => (exists $rates{$_}) ? "$rates{$_} $units[0]" : '' }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
 		my @rowcontents = map ({ D => 1 * sprintf ('%.3f', (($calced && ((!$tp && (exists $negated{$cred})) xor (exists $negated{$_}))) ? -1 : 1) * $tgdetails{$_}[$row] * ($per_share // 1)), N => "${_}_$row", D_CL => ((exists $unknown{$_}) ? 'unknown_d' : '') . ((exists $vaccts{$_}) ? ' vacct' : '') }, @sorted_in_use);
 		my @tps = map ({ V => $_, S => ($tgdetails{TrnsfrPot}[$row] ? $tgdetails{TrnsfrPot}[$row] eq $_ : undef) }, 1 .. 9);
 		push (@rows, { ROW_CL => (exists $unknown{$cred}) ? 'unknown_c' : '',
