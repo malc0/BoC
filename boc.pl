@@ -1361,8 +1361,13 @@ sub gen_edit_meet
 		push (@unks, $hd) unless grep ($meet_cfg{Fee}[$_] eq $hd, (@ccs, @exps));
 	}
 
+	my %rates;
+	if (clean_date($meet{Date})) {
+		%rates = get_rates($meet{Date});
+	}
+
 	my @feesh = ({ FEE => 'Custom Fee', LINKA => $meet_cfg{MeetAccount} });
-	push (@feesh, map ({ FEE => (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @ccs));
+	push (@feesh, map ({ CDESC => (exists $rates{$meet_cfg{Fee}[$_]}) ? "$rates{$meet_cfg{Fee}[$_]} $units[0]" : '', FEE => (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @ccs));
 	my @expsh = map ({ EXP => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
 	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
