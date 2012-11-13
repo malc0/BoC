@@ -1101,6 +1101,18 @@ sub gen_edit_rates
 	return $tmpl;
 }
 
+sub unlock_dir
+{
+	my ($dir, $sessid, $whinge, $objective, $dir_what) = @_;
+
+	if (scalar glob ("$config{Root}/$dir/.*.lock") && clear_locks("$config{Root}/$dir", $sessid)) {
+		un_commit_lock;
+		$whinge->("Cannot perform $objective at present: $dir_what busy");
+	}
+
+	return;
+}
+
 sub dir_mod_all
 {
 	my ($dir, $tg, $rename, $sub, $given_ts) = @_;
@@ -1128,18 +1140,9 @@ sub commit_config_units
 
 	$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 	if (keys %$rename) {
-		if (scalar glob ("$config{Root}/transaction_groups/.*.lock") && clear_locks("$config{Root}/transaction_groups", $sessid)) {
-			un_commit_lock;
-			$whinge->('Cannot perform unit recode at present: transaction groups busy');
-		}
-		if (scalar glob ("$config{Root}/fee_tmpls/.*.lock") && clear_locks("$config{Root}/fee_tmpls", $sessid)) {
-			un_commit_lock;
-			$whinge->('Cannot perform unit recode at present: fee templates busy');
-		}
-		if (scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
-			un_commit_lock;
-			$whinge->('Cannot perform unit recode at present: meets busy');
-		}
+		unlock_dir('transaction_groups', $sessid, $whinge, 'unit recode', 'transaction groups');
+		unlock_dir('fee_tmpls', $sessid, $whinge, 'unit recode', 'fee templates');
+		unlock_dir('meets', $sessid, $whinge, 'unit recode', 'meets');
 		if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
 			un_commit_lock;
 			$whinge->('Cannot perform unit recode at present: config_fees busy');
@@ -1545,14 +1548,8 @@ sub despatch_admin
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if ($rename) {
-				if (scalar glob ("$config{Root}/transaction_groups/.*.lock") && clear_locks("$config{Root}/transaction_groups", $sessid)) {
-					un_commit_lock;
-					$whinge->('Cannot perform account rename at present: transaction groups busy');
-				}
-				if (scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
-					un_commit_lock;
-					$whinge->('Cannot perform account rename at present: meets busy');
-				}
+				unlock_dir('transaction_groups', $sessid, $whinge, 'account rename', 'transaction groups');
+				unlock_dir('meets', $sessid, $whinge, 'account rename', 'meets');
 				if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
 					un_commit_lock;
 					$whinge->('Cannot perform account rename at present: config_fees busy');
@@ -1990,10 +1987,7 @@ sub despatch_admin
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			if ($rename && scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
-				un_commit_lock;
-				$whinge->('Cannot perform FT rename at present: meets busy');
-			}
+			unlock_dir('meets', $sessid, $whinge, 'FT rename', 'meets') if $rename;
 			bad_token_whinge(gen_manage_fee_tmpls) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken);
 			try_commit_and_unlock(sub {
 				if ($rename) {
@@ -2069,9 +2063,8 @@ sub despatch_admin
 			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'IsDrain', 'Account', 'Description' ) if exists $cfg{Fee};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			if (keys %recode && scalar glob ("$config{Root}/meets/.*.lock") && clear_locks("$config{Root}/meets", $sessid)) {
-				un_commit_lock;
-				$whinge->('Cannot perform fee recode at present: meets busy');
+			if (keys %recode) {
+				unlock_dir('meets', $sessid, $whinge, 'fee recode', 'meets');
 			}
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
 			try_commit_and_unlock(sub {
@@ -2121,14 +2114,8 @@ sub despatch_admin
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if (%rename) {
-				if (scalar glob ("$config{Root}/users/.*.lock") && clear_locks("$config{Root}/users", $sessid)) {
-					un_commit_lock;
-					$whinge->('Cannot perform attribute rename at present: users busy');
-				}
-				if (scalar glob ("$config{Root}/fee_tmpls/.*.lock") && clear_locks("$config{Root}/fee_tmpls", $sessid)) {
-					un_commit_lock;
-					$whinge->('Cannot perform attribute rename at present: fee templates busy');
-				}
+				unlock_dir('users', $sessid, $whinge, 'attribute rename', 'users');
+				unlock_dir('fee_tmpls', $sessid, $whinge, 'attribute rename', 'fee templates');
 			}
 
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
