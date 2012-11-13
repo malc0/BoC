@@ -1362,7 +1362,7 @@ sub gen_edit_meet
 	}
 
 	my @feesh = ({ FEE => 'Custom Fee', LINKA => $meet_cfg{MeetAccount} });
-	push (@feesh, map ({ FEE => (exists $cds{$meet_cfg{Fee}[$_]}) ? $cds{$meet_cfg{Fee}[$_]} : $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @ccs));
+	push (@feesh, map ({ FEE => (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @ccs));
 	my @expsh = map ({ EXP => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
 	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
@@ -1450,7 +1450,7 @@ sub meet_to_tg
 			if (exists $cds{$hd}) {
 				push (@{$tg{Amount}}, $colsum{$hd});
 				push (@{$tg{Currency}}, $hd);
-				push (@{$tg{Description}}, $cds{$hd});
+				push (@{$tg{Description}}, ($cds{$hd} // $hd));
 			} elsif (true($meet_cfg{IsDrain}[$mc_row])) {
 				push (@{$tg{Amount}}, '*');
 				push (@{$tg{Currency}}, '');
@@ -1839,7 +1839,7 @@ sub despatch_admin
 				push (@{$meet{CustomFee}}, validate_decimal($arr[$pers_count{$pers}], 'Custom fee', 1, $whinge));
 				foreach (%et ? map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (@{$et{Unit}}) : 0 .. $#{$meet_cfg{Fee}}) {
 					@arr = $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]");
-					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{@{$meet_cfg{Fee}}[$_]}) ? $cds{@{$meet_cfg{Fee}}[$_]} : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
+					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
 				}
 				@arr = $cgi->param("${pers}_Notes");
 				push (@{$meet{Notes}}, clean_words($arr[$pers_count{$pers}]));
