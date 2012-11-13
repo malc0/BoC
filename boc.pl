@@ -371,7 +371,7 @@ sub compute_tg_c
 		foreach (0 .. $#{$tgdetails{Creditor}}) {
 			$is_drain = 1 if $tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/);
 		}
-		if (!(exists $tgdetails{Omit}) && !$is_drain) {
+		if (!(exists $tgdetails{Omit}) && !$is_drain && !($tg =~ /^[A-Z]/)) {
 			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
 			write_and_close($fh, %computed);
 		}
