@@ -1441,8 +1441,8 @@ sub meet_to_tg
 	my %tg = ( Date => $meet{Date}, Name => "Meet: " . ($meet{Name} // '') );
 	my %colsum;
 
-	my %meet_cfg = read_htsv("$config{Root}/config_fees");	# world breaks if doesn't exist (need MeetAccount)
-	unless (meet_valid(\%meet, \%meet_cfg, 1)) {
+	my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
+	unless (defined $meet_cfg{MeetAccount} && meet_valid(\%meet, \%meet_cfg, 1)) {
 		$tg{Date} = 'now';
 		$tg{Name} .= ' (broken)';
 		$tg{Omit} = undef;
