@@ -178,9 +178,8 @@ sub meet_valid
 		}
 	}
 
-	my %ppl;
-	%ppl = grep_acct_key('users', 'Name') unless $skip_ppl_chk;
-	my %seen;
+	my (%ppl, %seen);
+	%ppl = (grep_acct_key('users', 'Name'), grep_acct_key('accounts', 'IsNegated')) unless $skip_ppl_chk;
 	foreach (@{$meet{Person}}) {
 		return 0 unless defined;
 		return 0 unless $skip_ppl_chk || exists $ppl{$_};

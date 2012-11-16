@@ -28,6 +28,12 @@
 				</TMPL_LOOP>
 			</div>
 
+			<h2>Include any real-world accounts (for paying expenses)?</h2>
+			<div>
+				<TMPL_LOOP NAME=NEGS><span class="outerp <TMPL_VAR NAME=P_CL>"><label><span class="innerp"><TMPL_VAR NAME=NAME> </span><input type="checkbox" name="Acct_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" <TMPL_IF NAME=Y>checked="checked"</TMPL_IF>/></label><TMPL_LOOP NAME=DUPS><input type="checkbox" name="Acct_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" checked="checked"/></TMPL_LOOP></span>
+				</TMPL_LOOP>
+			</div>
+
 			<TMPL_IF NAME=DUPTEXT><p style="color:orange">Duplicates listed left-to-right in the order they appear top-to-bottom on previous page</p></TMPL_IF>
 
 			<p><input type="submit" name="new_user" value="Add new person to system"/></p>

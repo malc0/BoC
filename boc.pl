@@ -1376,14 +1376,19 @@ sub gen_edit_meet
 	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
 
 	my %accts = grep_acct_key('users', 'Name');
-	my @ppl;
+	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
+	my %vaccts = grep_acct_key('accounts', 'Name');
+	my (@ppl, @nas);
 	foreach my $row (0 .. $#{$meet{Person}}) {
 		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row], D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
 		push (@rfees, map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row] ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken', EXCPT => (exists $unusual{$meet_cfg{Fee}[$_]}) }, (@ccs, @exps)));
 		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
 		my $a = $meet{Person}[$row] // '';
-		push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
+		(exists $neg_accts{$a}) ?
+			push (@nas, { PER_CL => ((exists $neg_accts{$a}) ? 'negated' : 'unknown negated') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $vaccts{$a}) ? $vaccts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] }) :
+			push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
 	}
+	@ppl = (@ppl, @nas);
         $tmpl->param(PPL => \@ppl);
         $tmpl->param(EDITOK => $session->param('IsAdmin'));
         $tmpl->param(VALID => meet_valid(\%meet, $mcr));
@@ -1399,7 +1404,9 @@ sub gen_edit_meet_ppl
 	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
 
 	my %accts = grep_acct_key('users', 'Name');
-	my @unks = grep (!(exists $accts{$_}), map ($_ // '', @{$meet{Person}}));
+	my %vaccts = grep_acct_key('accounts', 'Name');
+	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
+	my @unks = grep (!(exists $accts{$_} || exists $neg_accts{$_}), map ($_ // '', @{$meet{Person}}));
 
 	my %ppl_seen;
 	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
@@ -1415,8 +1422,15 @@ sub gen_edit_meet_ppl
 	}
 	push (@ppl, { NAME => $_, A => $_, Y => 1, P_CL => ($ppl_seen{$_} && $ppl_seen{$_} > 1) ? 'unknown dup' : 'unknown' }) foreach (@unks);
 
+	my @negs;
+	foreach my $na (grep (exists $neg_accts{$_}, sort_AoH(\%vaccts))) {
+		$ppl_seen{$na} = 0 unless exists $ppl_seen{$na};
+		my @dups = map ({ A => "$na.$_" }, 2 .. $ppl_seen{$na});
+		push (@negs, { NAME => $vaccts{$na}, A => $na, Y => !!grep ($_ eq $na, grep (defined, @{$meet{Person}})), DUPS => \@dups, P_CL => ($ppl_seen{$na} > 1) ? 'dup' : '' });
+	}
+
 	$tmpl->param(MID => $edit_id);
-	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
+	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl, NEGS => \@negs, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
 
 	return $tmpl;
 }
@@ -1904,12 +1918,18 @@ sub despatch_admin
 			whinge('Cannot save meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
 			my %accts = grep_acct_key('users', 'Name');
+			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 
-			my @ppl;
 			my %seen_ppl;
+			my (@ppl, @nas);
 			foreach (map { /^Pers_(.*)/; $1 } grep (/^Pers_.+$/, $cgi->param)) {
 				(my $stripped = $_) =~ s/\..*$//;
 				push (@ppl, $_) if validate_acct($stripped, \%accts, $whinge);
+				$seen_ppl{$stripped}++;
+			}
+			foreach (map { /^Acct_(.*)/; $1 } grep (/^Acct_.+$/, $cgi->param)) {
+				(my $stripped = $_) =~ s/\..*$//;
+				push (@ppl, $_) if validate_acct($stripped, \%neg_accts, $whinge);
 				$seen_ppl{$stripped}++;
 			}
 			$whinge->('Having duplicate people is silly') if grep ($_ > 1, values %seen_ppl);
@@ -1950,6 +1970,7 @@ sub despatch_admin
 				}
 
 				foreach my $p_n (0 .. $#ppl) {
+					next if exists $neg_accts{$meet{Person}[$p_n]};
 					next if sum (map ((defined $meet{$_}[$p_n]), @{$meet{Headings}})) > 1;
 					my %def_fees = get_ft_fees($meet{Person}[$p_n], %ft);
 					$meet{$_}[$p_n] = $def_fees{$_} foreach (@feecols);
