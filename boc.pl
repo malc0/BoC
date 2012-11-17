@@ -1380,7 +1380,7 @@ sub gen_edit_meet
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my (@ppl, @nas);
 	foreach my $row (0 .. $#{$meet{Person}}) {
-		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row], D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
+		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row] ? $meet{CustomFee}[$row] : '', D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
 		push (@rfees, map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row] ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken', EXCPT => (exists $unusual{$meet_cfg{Fee}[$_]}) }, (@ccs, @exps)));
 		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
 		my $a = $meet{Person}[$row] // '';
