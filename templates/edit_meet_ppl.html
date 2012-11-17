@@ -24,6 +24,10 @@
 			<input type="hidden" name="m_id" value="<TMPL_VAR NAME=MID>"/>
 
 			<div>
+				<TMPL_IF NAME=RPPL><h3>Recent people</h3>
+				<TMPL_LOOP NAME=RPPL><span class="outerp <TMPL_VAR NAME=P_CL>"><label><span class="innerp"><TMPL_VAR NAME=NAME> </span><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" <TMPL_IF NAME=Y>checked="checked"</TMPL_IF>/></label><TMPL_LOOP NAME=DUPS><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" checked="checked"/></TMPL_LOOP></span>
+				</TMPL_LOOP>
+				<h3>Other people</h3></TMPL_IF>
 				<TMPL_LOOP NAME=PPL><span class="outerp <TMPL_VAR NAME=P_CL>"><label><span class="innerp"><TMPL_VAR NAME=NAME> </span><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" <TMPL_IF NAME=Y>checked="checked"</TMPL_IF>/></label><TMPL_LOOP NAME=DUPS><input type="checkbox" name="Pers_<TMPL_VAR NAME=A>" value="<TMPL_VAR NAME=NAME>" checked="checked"/></TMPL_LOOP></span>
 				</TMPL_LOOP>
 			</div>

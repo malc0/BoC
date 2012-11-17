@@ -1396,6 +1396,23 @@ sub gen_edit_meet
 	return $tmpl;
 }
 
+sub mru_event_accts
+{
+	my ($thresh) = @_;
+#	my ($et, $max_delta) = @_;
+
+	my %accts;
+
+	foreach my $mid (reverse date_sorted_htsvs('meets')) {
+		my %meet = read_htsv("$config{Root}/meets/$mid", undef, [ 'Person', 'Notes' ]);
+		last if defined clean_date($meet{Date}) && clean_date($meet{Date}) < $thresh;
+#		next unless !(defined $et) || (defined $meet{EventType} && $et eq $meet{EventType});
+		$accts{$_} = 1 foreach (@{$meet{Person}});
+	}
+
+	return %accts;
+}
+
 sub gen_edit_meet_ppl
 {
 	my ($edit_id, $sessid, $etoken) = @_;
@@ -1414,8 +1431,18 @@ sub gen_edit_meet_ppl
 	my $adds = peek_session_data($sessid, "${etoken}_add_accts");
 	my @adds = split ('\.', $adds) if $adds;
 
+	my %try;
+	%try = mru_event_accts(clean_date($meet{Date}) - ($config{EvMRUPeriod} * 86400)) if $config{EvMRUPeriod};	# 86400 is days to seconds
+	my @rppl;
+	foreach my $user (grep { my $u = $_; exists $try{$u} || grep ($_ eq $u, @adds) } sort_AoH(\%accts)) {
+		$ppl_seen{$user} = 0 unless exists $ppl_seen{$user};
+		my @dups = map ({ A => "$user.$_" }, 2 .. $ppl_seen{$user});
+		push (@rppl, { NAME => $accts{$user}, A => $user, Y => (grep ($_ eq $user, @adds) || !!grep ($_ eq $user, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
+	}
+	push (@rppl, { NAME => $_, A => $_, Y => 1, P_CL => ($ppl_seen{$_} && $ppl_seen{$_} > 1) ? 'unknown dup' : 'unknown' }) foreach (@unks);
+
 	my @ppl;
-	foreach my $user (sort_AoH(\%accts)) {
+	foreach my $user (grep { my $u = $_; !(exists $try{$u} || grep ($_ eq $u, @adds)) } sort_AoH(\%accts)) {
 		$ppl_seen{$user} = 0 unless exists $ppl_seen{$user};
 		my @dups = map ({ A => "$user.$_" }, 2 .. $ppl_seen{$user});
 		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (grep ($_ eq $user, @adds) || !!grep ($_ eq $user, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
@@ -1431,6 +1458,7 @@ sub gen_edit_meet_ppl
 
 	$tmpl->param(MID => $edit_id);
 	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl, NEGS => \@negs, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
+	$tmpl->param(RPPL => \@rppl) if @rppl;
 
 	return $tmpl;
 }
