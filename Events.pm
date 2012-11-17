@@ -171,11 +171,22 @@ sub meet_valid
 
 	return 0 unless %$cf;
 
+	my (%split_exp_sum, %split_shr_sum);
 	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
-		return 0 unless $hd eq 'CustomFee' || grep ($_ eq $hd, grep (defined, @{$cf->{Fee}}));
+		return 0 unless $hd eq 'CustomFee' || grep ($_ eq $hd, grep (defined, @{$cf->{Fee}})) || $hd =~ /^Split[1-9](Exps|Shrs)$/;
 		foreach (@{$meet{$hd}}) {
 			return 0 unless defined clean_decimal($_);
+			if ($hd =~ /^Split([1-9])Shrs$/) {
+				return 0 if clean_decimal($_) < 0;
+				$split_shr_sum{$1} += $_;
+			}
+			if ($hd =~ /^Split([1-9])Exps$/) {
+				$split_exp_sum{$1} += $_ 
+			}
 		}
+	}
+	foreach (1 .. 9) {
+		return 0 if $split_exp_sum{$_} && !$split_shr_sum{$_};
 	}
 
 	my (%ppl, %seen);

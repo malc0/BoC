@@ -1356,9 +1356,27 @@ sub gen_edit_meet
 		push (@ccs, grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}}));
 		@exps = grep (!(exists $cds{$meet_cfg{Fee}[$_]} || true($meet_cfg{IsDrain}[$_])), 0 .. $#{$meet_cfg{Fee}});
 	}
-	my @unks;
-	foreach my $hd (grep (!/^(Person|CustomFee|Notes)$/, @{$meet{Headings}})) {
+	my (@unks, %split_exp_sum, %split_shr_sum, %splits);
+	foreach my $hd (grep (!/^(Person|CustomFee|Notes|Split[1-9](Exps|Shrs))$/, @{$meet{Headings}})) {
 		push (@unks, $hd) unless grep ($meet_cfg{Fee}[$_] eq $hd, (@ccs, @exps));
+	}
+	foreach my $hd (grep (/^Split[1-9](Exps|Shrs)$/, @{$meet{Headings}})) {
+		if ($hd =~ /Split([1-9])Exps/) {
+			$split_exp_sum{$1} += $_ foreach (grep (CleanData::clean_decimal($_), @{$meet{$hd}}));
+			$splits{$1} = 1;
+		}
+		if ($hd =~ /Split([1-9])Shrs/) {
+			$split_shr_sum{$1} += $_ foreach (grep (CleanData::clean_decimal($_), @{$meet{$hd}}));
+			$splits{$1} = 1;
+		}
+	}
+	my $added_splts = 0;
+	foreach (1 .. 9) {
+		if ($etoken && !(exists $splits{$_})) {
+			$splits{$_} = 1;
+			$added_splts++;
+			last if $added_splts == 2;
+		}
 	}
 
 	my %rates;
@@ -1370,7 +1388,8 @@ sub gen_edit_meet
 	push (@feesh, map ({ CDESC => (exists $rates{$meet_cfg{Fee}[$_]}) ? "$rates{$meet_cfg{Fee}[$_]} $units[0]" : '', FEE => (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @ccs));
 	my @expsh = map ({ EXP => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
-	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh);
+	my @splitsh = map ({ SPLIT => $_ }, sort keys %splits);
+	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh, NSPLITS => 2 * scalar @splitsh, SPLITSH => \@splitsh);
 
 	my %ppl_seen;
 	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
@@ -1383,13 +1402,16 @@ sub gen_edit_meet
 		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row] ? $meet{CustomFee}[$row] : '', D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
 		push (@rfees, map ({ F => $meet_cfg{Fee}[$_], V => $meet{$meet_cfg{Fee}[$_]}[$row] ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row])) ? '' : 'broken', EXCPT => (exists $unusual{$meet_cfg{Fee}[$_]}) }, (@ccs, @exps)));
 		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
+		my @rsplits = map ({ F => $_, EV => (exists $meet{"Split${_}Exps"} && $meet{"Split${_}Exps"}[$row]) ? $meet{"Split${_}Exps"}[$row] : '', ED_CL => (!(exists $meet{"Split${_}Exps"}) || (exists $meet{"Split${_}Exps"} && defined CleanData::clean_decimal($meet{"Split${_}Exps"}[$row]))) ? '' : 'broken', SV => (exists $meet{"Split${_}Shrs"} && $meet{"Split${_}Shrs"}[$row]) ? $meet{"Split${_}Shrs"}[$row] : '', SD_CL => (exists $meet{"Split${_}Shrs"} && (!(defined CleanData::clean_decimal($meet{"Split${_}Shrs"}[$row])) || CleanData::clean_decimal($meet{"Split${_}Shrs"}[$row]) < 0) || ($split_exp_sum{$_} && !$split_shr_sum{$_})) ? 'broken' : '' }, sort keys %splits);
 		my $a = $meet{Person}[$row] // '';
 		(exists $neg_accts{$a}) ?
-			push (@nas, { PER_CL => ((exists $neg_accts{$a}) ? 'negated' : 'unknown negated') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $vaccts{$a}) ? $vaccts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] }) :
-			push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
+			push (@nas, { PER_CL => ((exists $neg_accts{$a}) ? 'negated' : 'unknown negated') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $vaccts{$a}) ? $vaccts{$a} : $a, A => $a, FEES => \@rfees, SPLITS => \@rsplits, NOTEV => $meet{Notes}[$row] }) :
+			push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, SPLITS => \@rsplits, NOTEV => $meet{Notes}[$row] });
 	}
 	@ppl = (@ppl, @nas);
+	my @splitds = map ({ SPLIT => $_, SPLITD => $meet{"Split${_}Desc"}, DD_CL => (!$split_exp_sum{$_} || $meet{"Split${_}Desc"}) ? '' : 'broken' }, sort keys %splits);
 	$tmpl->param(PPL => \@ppl);
+	$tmpl->param(SPLITDS => \@splitds);
 	$tmpl->param(EDITOK => $session->param('IsAdmin'));
 	$tmpl->param(VALID => meet_valid(\%meet, $mcr));
 
@@ -1482,7 +1504,10 @@ sub meet_to_tg
 		$colsum{$_} += $meet{$_}[$row] foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}}));
 	}
 	foreach my $row (0 .. $#{$meet{Person}}) {
-		push (@{$tg{$meet{Person}[$row]}}, $meet{$_}[$row]) foreach (grep ($colsum{$_}, @{$meet{Headings}}));
+		foreach (grep ($colsum{$_} && !($_ =~ /^Split[1-9]Exps$/), @{$meet{Headings}})) {
+			next if $_ =~ /^Split([1-9])Shrs$/ && !(exists $meet{"Split$1Exps"});
+			push (@{$tg{$meet{Person}[$row]}}, $meet{$_}[$row]);
+		}
 	}
 
 	my @units = known_units;
@@ -1512,10 +1537,31 @@ sub meet_to_tg
 			push (@{$tg{Amount}}, $colsum{CustomFee});
 			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
 			push (@{$tg{Description}}, 'Meet fee');
+		} elsif ($hd =~ /^Split([1-9])Exps$/) {
+			my $creds = 0;
+			$creds++ foreach (grep ($meet{$hd}[$_], 0 .. $#{$meet{$hd}}));
+
+			my $split_desc = $meet{"Split$1Desc"};
+			push (@{$tg{Description}}, "Split: $split_desc");
+			if ($creds > 1) {
+				my $off = push (@{$tg{Creditor}}, "TrnsfrPot$1");
+				push (@{$tg{Amount}}, '*');
+				push (@{$tg{Currency}}, '') if scalar @units;
+				splice (@{$tg{$_}}, $off, 0, (0) x $creds) foreach (@{$meet{Person}});
+				$tg{TrnsfrPot}[$_] = $1 foreach ($off .. ($off + $creds - 1));
+				push (@{$tg{Description}}, ('"') x $creds);
+			}
+
+			foreach (grep ($meet{"Split$1Exps"}[$_], 0 .. $#{$meet{"Split$1Exps"}})) {
+				push (@{$tg{Creditor}}, $meet{Person}[$_]);
+				push (@{$tg{Amount}}, $meet{"Split$1Exps"}[$_]);
+				push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
+			}
 		}
 	}
 
 	@{$tg{Headings}} = ( 'Creditor', 'Amount', @{$meet{Person}}, 'Description' );
+	splice (@{$tg{Headings}}, 2, 0, 'TrnsfrPot') if exists $tg{TrnsfrPot};
 	splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
 	return %tg;
@@ -1865,13 +1911,22 @@ sub despatch_admin
 
 			delete $meet{Currency};
 			my @ppl = @{$meet{Person}};
-			delete $meet{$_} foreach (grep (ref $meet{$_}, keys %meet));
+			delete $meet{$_} foreach (grep (ref $meet{$_} || $_ =~ /^Split[1-9]Desc$/, keys %meet));
 			@{$meet{Person}} = @ppl;
 
 			my @units = known_units;
 			$whinge->('No currency definition?') if scalar @units && !(defined $cgi->param('Currency'));
 			if (defined $cgi->param('Currency') && $cgi->param('Currency') ne 'N/A') {
 				$meet{Currency} = validate_unit(scalar $cgi->param('Currency'), \@units, $whinge);
+			}
+
+			my %relevant_splits;
+			foreach my $split (1 .. 9) {
+				my $split_exp_count = scalar grep ($_ =~ /_Split${split}E$/, $cgi->param);
+				my $split_shr_count = scalar grep ($_ =~ /_Split${split}S$/, $cgi->param);
+
+				$whinge->('Number of split expense and share columns not equal') unless $split_exp_count == $split_shr_count;
+				$relevant_splits{$split} = 1 if $split_exp_count || $split_shr_count;
 			}
 
 			my %cds = known_commod_descs;
@@ -1888,9 +1943,31 @@ sub despatch_admin
 					@arr = $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]");
 					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
 				}
+				foreach (keys %relevant_splits) {
+					@arr = $cgi->param("${pers}_Split${_}E");
+					push (@{$meet{"Split${_}Exps"}}, validate_decimal($arr[$pers_count{$pers}], 'Split expense', 0, $whinge));
+					@arr = $cgi->param("${pers}_Split${_}S");
+					push (@{$meet{"Split${_}Shrs"}}, validate_decimal($arr[$pers_count{$pers}], 'Split debt share', 1, $whinge));
+				}
 				@arr = $cgi->param("${pers}_Notes");
 				push (@{$meet{Notes}}, clean_words($arr[$pers_count{$pers}]));
 				$pers_count{$pers}++;
+			}
+
+			my @compact_splits;
+			foreach (sort keys %relevant_splits) {
+				if (!sum (@{$meet{"Split${_}Exps"}})) {
+					delete $relevant_splits{$_};
+					delete $meet{"Split${_}Exps"};
+					delete $meet{"Split${_}Shrs"};
+					next;
+				}
+				$whinge->('Split expense without shares') unless sum (@{$meet{"Split${_}Shrs"}});
+				push (@compact_splits, 1 + scalar @compact_splits);
+				$meet{'Split' . $compact_splits[-1] . 'Exps'} = delete $meet{"Split${_}Exps"};
+				$meet{'Split' . $compact_splits[-1] . 'Shrs'} = delete $meet{"Split${_}Shrs"};
+				$meet{'Split' . $compact_splits[-1] . 'Desc'} = clean_words($cgi->param("Split${_}D"));
+				$whinge->('Missing split description') unless ($meet{'Split' . $compact_splits[-1] . 'Desc'});
 			}
 
 			my @midheads;
@@ -1901,6 +1978,7 @@ sub despatch_admin
 			} else {
 				@midheads = @{$meet_cfg{Fee}};
 			}
+			push (@midheads, ("Split${_}Exps", "Split${_}Shrs")) foreach (@compact_splits);
 			@{$meet{Headings}} = ( 'Person', 'CustomFee', @midheads, 'Notes' ) if scalar @{$meet{Person}};
 
 			my %tg = meet_to_tg(%meet);
