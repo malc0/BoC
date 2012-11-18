@@ -3020,24 +3020,26 @@ sub sort_AoH
 
 sub gen_tg
 {
-	my ($edit_id, $calced, $session, $etoken) = @_;
+	my ($edit_id, $calced, $def_cred, $session, $etoken) = @_;
 
 	my $tmpl = load_template('edit_tg.html', $etoken);
 
+	my %ppl = grep_acct_key('users', 'Name');
+	$def_cred = $session->param('User') unless $def_cred && exists $ppl{$def_cred};
+
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
-	my %tgdetails = gen_ft_tg_common($edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef, 1, 10, !$etoken, 'Creditor', $session->param('User'), 'Currency', 5, 100, \@units);
+	my %tgdetails = gen_ft_tg_common($edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef, 1, 10, !$etoken, 'Creditor', $def_cred, 'Currency', 5, 100, \@units);
 
 	my %dds;
 	if ($calced) {
-		my $whinge = sub { whinge("Can't display calculated values: $_[0]", gen_tg($edit_id, undef, $session, $etoken)) };
+		my $whinge = sub { whinge("Can't display calculated values: $_[0]", gen_tg($edit_id, undef, $def_cred, $session, $etoken)) };
 		validate_tg($edit_id, \%tgdetails, $whinge);
 		validate_units(\%units_cfg, $whinge);
 		%dds = double_drainers;
 		$whinge->("Multiple drains of '$dds{$edit_id}'") if exists $dds{$edit_id};
 	}
 
-	my %ppl = grep_acct_key('users', 'Name');
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %acct_names = (%ppl, %vaccts);
 	my (%unknown, %in_use_ppl, %in_use_vaccts, %in_use_unk);
@@ -3075,6 +3077,7 @@ sub gen_tg
 	%acct_names = (%unknown, %ppl, %vaccts, %tps);
 
 	$tmpl->param(TG_ID => $edit_id);
+	$tmpl->param(DEF_CRED => $def_cred);
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(IN_CVS => $calced);
 	$tmpl->param(EDITOK => $edit_id && !($edit_id =~ /^[A-Z]/) && $session->param('MayAddEditTGs'));
@@ -3425,7 +3428,7 @@ sub despatch
 		if (defined $cgi->param('view') or defined $cgi->param('add')) {
 			my $view = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/transaction_groups", 'TG', $whinge);
 
-			emit(gen_tg($view, undef, $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
+			emit(gen_tg($view, undef, scalar $cgi->param('def_cred'), $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
 		}
 		if (grep (/^del_.*$/, $cgi->param)) {
 			my @dels = grep (/^del_.*$/, $cgi->param);
@@ -3439,21 +3442,21 @@ sub despatch
 		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', $whinge, (defined $cgi->param('edit')));
 
 		if (defined $cgi->param('showcvs') || defined $cgi->param('hidecvs')) {
-			emit(gen_tg($edit_id, (defined $cgi->param('showcvs')), $session, undef));
+			emit(gen_tg($edit_id, (defined $cgi->param('showcvs')), scalar $cgi->param('def_cred'), $session, undef));
 		}
 
-		whinge('Action not permitted', $edit_id ? gen_tg($edit_id, undef, $session, undef) : gen_manage_tgs($session)) unless $session->param('MayAddEditTGs');
+		whinge('Action not permitted', $edit_id ? gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef) : gen_manage_tgs($session)) unless $session->param('MayAddEditTGs');
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if (defined $cgi->param('edit')) {
-			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, undef, $session, undef)) if $edit_id =~ /^[A-Z]/;
+			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef)) if $edit_id =~ /^[A-Z]/;
 
 			$whinge->("Couldn't get edit lock for transaction group \"$edit_id\"") unless try_lock($tgfile, $sessid);
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				$whinge->("Couldn't edit transaction group \"$edit_id\", file disappeared");
 			}
-			emit(gen_tg($edit_id, undef, $session, get_edit_token($sessid, "edit_$edit_id")));
+			emit(gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
 		if (defined $cgi->param('delete')) {
 			delete_common($tgfile, "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
@@ -3463,7 +3466,7 @@ sub despatch
 		my %tg;
 
 		if (defined $cgi->param('save')) {
-			$whinge = sub { whinge($_[0], gen_tg($edit_id, undef, $session, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, $etoken)) };
 
 			$tg{Name} = clean_words($cgi->param('tg_name'));
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
@@ -3522,7 +3525,7 @@ sub despatch
 
 		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
 		if ($edit_id) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($edit_id, undef, $session, undef));
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$tg{Name}\" ($1) transaction group" : 'Edit cancelled', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef));
 		} else {
 			$etoken = pop_session_data($sessid, $etoken);
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;

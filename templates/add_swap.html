@@ -36,7 +36,7 @@
 			<h2>Step 3: when was it incurred (enter as dd/mm/yy or 'today', 'last Friday', etc.)?</h2>
 			<p><input type="text" name="tg_date"/></p>
 
-			<h2>Step 4: <TMPL_IF NAME=SWAP>who's got to pay<TMPL_ELSE>what was it for (if multiple categories apply, use the <a href="boc.pl?tmpl=ucp&amp;add_vacct_split=1&amp;etoken=<TMPL_VAR NAME=ETOKEN>">split expense form</a>; if none is suitable, <a href="boc.pl?tmpl=manage_tgs&amp;add=1&amp;etoken=<TMPL_VAR NAME=ETOKEN>">add a Transaction Group</a> instead)</TMPL_IF>?</h2>
+			<h2>Step 4: <TMPL_IF NAME=SWAP>who's got to pay<TMPL_ELSE>what was it for (if multiple categories apply, use the <a href="boc.pl?tmpl=ucp&amp;add_vacct_split=1&amp;etoken=<TMPL_VAR NAME=ETOKEN>">split expense form</a>; if none is suitable, <a href="boc.pl?tmpl=manage_tgs&amp;add=1&amp;def_cred=<TMPL_LOOP NAME=PPL><TMPL_IF NAME=S><TMPL_VAR NAME=V></TMPL_IF><TMPL_IF 0><TMPL_VAR NAME=O></TMPL_IF></TMPL_LOOP>&amp;etoken=<TMPL_VAR NAME=ETOKEN>">add a Transaction Group</a> instead)</TMPL_IF>?</h2>
 			<select name="Debtor">
 				<option value="">Select <TMPL_IF NAME=SWAP>debtor<TMPL_ELSE>expense type</TMPL_IF></option>
 				<TMPL_LOOP NAME=DEBTACCTS><option value="<TMPL_VAR NAME=V>"><TMPL_VAR NAME=O></option>

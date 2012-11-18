@@ -25,6 +25,7 @@
 			<input type="hidden" name="tmpl" value="edit_tg"/>
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
 			<TMPL_IF NAME=TG_ID><input type="hidden" name="tg_id" value="<TMPL_VAR NAME=TG_ID>"/></TMPL_IF>
+			<input type="hidden" name="def_cred" value="<TMPL_VAR NAME=DEF_CRED>"/>
 
 			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h1><TMPL_IF NAME=TG_ID>Edit<TMPL_ELSE>New</TMPL_IF> transaction group</h1>
 			
