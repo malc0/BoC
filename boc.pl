@@ -781,7 +781,7 @@ sub fmt_impl_attrs
 
 sub gen_add_edit_acc
 {
-	my ($edit_acct, $person, $etoken) = @_;
+	my ($edit_acct, $person, $etoken, $filt_sys_attrs) = @_;
 	my $tmpl = load_template('edit_acct.html', $etoken);
 	my %acctdetails;
 	my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
@@ -795,10 +795,19 @@ sub gen_add_edit_acc
 		$tmpl->param(ADDRESS => $acctdetails{Address});
 		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
+
 	my %attrs = get_attrs_full;
+	if ($filt_sys_attrs) {
+		my %syns = get_attr_synonyms;
+		foreach my $sa (get_sys_attrs) {
+			delete $attrs{$_} foreach (@{$syns{$sa}});
+		}
+	}
 	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_} || $_ eq 'IsPleb'), I => fmt_impl_attrs($attrs{$_}), D => ($_ eq 'IsPleb') }, keys %attrs);
 	$tmpl->param(ATTRS => \@attr_set);
+
 	$tmpl->param(USER_ACCT => 1) if $person;
+
 	my @alts;
 	foreach my $alt (@{$addr_alts{Headings}}) {
 		my @extra = (!(defined $acctdetails{$alt}) || grep ($_ eq $acctdetails{$alt}, @{$addr_alts{$alt}})) ? () : ($acctdetails{$alt});
@@ -1306,6 +1315,13 @@ sub gen_manage_meets
 	return $tmpl;
 }
 
+sub meet_edit_ok
+{
+	my ($meet, $session) = @_;
+
+	return $session->param('IsAdmin') || ($session->param('User') eq $meet->{Leader} && !(exists $meet->{Locked}) && $session->param('MayEditOwnEvents'));
+}
+
 sub gen_edit_meet
 {
 	my ($edit_id, $mcr, $session, $etoken) = @_;
@@ -1414,7 +1430,7 @@ sub gen_edit_meet
 	my @splitds = map ({ SPLIT => $_, SPLITD => $meet{"Split${_}Desc"}, DD_CL => (!$split_exp_sum{$_} || $meet{"Split${_}Desc"}) ? '' : 'broken' }, sort keys %splits);
 	$tmpl->param(PPL => \@ppl);
 	$tmpl->param(SPLITDS => \@splitds);
-	$tmpl->param(EDITOK => $session->param('IsAdmin'));
+	$tmpl->param(EDITOK => meet_edit_ok(\%meet, $session));
 	$tmpl->param(VALID => meet_valid(\%meet, $mcr));
 
 	return $tmpl;
@@ -3208,6 +3224,9 @@ sub despatch
 		my %meet_cfg = valid_fee_cfg;
 		$whinge->('Cannot display meet: expenses config is broken') unless %meet_cfg;
 
+		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+		whinge('Action not permitted', gen_edit_meet($edit_id, \%meet_cfg, $session, undef)) unless meet_edit_ok(\%meet, $session);
+
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
 			$whinge->("Couldn't get edit lock for meet \"$edit_id\"") unless try_lock($mt_file, $sessid);
 			unless (-r $mt_file) {
@@ -3221,8 +3240,6 @@ sub despatch
 				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
 			}
 		}
-
-		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
 		if (defined $cgi->param('save')) {
 			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $session, $etoken)) };
@@ -3329,7 +3346,7 @@ sub despatch
 
 		if (defined $cgi->param('new_user')) {
 			push_session_data($sessid, "${etoken}_editid", $edit_id);
-			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken)));
+			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken), !$session->param('IsAdmin')));
 		}
 
 		if (defined $cgi->param('cancel')) {
@@ -3341,6 +3358,7 @@ sub despatch
 		whinge('Cannot display meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
 
 		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+		whinge('Action not permitted', gen_edit_meet($edit_id, \%cf, $session, undef)) unless meet_edit_ok(\%meet, $session);
 
 		if (defined $cgi->param('save')) {
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
@@ -3441,8 +3459,10 @@ sub despatch
 		my $file = $edit_acct ? "$acct_path/$edit_acct" : undef;
 		my $new_acct;
 
+		whinge('Action not permitted', gen_ucp($session)) unless $session->param('IsAdmin') || (!$edit_acct && $person && peek_session_data($sessid, $etoken));
+
 		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
-			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken, !$session->param('IsAdmin'))) };
 
 			my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
 			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
@@ -3541,7 +3561,7 @@ sub despatch
 			$etoken = pop_session_data($sessid, $etoken);
 			if (defined $cgi->param('savenadd')) {
 				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
-				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken));
+				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken, !$session->param('IsAdmin')));
 			}
 			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
 			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $sessid, $etoken) : gen_manage_accts($person);
