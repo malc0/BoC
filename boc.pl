@@ -1291,7 +1291,7 @@ sub gen_manage_meets
 		my $ft_state = $meet{Template} eq 'none' || !!grep ($_ eq "$ft_prefix$meet{Template}", @ftfs);
 		my $ft_exists = $meet{Template} ne 'none' && -r "$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$meet{Template}");
 
-		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet, \%cf)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => ($et_state && $ft_state) ? '' : 'unknown', FT => format_ft_name("$ft_prefix$meet{Template}"), FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename("$ft_prefix$meet{Template}") : '' });
+		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet, \%cf)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => ($et_state && $ft_state) ? '' : 'unknown', FT => format_ft_name("$ft_prefix$meet{Template}"), FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename("$ft_prefix$meet{Template}") : '', LOCKED => (exists $meet{Locked}) });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, sort_AoH(\%ppl));
 	my @ftlist;
@@ -1878,6 +1878,20 @@ sub despatch_admin
 		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
 			my $mid = valid_edit_id($1, "$config{Root}/meets", 'meet', $whinge, 1);
 			delete_common("$config{Root}/meets/$mid", "meet \"$mid\"", $session, sub { gen_manage_meets($session) }, "$config{Root}/transaction_groups/M$mid");
+		}
+		if (((grep (/^lock_.+$/, $cgi->param))[0] // '') =~ /^lock_(.+)$/) {
+			my $mid = valid_edit_id($1, "$config{Root}/meets", 'meet', $whinge, 1);
+			my $mt_file = "$config{Root}/meets/$mid";
+			$whinge->("Couldn't get edit lock for meet \"$mid\"") unless try_lock($mt_file, $sessid);
+			my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+			(exists $meet{Locked}) ? delete $meet{Locked} : ($meet{Locked} = undef);
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			try_commit_and_unlock(sub {
+				write_htsv($mt_file, \%meet, 11);
+				my @split_mf = split('-', unroot($mt_file));
+				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" " . ((exists $meet{Locked}) ? 'locked' : 'unlocked'), $session);
+			}, $mt_file);
+			emit_with_status("Meet \"$meet{Name}\" " . ((exists $meet{Locked}) ? 'locked' : 'unlocked'), gen_manage_meets($session));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet') {
