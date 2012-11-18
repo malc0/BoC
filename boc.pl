@@ -1875,9 +1875,7 @@ sub despatch_admin
 			});
 			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets($session));
 		}
-		if (grep (/^del_.*$/, $cgi->param)) {
-			my @dels = grep (/^del_.*$/, $cgi->param);
-			next unless $dels[0] =~ /^del_(.*)$/;
+		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
 			my $mid = valid_edit_id($1, "$config{Root}/meets", 'meet', $whinge, 1);
 			delete_common("$config{Root}/meets/$mid", "meet \"$mid\"", $session, sub { gen_manage_meets($session) }, "$config{Root}/transaction_groups/M$mid");
 		}
@@ -3430,9 +3428,7 @@ sub despatch
 
 			emit(gen_tg($view, undef, scalar $cgi->param('def_cred'), $session, $view ? undef : get_edit_token($sessid, 'add_tg', $etoken)));
 		}
-		if (grep (/^del_.*$/, $cgi->param)) {
-			my @dels = grep (/^del_.*$/, $cgi->param);
-			next unless $dels[0] =~ /^del_(.*)$/;
+		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
 			my $edit_id = valid_edit_id($1, "$config{Root}/transaction_groups", 'TG', $whinge, 1);
 			delete_common("$config{Root}/transaction_groups/$edit_id", "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 		}
