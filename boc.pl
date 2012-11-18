@@ -640,10 +640,12 @@ sub get_new_session
 
 	my $tmpl;
 	my %userdetails;
+	my $authed = 0;
 	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
 		$tmpl = load_template('login.html') if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
 	} elsif ($last_tmpl eq 'login') {
 		%userdetails = login($cgi);
+		$authed = 1;
 	} else {
 		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
 	}
@@ -653,7 +655,7 @@ sub get_new_session
 	my @sys_attrs = get_sys_attrs;
 	my %perms;
 	foreach my $sysattr (@sys_attrs) {
-		$perms{$sysattr} = grep (($_ eq 'IsPleb' || exists $userdetails{$_}), @{$attr_syns{$sysattr}});
+		$perms{$sysattr} = grep (($_ eq 'IsPleb' || exists $userdetails{$_} || ($_ eq 'IsAuthed' && $authed)), @{$attr_syns{$sysattr}});
 	}
 
 	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
@@ -1098,7 +1100,7 @@ sub gen_edit_attr_groups
 	my @impsh = map ({ I => $_ }, (@sorted_attrs, get_sys_attrs, @extra_attrs));
 
 	my @attrs;
-	foreach my $attr (@sorted_attrs, 'IsPleb') {
+	foreach my $attr (@sorted_attrs, 'IsAuthed', 'IsPleb') {
 		my @imps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr) }; } @sorted_attrs;
 		my @simps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'system' }; } get_sys_attrs;
 		my @nimps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'unknown' }; } @extra_attrs;
@@ -2133,6 +2135,7 @@ sub despatch_admin
 				$whinge->('Attributes renames must have type prefix') if $rename{$oldattr} && !(defined $type && length $type);
 				$cfg{$attr} = (defined $oldattr && exists $oldcfg{$oldattr}) ? $oldcfg{$oldattr} : undef;
 			}
+			$cfg{IsAuthed} = $oldcfg{IsAuthed} if $oldcfg{IsAuthed};
 			$cfg{IsPleb} = $oldcfg{IsPleb} if $oldcfg{IsPleb};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
@@ -2169,9 +2172,10 @@ sub despatch_admin
 			my %cfg;
 			my $whinge = sub { whinge($_[0], gen_edit_attr_groups($etoken)) };
 
-			foreach my $attr (get_attrs(1), 'IsPleb') {
+			foreach my $attr (get_attrs(1), 'IsAuthed', 'IsPleb') {
 				$cfg{$attr} = join (':', map { s/^${attr}_//; $_ } grep (/^${attr}_/, $cgi->param()));
 			}
+			delete $cfg{IsAuthed} unless length $cfg{IsAuthed};
 			delete $cfg{IsPleb} unless length $cfg{IsPleb};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
