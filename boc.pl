@@ -2765,7 +2765,8 @@ sub gen_ucp
 	my %id_count;
 	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (defined $cf{Fee}[$_] && length $cf{Fee}[$_] && !($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_]) || true($cf{IsDrain}[$_])) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]} && defined $cf{Description}[$_] && length $cf{Description}[$_], 0 .. $#{$cf{Description}}));
 	$tmpl->param(SIMPTRANS => scalar @simptransidcounts && !grep ($_ > 0, @simptransidcounts));
-	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct;
+	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct && $acct ne $session->param('User');
+	$tmpl->param(ACCTSN => $user);
 	$tmpl->param(BAL => sprint_monetary($credsum + $debsum));
 	$tmpl->param(CRED_TOT => sprint_monetary($credsum));
 	$tmpl->param(DEB_TOT => sprint_monetary($debsum));
@@ -3233,7 +3234,8 @@ sub despatch
 	if ($cgi->param('tmpl') eq 'ucp') {
 		if (defined $cgi->param('add_swap') || defined $cgi->param('add_vacct_swap')) {
 			my $swap = defined $cgi->param('add_swap');
-			emit(gen_add_swap($swap, $session->param('User'), get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap')));
+			my %acct_names = grep_acct_key('users', 'Name');
+			emit(gen_add_swap($swap, ((exists $acct_names{$cgi->param('acct')}) ? $cgi->param('acct') : $session->param('User')), get_edit_token($sessid, $swap ? 'add_swap' : 'add_vacct_swap')));
 		}
 		if (defined $cgi->param('add_split') || defined $cgi->param('add_vacct_split') || defined $cgi->param('add_bank_split')) {
 			redeem_edit_token($sessid, 'add_vacct_swap', $etoken) if $etoken;
@@ -3249,9 +3251,9 @@ sub despatch
 
 		if (defined $cgi->param('save')) {
 			my %tg;
-			my $whinge = sub { whinge($_[0], gen_add_swap($swap, $session->param('User'), $etoken)) };
-
 			my %acct_names = grep_acct_key('users', 'Name');
+			my $whinge = sub { whinge($_[0], gen_add_swap($swap, ((exists $acct_names{$cgi->param('Creditor')}) ? $cgi->param('Creditor') : $session->param('User')), $etoken)) };
+
 			my @units = known_units();
 
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);

@@ -9,8 +9,8 @@
 	<body>
 		<form action="boc.pl" method="post">
 		<div>
-			<TMPL_UNLESS NAME=ACCT>
 			<input type="hidden" name="tmpl" value="ucp"/>
+			<input type="hidden" name="acct" value="<TMPL_VAR NAME=ACCTSN>"/>
 
 			<div style="margin:1em 0"><TMPL_IF NAME=ADDTG><TMPL_IF NAME=SIMPTRANS><input type="submit" name="add_vacct_swap" value="Add simple communal expense"/>
 				<input type="submit" name="add_vacct_split" value="Add multi-creditor/category communal expense"/></TMPL_IF><br>
@@ -21,9 +21,6 @@
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<hr />
 			<p><input type="submit" name="disp_accts" value="Accounts summary"/><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel" style="float:right"/></TMPL_IF></p>
-			<TMPL_ELSE>
-			<input type="hidden" name="tmpl" value="view_acct"/>
-			</TMPL_UNLESS>
 
 			<h1>Account summary<TMPL_IF NAME=ACCT>: <TMPL_VAR NAME=ACCT></TMPL_IF></h1>
 
@@ -45,13 +42,10 @@
 				</TMPL_LOOP>
 				<tr><td colspan=2>Total debits</td><td style="text-align:right"><TMPL_VAR NAME=DEB_TOT></td></tr>
 			</table>
-			<TMPL_UNLESS NAME=ACCT>
+			<TMPL_IF NAME=ACCT>
+			<p><input type="submit" name="to_acct" value="Return to my account"/></p>
+			</TMPL_IF>
 			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/><TMPL_IF NAME=MEETS><input type="submit" name="manage_meets" value="See all meets"/></TMPL_IF></p>
-			<TMPL_ELSE>
-			<p><input type="submit" name="disp_accts" value="Back to accounts summary"/></p>
-			<p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p>
-			<p><input type="submit" name="logout" value="Logout"/></p>
-			</TMPL_UNLESS>
 		</div>
 		</form>
 	</body>
