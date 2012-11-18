@@ -1389,9 +1389,9 @@ sub gen_edit_meet
 			push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, NOTEV => $meet{Notes}[$row] });
 	}
 	@ppl = (@ppl, @nas);
-        $tmpl->param(PPL => \@ppl);
-        $tmpl->param(EDITOK => $session->param('IsAdmin'));
-        $tmpl->param(VALID => meet_valid(\%meet, $mcr));
+	$tmpl->param(PPL => \@ppl);
+	$tmpl->param(EDITOK => $session->param('IsAdmin'));
+	$tmpl->param(VALID => meet_valid(\%meet, $mcr));
 
 	return $tmpl;
 }
@@ -1916,7 +1916,7 @@ sub despatch_admin
 					close $fh;
 					$git->add($tg_file);
 				} else {
-				       	$git->rm($tg_file) if -e $tg_file;
+					$git->rm($tg_file) if -e $tg_file;
 				}
 				write_htsv($mt_file, \%meet, 11);
 				my @split_mf = split('-', unroot($mt_file));
@@ -2023,7 +2023,7 @@ sub despatch_admin
 					close $fh;
 					$git->add($tg_file);
 				} else {
-				       	$git->rm($tg_file) if -e $tg_file;
+					$git->rm($tg_file) if -e $tg_file;
 				}
 				write_htsv($mt_file, \%meet, 11);
 				my @split_mf = split('-', unroot($mt_file));
@@ -3041,7 +3041,7 @@ sub gen_tg
 
 		%resolved = resolve_accts(\%dds, \%negated) if $is_drain;
 		if ($has_tp) {
-		        @tp_per_share = tg_tp_amnt_per_share(\@sorted_in_use, $tgdetails{Creditor}, \%tgdetails, \%rates, \%resolved, \%negated);
+			@tp_per_share = tg_tp_amnt_per_share(\@sorted_in_use, $tgdetails{Creditor}, \%tgdetails, \%rates, \%resolved, \%negated);
 		}
 	}
 
@@ -3082,7 +3082,7 @@ sub gen_tg
 			       CURS => \@currencies,
 			       A => $amnt,
 			       RC => \@rowcontents,
-	      		       TP => (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /[1-9]/) ? $tgdetails{TrnsfrPot}[$row] : 'N/A',
+			       TP => (defined $tgdetails{TrnsfrPot}[$row] && $tgdetails{TrnsfrPot}[$row] =~ /[1-9]/) ? $tgdetails{TrnsfrPot}[$row] : 'N/A',
 			       TPS => \@tps,
 			       DESC => $tgdetails{Description}[$row] });
 	}
