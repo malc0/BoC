@@ -749,7 +749,7 @@ sub gen_manage_accts
 	my $tmpl = load_template('manage_accts.html');
 	my @accounts = $people ? glob ("$config{Root}/users/*") : glob ("$config{Root}/accounts/*");
 	my @acctlist;
-	my @attrs_list = get_attrs;
+	my @attrs_list = (get_attrs, 'Password');
 
 	foreach my $acct (@accounts) {
 		my %acctdetails = read_simp_cfg($acct);
