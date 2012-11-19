@@ -1657,121 +1657,6 @@ sub despatch_admin
 			emit(gen_edit_units(get_edit_token($sessid, 'edit_units')));
 		}
 	}
-	if ($cgi->param('tmpl') eq 'edit_acct') {
-		my $person = defined $cgi->param('email');
-		my $root = $config{Root};
-		my $acct_path = $person ? "$root/users" : "$root/accounts";
-		my $edit_acct = valid_edit_id(scalar $cgi->param('eacct'), $acct_path, 'account', sub { whinge($_[0], gen_manage_accts($person)) });
-		my $file = $edit_acct ? "$acct_path/$edit_acct" : undef;
-		my $new_acct;
-
-		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
-			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
-
-			my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
-			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
-			my $fullname = clean_words($cgi->param('fullname'));
-			my $email = clean_email($cgi->param('email'));
-			my $address = clean_text($cgi->param('address'));
-			my $nalts = grep (length $cgi->param($_), @{$addr_alts{Headings}});
-			my $rename = ($edit_acct and $edit_acct ne $new_acct);
-			my $old_file = $file;
-			$file = "$acct_path/$new_acct";
-
-			$whinge->('Short name is already taken') if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
-			$whinge->('Full name too short') unless defined $fullname;
-			$whinge->('Full name too long') if length $fullname > 100;
-			if ($person) {
-				$whinge->('Not an email address') unless defined $email;
-				$whinge->('No real-world contact details given') unless defined $address || $nalts;
-			}
-
-			my %userdetails;
-			%userdetails = read_simp_cfg($old_file) if ($edit_acct);
-			$userdetails{Name} = $fullname;
-			if ($person) {
-				$userdetails{email} = $email;
-				$address ? $userdetails{Address} = $address : delete $userdetails{Address};
-				foreach my $alt (@{$addr_alts{Headings}}) {
-					if (length $cgi->param($alt)) {
-						my $want = encode_for_html($cgi->param($alt));
-						my $row = first { defined $addr_alts{$alt}[$_] && $addr_alts{$alt}[$_] eq $want } 0 .. $#{$addr_alts{$alt}};
-						$whinge->('"' . $cgi->param($alt) . "\" is not a known $alt") unless defined $row;
-						$userdetails{$alt} = $addr_alts{$alt}[$row];
-					} else {
-						delete $userdetails{$alt};
-					}
-				}
-				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (grep ($_ ne 'IsPleb', get_attrs));
-			} else {
-				(mkdir $acct_path or die) unless (-d $acct_path);
-				(defined $cgi->param('is_negated')) ? $userdetails{IsNegated} = undef : delete $userdetails{IsNegated};
-			}
-
-			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			if ($rename) {
-				unlock_dir('transaction_groups', $sessid, $whinge, 'account rename', 'transaction groups');
-				unlock_dir('meets', $sessid, $whinge, 'account rename', 'meets');
-				if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
-					un_commit_lock;
-					$whinge->('Cannot perform account rename at present: config_fees busy');
-				}
-			}
-			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
-			if (defined $edit_acct and $edit_acct eq $session->param('User')) {
-				$session->param('User', $new_acct);
-				$session->param('Name', $userdetails{Name});
-				$session->flush();
-			}
-			try_commit_and_unlock(sub {
-				if ($rename) {
-					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
-					dir_mod_all('meets', 0, [ $edit_acct ], sub { my ($meet, $old) = @_; $meet->{Leader} =~ s/^$old$/$new_acct/ if defined $meet->{Leader}; foreach (@{$meet->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
-					my %cf = read_htsv("$config{Root}/config_fees", 1);
-					if (%cf) {
-						$cf{MeetAccount} =~ s/^$edit_acct$/$new_acct/ if defined $cf{MeetAccount};
-						if (exists $cf{Account}) {
-							foreach (@{$cf{Account}}) {
-								s/^$edit_acct$/$new_acct/ if $_;
-							}
-						}
-
-						write_htsv("$config{Root}/config_fees", \%cf, 11);
-						$git->add("$config{Root}/config_fees");
-					}
-					$git->mv($old_file, $file);
-				}
-				write_simp_cfg($file, %userdetails);
-				if ($rename) {
-					add_commit($file, 'Rename ' . unroot($old_file) . ' to ' . unroot($file), $session);
-				} else {
-					add_commit($file, unroot($file) . ': ' . ($edit_acct ? 'modified' : 'created'), $session);
-				}
-			}, $rename ? $old_file : ($edit_acct) ? $file : undef);
-
-			my $net = peek_session_data($sessid, $etoken);
-			if ($net) {
-				my $adds = pop_session_data($sessid, "${net}_add_accts");
-				$adds = $adds ? "$adds.$new_acct" : $new_acct;
-				push_session_data($sessid, "${net}_add_accts", $adds);
-			}
-		} else {
-			unlock($file) if redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken) && $file;
-		}
-
-		if ($edit_acct) {
-			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : 'Edit account cancelled', gen_manage_accts($person));
-		} else {
-			$etoken = pop_session_data($sessid, $etoken);
-			if (defined $cgi->param('savenadd')) {
-				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
-				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken));
-			}
-			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
-			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $sessid, $etoken) : gen_manage_accts($person);
-			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
-		}
-	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccts') {
 		my $acct;
 		my $delete = 0;
@@ -1891,243 +1776,6 @@ sub despatch_admin
 			}, $mt_file);
 			emit_with_status("Meet \"$meet{Name}\" " . ((exists $meet{Locked}) ? 'locked' : 'unlocked'), gen_manage_meets($session));
 		}
-	}
-	if ($cgi->param('tmpl') eq 'edit_meet') {
-		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', $whinge, 1);
-		my $mt_file = "$config{Root}/meets/$edit_id";
-
-		if (defined $cgi->param('cancel')) {
-			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken);
-		}
-
-		my %meet_cfg = valid_fee_cfg;
-		$whinge->('Cannot display meet: expenses config is broken') unless %meet_cfg;
-
-		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
-			$whinge->("Couldn't get edit lock for meet \"$edit_id\"") unless try_lock($mt_file, $sessid);
-			unless (-r $mt_file) {
-				unlock($mt_file);
-				$whinge->("Couldn't edit meet \"$edit_id\", file disappeared");
-			}
-
-			if (defined $cgi->param('edit')) {
-				emit(gen_edit_meet($edit_id, \%meet_cfg, $session, get_edit_token($sessid, "edit_$edit_id")));
-			} else {
-				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
-			}
-		}
-
-		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
-
-		if (defined $cgi->param('save')) {
-			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $session, $etoken)) };
-
-			delete $meet{Currency};
-			my @ppl = @{$meet{Person}};
-			delete $meet{$_} foreach (grep (ref $meet{$_} || $_ =~ /^Split[1-9]Desc$/, keys %meet));
-			@{$meet{Person}} = @ppl;
-
-			my @units = known_units;
-			$whinge->('No currency definition?') if scalar @units && !(defined $cgi->param('Currency'));
-			if (defined $cgi->param('Currency') && $cgi->param('Currency') ne 'N/A') {
-				$meet{Currency} = validate_unit(scalar $cgi->param('Currency'), \@units, $whinge);
-			}
-
-			my %relevant_splits;
-			foreach my $split (1 .. 9) {
-				my $split_exp_count = scalar grep ($_ =~ /_Split${split}E$/, $cgi->param);
-				my $split_shr_count = scalar grep ($_ =~ /_Split${split}S$/, $cgi->param);
-
-				$whinge->('Number of split expense and share columns not equal') unless $split_exp_count == $split_shr_count;
-				$relevant_splits{$split} = 1 if $split_exp_count || $split_shr_count;
-			}
-
-			my %cds = known_commod_descs;
-			my %et;
-			%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%meet_cfg) if defined $meet{EventType} && $meet{EventType} ne 'none';
-
-			my %pers_count;
-			foreach my $pers (@{$meet{Person}}) {
-				$pers //= '';
-				$pers_count{$pers} = 0 unless exists $pers_count{$pers};
-				my @arr = $cgi->param("${pers}_Custom");
-				push (@{$meet{CustomFee}}, validate_decimal($arr[$pers_count{$pers}], 'Custom fee', 1, $whinge));
-				foreach (%et ? map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (@{$et{Unit}}) : 0 .. $#{$meet_cfg{Fee}}) {
-					@arr = $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]");
-					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
-				}
-				foreach (keys %relevant_splits) {
-					@arr = $cgi->param("${pers}_Split${_}E");
-					push (@{$meet{"Split${_}Exps"}}, validate_decimal($arr[$pers_count{$pers}], 'Split expense', 0, $whinge));
-					@arr = $cgi->param("${pers}_Split${_}S");
-					push (@{$meet{"Split${_}Shrs"}}, validate_decimal($arr[$pers_count{$pers}], 'Split debt share', 1, $whinge));
-				}
-				@arr = $cgi->param("${pers}_Notes");
-				push (@{$meet{Notes}}, clean_words($arr[$pers_count{$pers}]));
-				$pers_count{$pers}++;
-			}
-
-			my @compact_splits;
-			foreach (sort keys %relevant_splits) {
-				if (!sum (@{$meet{"Split${_}Exps"}})) {
-					delete $relevant_splits{$_};
-					delete $meet{"Split${_}Exps"};
-					delete $meet{"Split${_}Shrs"};
-					next;
-				}
-				$whinge->('Split expense without shares') unless sum (@{$meet{"Split${_}Shrs"}});
-				push (@compact_splits, 1 + scalar @compact_splits);
-				$meet{'Split' . $compact_splits[-1] . 'Exps'} = delete $meet{"Split${_}Exps"};
-				$meet{'Split' . $compact_splits[-1] . 'Shrs'} = delete $meet{"Split${_}Shrs"};
-				$meet{'Split' . $compact_splits[-1] . 'Desc'} = clean_words($cgi->param("Split${_}D"));
-				$whinge->('Missing split description') unless ($meet{'Split' . $compact_splits[-1] . 'Desc'});
-			}
-
-			my @midheads;
-			if (%et) {
-				my %drains = get_cf_drains(%meet_cfg);
-				my ($fees, $exps) = get_event_types(\%et, \%drains);
-				@midheads = (@$fees, @$exps);
-			} else {
-				@midheads = @{$meet_cfg{Fee}};
-			}
-			push (@midheads, ("Split${_}Exps", "Split${_}Shrs")) foreach (@compact_splits);
-			@{$meet{Headings}} = ( 'Person', 'CustomFee', @midheads, 'Notes' ) if scalar @{$meet{Person}};
-
-			my %tg = meet_to_tg(%meet);
-
-			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
-			try_commit_and_unlock(sub {
-				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
-				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
-					(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
-					open (my $fh, '>', $tg_file) or die;
-					say $fh "Meet TGs are autogenerated at runtime";
-					close $fh;
-					$git->add($tg_file);
-				} else {
-					$git->rm($tg_file) if -e $tg_file;
-				}
-				write_htsv($mt_file, \%meet, 11);
-				my @split_mf = split('-', unroot($mt_file));
-				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
-			}, $mt_file);
-		}
-
-		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%meet_cfg, $session, undef));
-	}
-	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets($session)) }, 1);
-		my $mt_file = "$config{Root}/meets/$edit_id";
-
-		if (defined $cgi->param('new_user')) {
-			push_session_data($sessid, "${etoken}_editid", $edit_id);
-			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken)));
-		}
-
-		if (defined $cgi->param('cancel')) {
-			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken) && $mt_file;
-			pop_session_data($sessid, "${etoken}_add_accts");
-		}
-
-		my %cf = valid_fee_cfg;
-		whinge('Cannot display meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
-
-		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
-
-		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
-			my %accts = grep_acct_key('users', 'Name');
-			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
-
-			my %seen_ppl;
-			my (@ppl, @nas);
-			foreach (map { /^Pers_(.*)/; $1 } grep (/^Pers_.+$/, $cgi->param)) {
-				(my $stripped = $_) =~ s/\..*$//;
-				push (@ppl, $_) if validate_acct($stripped, \%accts, $whinge);
-				$seen_ppl{$stripped}++;
-			}
-			foreach (map { /^Acct_(.*)/; $1 } grep (/^Acct_.+$/, $cgi->param)) {
-				(my $stripped = $_) =~ s/\..*$//;
-				push (@ppl, $_) if validate_acct($stripped, \%neg_accts, $whinge);
-				$seen_ppl{$stripped}++;
-			}
-			$whinge->('Having duplicate people is silly') if grep ($_ > 1, values %seen_ppl);
-			delete $meet{Headings} unless scalar @ppl;
-			if (exists $meet{Headings}) {
-				my %new_m;
-				my %ppl_pos;
-				push (@{$ppl_pos{$meet{Person}[$_]}}, $_) foreach grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}});
-				foreach my $p_n (0 .. $#ppl) {
-					(my $pers = $ppl[$p_n]) =~ s/\..*$//;
-					my $inst = ($ppl[$p_n] =~ /\.(\d*)$/) ? $1 - 1 : 0;
-					my $row = $ppl_pos{$pers}[$inst];
-					next unless defined $row;
-					$new_m{$_}[$p_n] = $meet{$_}[$row] foreach (@{$meet{Headings}});
-				}
-				@{$meet{$_}} = @{$new_m{$_}} foreach (@{$meet{Headings}});
-			} elsif (scalar @ppl) {
-				@{$meet{Headings}} = ( 'Person' );
-			}
-			@{$meet{Person}} = map { s/\..*$//; $_ } (@ppl);
-
-			my (%et, %ft);
-			my $ft_prefix = '';
-			if (defined $meet{EventType} && $meet{EventType} ne 'none') {
-				%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%cf);
-				$ft_prefix = "$meet{EventType}.";
-			}
-			%ft = valid_ft("$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$meet{Template}"), \%cf) if defined $meet{Template} && $meet{Template} ne 'none';
-			if (scalar @{$meet{Person}} && %ft) {
-				my %cds = known_commod_descs;
-				my %drains = get_cf_drains(%cf);
-				my ($fees, $exps) = get_event_types(\%et, \%drains);
-				my @feecols = %et ? @$fees : grep (exists $cds{$_} || exists $drains{$_}, @{$cf{Fee}});
-
-				splice (@{$meet{Headings}}, 1, 0, 'CustomFee') if !grep ($_ eq 'CustomFee', @{$meet{Headings}});	# necessary so subsequent ones added at position 2
-				foreach my $unit (@feecols) {
-					splice (@{$meet{Headings}}, 2, 0, $unit) if !grep ($_ eq $unit, @{$meet{Headings}});
-				}
-
-				foreach my $p_n (0 .. $#ppl) {
-					next if exists $neg_accts{$meet{Person}[$p_n]};
-					next if sum (map ((defined $meet{$_}[$p_n]), @{$meet{Headings}})) > 1;
-					my %def_fees = get_ft_fees($meet{Person}[$p_n], %ft);
-					$meet{$_}[$p_n] = $def_fees{$_} foreach (@feecols);
-				}
-			}
-			foreach my $p_n (0 .. $#ppl) {
-				$meet{$_}[$p_n] //= 0 foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}}));
-			}
-
-			my %tg;
-			%tg = meet_to_tg(%meet) if (scalar @{$meet{Person}});
-
-			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
-			pop_session_data($sessid, "${etoken}_add_accts");
-			try_commit_and_unlock(sub {
-				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
-				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
-					(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
-					open (my $fh, '>', $tg_file) or die;
-					say $fh "Meet TGs are autogenerated at runtime";
-					close $fh;
-					$git->add($tg_file);
-				} else {
-					$git->rm($tg_file) if -e $tg_file;
-				}
-				write_htsv($mt_file, \%meet, 11);
-				my @split_mf = split('-', unroot($mt_file));
-				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
-			}, $mt_file);
-		}
-
-		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, $session, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
 		my $cfg_file = "$config{Root}/config";
@@ -3542,6 +3190,358 @@ sub despatch
 			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', $whinge, 1);
 
 			emit(gen_edit_meet($mid, \%cf, $session, undef));
+		}
+	}
+	if ($cgi->param('tmpl') eq 'edit_meet') {
+		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', $whinge, 1);
+		my $mt_file = "$config{Root}/meets/$edit_id";
+
+		if (defined $cgi->param('cancel')) {
+			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+		}
+
+		my %meet_cfg = valid_fee_cfg;
+		$whinge->('Cannot display meet: expenses config is broken') unless %meet_cfg;
+
+		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
+			$whinge->("Couldn't get edit lock for meet \"$edit_id\"") unless try_lock($mt_file, $sessid);
+			unless (-r $mt_file) {
+				unlock($mt_file);
+				$whinge->("Couldn't edit meet \"$edit_id\", file disappeared");
+			}
+
+			if (defined $cgi->param('edit')) {
+				emit(gen_edit_meet($edit_id, \%meet_cfg, $session, get_edit_token($sessid, "edit_$edit_id")));
+			} else {
+				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
+			}
+		}
+
+		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+
+		if (defined $cgi->param('save')) {
+			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $session, $etoken)) };
+
+			delete $meet{Currency};
+			my @ppl = @{$meet{Person}};
+			delete $meet{$_} foreach (grep (ref $meet{$_} || $_ =~ /^Split[1-9]Desc$/, keys %meet));
+			@{$meet{Person}} = @ppl;
+
+			my @units = known_units;
+			$whinge->('No currency definition?') if scalar @units && !(defined $cgi->param('Currency'));
+			if (defined $cgi->param('Currency') && $cgi->param('Currency') ne 'N/A') {
+				$meet{Currency} = validate_unit(scalar $cgi->param('Currency'), \@units, $whinge);
+			}
+
+			my %relevant_splits;
+			foreach my $split (1 .. 9) {
+				my $split_exp_count = scalar grep ($_ =~ /_Split${split}E$/, $cgi->param);
+				my $split_shr_count = scalar grep ($_ =~ /_Split${split}S$/, $cgi->param);
+
+				$whinge->('Number of split expense and share columns not equal') unless $split_exp_count == $split_shr_count;
+				$relevant_splits{$split} = 1 if $split_exp_count || $split_shr_count;
+			}
+
+			my %cds = known_commod_descs;
+			my %et;
+			%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%meet_cfg) if defined $meet{EventType} && $meet{EventType} ne 'none';
+
+			my %pers_count;
+			foreach my $pers (@{$meet{Person}}) {
+				$pers //= '';
+				$pers_count{$pers} = 0 unless exists $pers_count{$pers};
+				my @arr = $cgi->param("${pers}_Custom");
+				push (@{$meet{CustomFee}}, validate_decimal($arr[$pers_count{$pers}], 'Custom fee', 1, $whinge));
+				foreach (%et ? map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (@{$et{Unit}}) : 0 .. $#{$meet_cfg{Fee}}) {
+					@arr = $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]");
+					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
+				}
+				foreach (keys %relevant_splits) {
+					@arr = $cgi->param("${pers}_Split${_}E");
+					push (@{$meet{"Split${_}Exps"}}, validate_decimal($arr[$pers_count{$pers}], 'Split expense', 0, $whinge));
+					@arr = $cgi->param("${pers}_Split${_}S");
+					push (@{$meet{"Split${_}Shrs"}}, validate_decimal($arr[$pers_count{$pers}], 'Split debt share', 1, $whinge));
+				}
+				@arr = $cgi->param("${pers}_Notes");
+				push (@{$meet{Notes}}, clean_words($arr[$pers_count{$pers}]));
+				$pers_count{$pers}++;
+			}
+
+			my @compact_splits;
+			foreach (sort keys %relevant_splits) {
+				if (!sum (@{$meet{"Split${_}Exps"}})) {
+					delete $relevant_splits{$_};
+					delete $meet{"Split${_}Exps"};
+					delete $meet{"Split${_}Shrs"};
+					next;
+				}
+				$whinge->('Split expense without shares') unless sum (@{$meet{"Split${_}Shrs"}});
+				push (@compact_splits, 1 + scalar @compact_splits);
+				$meet{'Split' . $compact_splits[-1] . 'Exps'} = delete $meet{"Split${_}Exps"};
+				$meet{'Split' . $compact_splits[-1] . 'Shrs'} = delete $meet{"Split${_}Shrs"};
+				$meet{'Split' . $compact_splits[-1] . 'Desc'} = clean_words($cgi->param("Split${_}D"));
+				$whinge->('Missing split description') unless ($meet{'Split' . $compact_splits[-1] . 'Desc'});
+			}
+
+			my @midheads;
+			if (%et) {
+				my %drains = get_cf_drains(%meet_cfg);
+				my ($fees, $exps) = get_event_types(\%et, \%drains);
+				@midheads = (@$fees, @$exps);
+			} else {
+				@midheads = @{$meet_cfg{Fee}};
+			}
+			push (@midheads, ("Split${_}Exps", "Split${_}Shrs")) foreach (@compact_splits);
+			@{$meet{Headings}} = ( 'Person', 'CustomFee', @midheads, 'Notes' ) if scalar @{$meet{Person}};
+
+			my %tg = meet_to_tg(%meet);
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			try_commit_and_unlock(sub {
+				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
+				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
+					(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
+					open (my $fh, '>', $tg_file) or die;
+					say $fh "Meet TGs are autogenerated at runtime";
+					close $fh;
+					$git->add($tg_file);
+				} else {
+					$git->rm($tg_file) if -e $tg_file;
+				}
+				write_htsv($mt_file, \%meet, 11);
+				my @split_mf = split('-', unroot($mt_file));
+				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
+			}, $mt_file);
+		}
+
+		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%meet_cfg, $session, undef));
+	}
+	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets($session)) }, 1);
+		my $mt_file = "$config{Root}/meets/$edit_id";
+
+		if (defined $cgi->param('new_user')) {
+			push_session_data($sessid, "${etoken}_editid", $edit_id);
+			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken)));
+		}
+
+		if (defined $cgi->param('cancel')) {
+			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken) && $mt_file;
+			pop_session_data($sessid, "${etoken}_add_accts");
+		}
+
+		my %cf = valid_fee_cfg;
+		whinge('Cannot display meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
+
+		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+
+		if (defined $cgi->param('save')) {
+			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
+			my %accts = grep_acct_key('users', 'Name');
+			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
+
+			my %seen_ppl;
+			my (@ppl, @nas);
+			foreach (map { /^Pers_(.*)/; $1 } grep (/^Pers_.+$/, $cgi->param)) {
+				(my $stripped = $_) =~ s/\..*$//;
+				push (@ppl, $_) if validate_acct($stripped, \%accts, $whinge);
+				$seen_ppl{$stripped}++;
+			}
+			foreach (map { /^Acct_(.*)/; $1 } grep (/^Acct_.+$/, $cgi->param)) {
+				(my $stripped = $_) =~ s/\..*$//;
+				push (@ppl, $_) if validate_acct($stripped, \%neg_accts, $whinge);
+				$seen_ppl{$stripped}++;
+			}
+			$whinge->('Having duplicate people is silly') if grep ($_ > 1, values %seen_ppl);
+			delete $meet{Headings} unless scalar @ppl;
+			if (exists $meet{Headings}) {
+				my %new_m;
+				my %ppl_pos;
+				push (@{$ppl_pos{$meet{Person}[$_]}}, $_) foreach grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}});
+				foreach my $p_n (0 .. $#ppl) {
+					(my $pers = $ppl[$p_n]) =~ s/\..*$//;
+					my $inst = ($ppl[$p_n] =~ /\.(\d*)$/) ? $1 - 1 : 0;
+					my $row = $ppl_pos{$pers}[$inst];
+					next unless defined $row;
+					$new_m{$_}[$p_n] = $meet{$_}[$row] foreach (@{$meet{Headings}});
+				}
+				@{$meet{$_}} = @{$new_m{$_}} foreach (@{$meet{Headings}});
+			} elsif (scalar @ppl) {
+				@{$meet{Headings}} = ( 'Person' );
+			}
+			@{$meet{Person}} = map { s/\..*$//; $_ } (@ppl);
+
+			my (%et, %ft);
+			my $ft_prefix = '';
+			if (defined $meet{EventType} && $meet{EventType} ne 'none') {
+				%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%cf);
+				$ft_prefix = "$meet{EventType}.";
+			}
+			%ft = valid_ft("$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$meet{Template}"), \%cf) if defined $meet{Template} && $meet{Template} ne 'none';
+			if (scalar @{$meet{Person}} && %ft) {
+				my %cds = known_commod_descs;
+				my %drains = get_cf_drains(%cf);
+				my ($fees, $exps) = get_event_types(\%et, \%drains);
+				my @feecols = %et ? @$fees : grep (exists $cds{$_} || exists $drains{$_}, @{$cf{Fee}});
+
+				splice (@{$meet{Headings}}, 1, 0, 'CustomFee') if !grep ($_ eq 'CustomFee', @{$meet{Headings}});	# necessary so subsequent ones added at position 2
+				foreach my $unit (@feecols) {
+					splice (@{$meet{Headings}}, 2, 0, $unit) if !grep ($_ eq $unit, @{$meet{Headings}});
+				}
+
+				foreach my $p_n (0 .. $#ppl) {
+					next if exists $neg_accts{$meet{Person}[$p_n]};
+					next if sum (map ((defined $meet{$_}[$p_n]), @{$meet{Headings}})) > 1;
+					my %def_fees = get_ft_fees($meet{Person}[$p_n], %ft);
+					$meet{$_}[$p_n] = $def_fees{$_} foreach (@feecols);
+				}
+			}
+			foreach my $p_n (0 .. $#ppl) {
+				$meet{$_}[$p_n] //= 0 foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}}));
+			}
+
+			my %tg;
+			%tg = meet_to_tg(%meet) if (scalar @{$meet{Person}});
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			pop_session_data($sessid, "${etoken}_add_accts");
+			try_commit_and_unlock(sub {
+				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
+				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
+					(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
+					open (my $fh, '>', $tg_file) or die;
+					say $fh "Meet TGs are autogenerated at runtime";
+					close $fh;
+					$git->add($tg_file);
+				} else {
+					$git->rm($tg_file) if -e $tg_file;
+				}
+				write_htsv($mt_file, \%meet, 11);
+				my @split_mf = split('-', unroot($mt_file));
+				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
+			}, $mt_file);
+		}
+
+		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, $session, undef));
+	}
+	if ($cgi->param('tmpl') eq 'edit_acct') {
+		my $person = defined $cgi->param('email');
+		my $root = $config{Root};
+		my $acct_path = $person ? "$root/users" : "$root/accounts";
+		my $edit_acct = valid_edit_id(scalar $cgi->param('eacct'), $acct_path, 'account', sub { whinge($_[0], gen_manage_accts($person)) });
+		my $file = $edit_acct ? "$acct_path/$edit_acct" : undef;
+		my $new_acct;
+
+		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
+			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken)) };
+
+			my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
+			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
+			my $fullname = clean_words($cgi->param('fullname'));
+			my $email = clean_email($cgi->param('email'));
+			my $address = clean_text($cgi->param('address'));
+			my $nalts = grep (length $cgi->param($_), @{$addr_alts{Headings}});
+			my $rename = ($edit_acct and $edit_acct ne $new_acct);
+			my $old_file = $file;
+			$file = "$acct_path/$new_acct";
+
+			$whinge->('Short name is already taken') if ((-e "$root/accounts/$new_acct" or -e "$root/users/$new_acct") and ((not defined $edit_acct) or $rename));
+			$whinge->('Full name too short') unless defined $fullname;
+			$whinge->('Full name too long') if length $fullname > 100;
+			if ($person) {
+				$whinge->('Not an email address') unless defined $email;
+				$whinge->('No real-world contact details given') unless defined $address || $nalts;
+			}
+
+			my %userdetails;
+			%userdetails = read_simp_cfg($old_file) if ($edit_acct);
+			$userdetails{Name} = $fullname;
+			if ($person) {
+				$userdetails{email} = $email;
+				$address ? $userdetails{Address} = $address : delete $userdetails{Address};
+				foreach my $alt (@{$addr_alts{Headings}}) {
+					if (length $cgi->param($alt)) {
+						my $want = encode_for_html($cgi->param($alt));
+						my $row = first { defined $addr_alts{$alt}[$_] && $addr_alts{$alt}[$_] eq $want } 0 .. $#{$addr_alts{$alt}};
+						$whinge->('"' . $cgi->param($alt) . "\" is not a known $alt") unless defined $row;
+						$userdetails{$alt} = $addr_alts{$alt}[$row];
+					} else {
+						delete $userdetails{$alt};
+					}
+				}
+				(defined $cgi->param($_)) ? $userdetails{$_} = undef : delete $userdetails{$_} foreach (grep ($_ ne 'IsPleb', get_attrs));
+			} else {
+				(mkdir $acct_path or die) unless (-d $acct_path);
+				(defined $cgi->param('is_negated')) ? $userdetails{IsNegated} = undef : delete $userdetails{IsNegated};
+			}
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			if ($rename) {
+				unlock_dir('transaction_groups', $sessid, $whinge, 'account rename', 'transaction groups');
+				unlock_dir('meets', $sessid, $whinge, 'account rename', 'meets');
+				if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
+					un_commit_lock;
+					$whinge->('Cannot perform account rename at present: config_fees busy');
+				}
+			}
+			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
+			if (defined $edit_acct and $edit_acct eq $session->param('User')) {
+				$session->param('User', $new_acct);
+				$session->param('Name', $userdetails{Name});
+				$session->flush();
+			}
+			try_commit_and_unlock(sub {
+				if ($rename) {
+					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
+					dir_mod_all('meets', 0, [ $edit_acct ], sub { my ($meet, $old) = @_; $meet->{Leader} =~ s/^$old$/$new_acct/ if defined $meet->{Leader}; foreach (@{$meet->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
+					my %cf = read_htsv("$config{Root}/config_fees", 1);
+					if (%cf) {
+						$cf{MeetAccount} =~ s/^$edit_acct$/$new_acct/ if defined $cf{MeetAccount};
+						if (exists $cf{Account}) {
+							foreach (@{$cf{Account}}) {
+								s/^$edit_acct$/$new_acct/ if $_;
+							}
+						}
+
+						write_htsv("$config{Root}/config_fees", \%cf, 11);
+						$git->add("$config{Root}/config_fees");
+					}
+					$git->mv($old_file, $file);
+				}
+				write_simp_cfg($file, %userdetails);
+				if ($rename) {
+					add_commit($file, 'Rename ' . unroot($old_file) . ' to ' . unroot($file), $session);
+				} else {
+					add_commit($file, unroot($file) . ': ' . ($edit_acct ? 'modified' : 'created'), $session);
+				}
+			}, $rename ? $old_file : ($edit_acct) ? $file : undef);
+
+			my $net = peek_session_data($sessid, $etoken);
+			if ($net) {
+				my $adds = pop_session_data($sessid, "${net}_add_accts");
+				$adds = $adds ? "$adds.$new_acct" : $new_acct;
+				push_session_data($sessid, "${net}_add_accts", $adds);
+			}
+		} else {
+			unlock($file) if redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken) && $file;
+		}
+
+		if ($edit_acct) {
+			emit_with_status((defined $cgi->param('save')) ? "Saved edits to account \"$new_acct\"" : 'Edit account cancelled', gen_manage_accts($person));
+		} else {
+			$etoken = pop_session_data($sessid, $etoken);
+			if (defined $cgi->param('savenadd')) {
+				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
+				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken));
+			}
+			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
+			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $sessid, $etoken) : gen_manage_accts($person);
+			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
 		}
 	}
 
