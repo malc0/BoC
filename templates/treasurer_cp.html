@@ -6,23 +6,29 @@
 		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
 	</head>
 	<body>
+		<h1><TMPL_VAR NAME=LN> control panel</h1>
+
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="tcp"/>
 
-			<TMPL_IF NAME=MEETS><p><input type="submit" name="manage_meets" value="Manage meets"/></p></TMPL_IF>
-
+			<h2>Account management</h2>
 			<p><input type="submit" name="view_ppl" value="Manage people"/><input type="submit" name="view_accts" value="Manage virtual accounts"/></p>
 			<p><input type="submit" name="edit_addr_alts" value="Edit address alternatives"/></p>
-
-			<TMPL_IF NAME=CF_UNITS><p><input type="submit" name="manage_event_types" value="Manage event types"/></p></TMPL_IF>
-			<TMPL_IF NAME=COMMODS><p><input type="submit" name="manage_fee_tmpls" value="Manage fee templates"/></p></TMPL_IF>
-			<p><input type="submit" name="edit_units" value="Edit units (currencies)"/></p>
 			<p><input type="submit" name="edit_pers_attrs" value="Edit personal attribute list"/><input type="submit" name="edit_attr_groups" value="Edit attribute groupings"/></p>
 
-			<TMPL_IF NAME=VACCTS><p><input type="submit" name="edit_fee_cfg" value="Edit expense configuration"/></p></TMPL_IF>
+			<h2>Events</h2>
+			<TMPL_IF NAME=MEETS><p><input type="submit" name="manage_meets" value="Manage meets"/></p></TMPL_IF>
+			<TMPL_IF NAME=COMMODS><p><input type="submit" name="manage_fee_tmpls" value="Manage fee templates"/></p></TMPL_IF>
+			<TMPL_IF NAME=CF_UNITS><p><input type="submit" name="manage_event_types" value="Manage event types"/></p></TMPL_IF>
 
+			<h2>Charges and expenses</h2>
+			<TMPL_IF NAME=VACCTS><p><input type="submit" name="edit_fee_cfg" value="Edit expense configuration"/></p></TMPL_IF>
+			<p><input type="submit" name="edit_units" value="Edit units (currencies)"/></p>
+
+			<h2>General configuration</h2>
 			<p><input type="submit" name="edit_inst_cfg" value="Edit installation configuration"/></p>
+			<br>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<p><input type="submit" name="to_acct" value="Exit control panel to account view"/></p>
 			<p><input type="submit" name="logout" value="Logout"/></p>
