@@ -3241,7 +3241,7 @@ sub despatch
 
 	despatch_admin($session) if $session->param('IsAdmin');
 
-	if ($cgi->param('tmpl') eq 'login_nopw') {
+	if ($cgi->param('tmpl') eq 'login' || $cgi->param('tmpl') eq 'login_nopw') {
 		my $tmpl = gen_ucp($session);
 		print $tmpl->output;
 		exit;
