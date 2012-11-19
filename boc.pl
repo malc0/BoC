@@ -1896,10 +1896,15 @@ sub despatch_admin
 		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
 		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', $whinge, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
+
+		if (defined $cgi->param('cancel')) {
+			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+		}
+
 		my %meet_cfg = valid_fee_cfg;
+		$whinge->('Cannot display meet: expenses config is broken') unless %meet_cfg;
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
-			$whinge->('Cannot edit meet: expenses config is broken') unless %meet_cfg;
 			$whinge->("Couldn't get edit lock for meet \"$edit_id\"") unless try_lock($mt_file, $sessid);
 			unless (-r $mt_file) {
 				unlock($mt_file);
@@ -1916,7 +1921,6 @@ sub despatch_admin
 		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
 		if (defined $cgi->param('save')) {
-			$whinge->('Cannot save meet: expenses config is broken') unless %meet_cfg;
 			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $session, $etoken)) };
 
 			delete $meet{Currency};
@@ -2010,8 +2014,6 @@ sub despatch_admin
 				my @split_mf = split('-', unroot($mt_file));
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
 			}, $mt_file);
-		} else {
-			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
@@ -2020,17 +2022,23 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
 		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets($session)) }, 1);
 		my $mt_file = "$config{Root}/meets/$edit_id";
-		my %cf = valid_fee_cfg;
 
 		if (defined $cgi->param('new_user')) {
 			push_session_data($sessid, "${etoken}_editid", $edit_id);
 			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken)));
 		}
 
+		if (defined $cgi->param('cancel')) {
+			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken) && $mt_file;
+			pop_session_data($sessid, "${etoken}_add_accts");
+		}
+
+		my %cf = valid_fee_cfg;
+		whinge('Cannot display meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
+
 		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
 		if (defined $cgi->param('save')) {
-			whinge('Cannot save meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
 			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
 			my %accts = grep_acct_key('users', 'Name');
 			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
@@ -2116,9 +2124,6 @@ sub despatch_admin
 				my @split_mf = split('-', unroot($mt_file));
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
 			}, $mt_file);
-		} else {
-			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken) && $mt_file;
-			pop_session_data($sessid, "${etoken}_add_accts");
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
