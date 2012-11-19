@@ -553,12 +553,20 @@ sub validate_admins
 	return scalar @valid_admins;
 }
 
+sub gen_login
+{
+	my $tmpl = load_template('login.html');
+	$tmpl->param(USER => $_[0]);
+
+	return $tmpl;
+}
+
 sub login
 {
 	my $cgi = $_[0];
 	my $user = clean_username($cgi->param('user'));
 	my $pass = $cgi->param('pass');
-	my $whinge = sub { whinge('Login failed!', load_template('login.html')) };
+	my $whinge = sub { whinge('Login failed!', gen_login($user)) };
 
 	$whinge->() unless $user and (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
@@ -597,11 +605,10 @@ sub login_nopw
 
 	whinge('Login failed!', gen_login_nopw) unless $user and (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
-	return 'No PW login on account with password set?' if defined $userdetails{Password};
-
 	$userdetails{User} = $user;
 	%{$userdetout} = %userdetails;
-	return 'ok';
+
+	return (defined $userdetails{Password}) ? 'No PW login on account with password set?' : 'ok';
 }
 
 sub clear_old_session_locks
@@ -642,12 +649,12 @@ sub get_new_session
 	my %userdetails;
 	my $authed = 0;
 	if ($last_tmpl eq 'login_nopw' and exists $config{Passwordless}) {
-		$tmpl = load_template('login.html') if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
+		$tmpl = gen_login($userdetails{User}) if (login_nopw($cgi, \%userdetails) eq 'No PW login on account with password set?');
 	} elsif ($last_tmpl eq 'login') {
 		%userdetails = login($cgi);
 		$authed = 1;
 	} else {
-		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : load_template('login.html');
+		$tmpl = (exists $config{Passwordless}) ? gen_login_nopw : gen_login;
 	}
 	($expired ? whinge('Session expired', $tmpl) : emit($tmpl)) if $tmpl;
 
