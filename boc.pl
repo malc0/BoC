@@ -2488,7 +2488,7 @@ sub despatch_admin
 				$whinge->('Attributes renames must have type prefix') if $rename{$oldattr} && !(defined $type && length $type);
 				$cfg{$attr} = (defined $oldattr && exists $oldcfg{$oldattr}) ? $oldcfg{$oldattr} : undef;
 			}
-			$cfg{IsPleb} = $oldcfg{IsPleb} if exists $oldcfg{IsPleb};
+			$cfg{IsPleb} = $oldcfg{IsPleb} if $oldcfg{IsPleb};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if (%rename) {
