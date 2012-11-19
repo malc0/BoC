@@ -1756,8 +1756,7 @@ sub despatch_admin
 				push_session_data($sessid, "${net}_add_accts", $adds);
 			}
 		} else {
-			unlock($file) if ($file);
-			redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
+			unlock($file) if redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken) && $file;
 		}
 
 		if ($edit_acct) {
@@ -1839,8 +1838,7 @@ sub despatch_admin
 				add_commit($cfg_file, 'config_addr_alts: address alternatives configuration modified', $session);
 			}, $cfg_file);
 		} else {
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_addr_alts', $etoken);
+			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_addr_alts', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to address alternatives config' : 'Edit address alternatives config cancelled', gen_tcp);
@@ -2013,8 +2011,7 @@ sub despatch_admin
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
 			}, $mt_file);
 		} else {
-			unlock($mt_file);
-			redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
@@ -2120,8 +2117,7 @@ sub despatch_admin
 				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
 			}, $mt_file);
 		} else {
-			unlock($mt_file) if $mt_file;
-			redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken) && $mt_file;
 			pop_session_data($sessid, "${etoken}_add_accts");
 		}
 
@@ -2147,8 +2143,7 @@ sub despatch_admin
 			}, $cfg_file);
 			update_global_config(%inst_cfg);
 		} else {
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
+			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_inst_cfg', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to installation config' : 'Edit installation config cancelled', gen_tcp);
@@ -2255,8 +2250,7 @@ sub despatch_admin
 				}
 			}, $rename ? $old_file : ($edit_id) ? $file : undef);
 		} else {
-			unlock($file) if $file;
-			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_et', $etoken);
+			unlock($file) if redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_et', $etoken) && $file;
 		}
 
 		if ($edit_id) {
@@ -2377,8 +2371,7 @@ sub despatch_admin
 				}
 			}, $rename ? $old_file : ($edit_id) ? $file : undef);
 		} else {
-			unlock($file) if $file;
-			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken);
+			unlock($file) if redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken) && $file;
 		}
 
 		if ($edit_id) {
@@ -2457,8 +2450,7 @@ sub despatch_admin
 				add_commit($cfg_file, $commit_msg, $session);
 			}, $cfg_file);
 		} else {
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
+			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to meet form config' : 'Edit meet form config cancelled', gen_tcp);
@@ -2512,8 +2504,7 @@ sub despatch_admin
 				add_commit($cfg_file, 'config_pers_attrs: personal attribute types modified', $session);
 			}, $cfg_file);
 		} else {
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
+			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_pers_attrs', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to attribute config' : 'Edit attribute config cancelled', gen_tcp);
@@ -2537,8 +2528,7 @@ sub despatch_admin
 				add_commit($cfg_file, 'config_pers_attrs: attribute groups modified', $session);
 			}, $cfg_file);
 		} else {
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_attr_groups', $etoken);
+			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_attr_groups', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to attribute config' : 'Edit attribute config cancelled', gen_tcp);
@@ -2620,8 +2610,7 @@ sub despatch_admin
 				emit(gen_edit_rates($etoken));
 			}
 		} else {
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_units', $etoken);
+			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_units', $etoken);
 			emit_with_status('Edit units config cancelled', gen_tcp);
 		}
 	}
@@ -2679,8 +2668,7 @@ sub despatch_admin
 		} else {
 			unlink "$cfg_file.p1";
 			unlink "$cfg_file.rename" if -e "$cfg_file.rename";
-			unlock($cfg_file);
-			redeem_edit_token($sessid, 'edit_units', $etoken);
+			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_units', $etoken);
 		}
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to units config' : 'Edit units config cancelled', gen_tcp);
@@ -3529,8 +3517,7 @@ sub despatch
 				add_commit($tgfile, "$split_tgf[0]...: TG \"$tg{Name}\" " . ($edit_id ? 'modified' : 'created'), $session);
 			}, $tgfile);
 		} else {
-			unlock($tgfile) if $tgfile;
-			redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken);
+			unlock($tgfile) if redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_tg', $etoken) && $tgfile;
 		}
 
 		$tgfile =~ /\/([^\/]{1,4})[^\/]*$/ if $tgfile;
