@@ -2394,6 +2394,12 @@ sub gen_ucp
 	my $tmpl = load_template('user_cp.html');
 	my $user = $acct // $session->param('User');
 
+	my @events;
+	foreach my $mid (date_sorted_htsvs('meets')) {
+		my %meet = read_htsv("$config{Root}/meets/$mid", undef, [ 'Person', 'Notes' ]);
+		push (@events, { MID => $mid, NAME => $meet{Name}, DATE => $meet{Date}, LOCKED => (exists $meet{Locked}) }) if ($meet{Leader} // '') eq $user;
+	}
+
 	my %acct_names = get_acct_name_map;
 	my %dds = double_drainers;
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
@@ -2446,6 +2452,7 @@ sub gen_ucp
 	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (defined $cf{Fee}[$_] && length $cf{Fee}[$_] && !($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_]) || true($cf{IsDrain}[$_])) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]} && defined $cf{Description}[$_] && length $cf{Description}[$_], 0 .. $#{$cf{Description}}));
 	$tmpl->param(SIMPTRANS => scalar @simptransidcounts && !grep ($_ > 0, @simptransidcounts));
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct && $acct ne $session->param('User');
+	$tmpl->param(EVENTS => \@events);
 	$tmpl->param(ACCTSN => $user);
 	$tmpl->param(BAL => sprint_monetary($credsum + $debsum));
 	$tmpl->param(CRED_TOT => sprint_monetary($credsum));

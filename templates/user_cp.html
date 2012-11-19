@@ -22,6 +22,10 @@
 			<hr />
 			<p><input type="submit" name="disp_accts" value="Accounts summary"/><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel" style="float:right"/></TMPL_IF></p>
 
+			<TMPL_IF NAME=EVENTS><h1><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> events</h1>
+			<TMPL_LOOP NAME=EVENTS><p><a href="boc.pl?tmpl=manage_meets&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME> (<TMPL_VAR NAME=DATE>) &mdash; <i><TMPL_UNLESS NAME=LOCKED>un</TMPL_UNLESS>locked</i></a></p>
+			</TMPL_LOOP></TMPL_IF>
+
 			<h1>Account summary<TMPL_IF NAME=ACCT>: <TMPL_VAR NAME=ACCT></TMPL_IF></h1>
 
 			<p class="acctbal">Balance: <TMPL_VAR NAME=BAL> <span title="<TMPL_VAR NAME=DEFCURDESC>"><TMPL_VAR NAME=DEFCUR></span></p>
