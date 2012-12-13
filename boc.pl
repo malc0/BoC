@@ -1646,11 +1646,6 @@ sub despatch_admin
 
 	emit(gen_tcp) if defined $cgi->param('to_cp');
 
-	if ($cgi->param('tmpl') eq 'login') {
-		my $tmpl = gen_tcp;
-		print $tmpl->output;
-		exit;
-	}
 	if ($cgi->param('tmpl') eq 'tcp') {
 		my $whinge = sub { whinge('Couldn\'t get edit lock for configuration file', gen_tcp) };
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
