@@ -2412,6 +2412,7 @@ sub gen_ucp
 		my %tgdetails = %{$tgds{$tg}};
 		my @to;
 		my @to_extras;
+		my $bidi = 1;
 		unless ($tg_broken) {
 			$computed{$user} >= 0 ? $credsum : $debsum += $computed{$user} unless exists $tgdetails{Omit};
 
@@ -2426,6 +2427,9 @@ sub gen_ucp
 				@to_extras = map ($to[$_]->{N}, (4 .. $#to));
 				$#to = 3;
 			}
+			foreach (@to) {
+				$bidi = 0 if (exists $neg_accts{$user}) == (exists $neg_accts{$_->{A}});
+			}
 		}
 
 		my $is_meet = $tg =~ /^M/;
@@ -2436,6 +2440,7 @@ sub gen_ucp
 			NAME => $tgdetails{Name},
 			TO => \@to,
 			TO_EXTRA => join (', ', @to_extras),
+			BIDI => $bidi,
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_broken ? 'broken' : $tg_indet ? 'indet' : '',
 			SUMMARY => encode_for_html($tg_broken ? 'TG BROKEN' : $tg_indet ? 'incalculable' : ($computed{$user} > 0 ? '+' : '') . $computed{$user}),
