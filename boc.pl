@@ -2420,7 +2420,7 @@ sub gen_ucp
 			} elsif (($computed{$user} > 0 && exists $neg_accts{$user}) || ($computed{$user} < 0 && !(exists $neg_accts{$user}))) {
 				@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep (exists $neg_accts{$_} ? $computed{$_} < 0 : $computed{$_} > 0, keys %computed));
 			}
-			$to[0]->{SEP} = '';
+			$to[0]->{SEP} = '' if scalar @to;
 			$to[-1]->{SEP} = ' and ' if scalar @to > 1;
 			if (scalar @to > 5) {
 				@to_extras = map ($to[$_]->{N}, (4 .. $#to));
