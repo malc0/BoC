@@ -788,12 +788,13 @@ sub fmt_impl_attrs
 
 sub gen_add_edit_acc
 {
-	my ($edit_acct, $person, $etoken, $filt_sys_attrs) = @_;
+	my ($edit_acct, $person, $session, $etoken, $filt_sys_attrs) = @_;
 	my $tmpl = load_template('edit_acct.html', $etoken);
 	my %acctdetails;
 	my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
 
 	if ($edit_acct) {
+		$tmpl->param(ADMINCHECK => 1) if $session->param('User') eq $edit_acct && $session->param('IsAdmin');
 		$tmpl->param(EACCT => $edit_acct);
 		%acctdetails = read_simp_cfg($person ? "$config{Root}/users/$edit_acct" : "$config{Root}/accounts/$edit_acct");
 		$tmpl->param(ACCT => $edit_acct);
@@ -1706,7 +1707,7 @@ sub despatch_admin
 				}
 			}
 			$etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
-			emit(gen_add_edit_acc($acct, $person, $etoken));
+			emit(gen_add_edit_acc($acct, $person, $session, $etoken));
 		} else {
 			delete_common($acct_file, "account \"$acct\"", $session, sub { gen_manage_accts($person) });
 		}
@@ -3360,7 +3361,7 @@ sub despatch
 
 		if (defined $cgi->param('new_user')) {
 			push_session_data($sessid, "${etoken}_editid", $edit_id);
-			emit(gen_add_edit_acc(undef, 1, get_edit_token($sessid, 'add_acct', $etoken), !$session->param('IsAdmin')));
+			emit(gen_add_edit_acc(undef, 1, $session, get_edit_token($sessid, 'add_acct', $etoken), !$session->param('IsAdmin')));
 		}
 
 		if (defined $cgi->param('cancel')) {
@@ -3476,7 +3477,7 @@ sub despatch
 		whinge('Action not permitted', gen_ucp($session)) unless $session->param('IsAdmin') || (!$edit_acct && $person && peek_session_data($sessid, $etoken));
 
 		if (defined $cgi->param('save') || defined $cgi->param('savenadd')) {
-			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $etoken, !$session->param('IsAdmin'))) };
+			my $whinge = sub { whinge($_[0], gen_add_edit_acc($edit_acct, $person, $session, $etoken, !$session->param('IsAdmin'))) };
 
 			my %addr_alts = read_htsv("$config{Root}/config_addr_alts", 1);
 			$new_acct = validate_acctname(scalar $cgi->param('account'), $whinge);
@@ -3575,7 +3576,7 @@ sub despatch
 			$etoken = pop_session_data($sessid, $etoken);
 			if (defined $cgi->param('savenadd')) {
 				$etoken = get_edit_token($sessid, $person ? 'add_acct' : 'add_vacct', $etoken);
-				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $etoken, !$session->param('IsAdmin')));
+				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $session, $etoken, !$session->param('IsAdmin')));
 			}
 			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
 			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $sessid, $etoken) : gen_manage_accts($person);

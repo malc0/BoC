@@ -14,6 +14,9 @@
 				this.save.clicked = false;
 				if ('eacct' in this && this.eacct.value != this.account.value)
 					return confirm('Really rename account?');
+				<TMPL_IF NAME=ADMINCHECK>if (!this.IsAdmin.checked)
+					return confirm('Really remove Admin from yourself (if no other admins set, installation will break)?');
+				</TMPL_IF>
 			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="edit_acct"/>
