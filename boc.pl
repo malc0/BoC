@@ -630,6 +630,28 @@ sub clear_old_session_locks
 	return;
 }
 
+sub refresh_session
+{
+	my ($session, $username, $authed) = @_;
+
+	my %userdetails = read_simp_cfg("$config{Root}/users/$username");
+	$userdetails{User} = $username;
+
+	my %attr_syns = get_attr_synonyms;
+	my @sys_attrs = get_sys_attrs;
+	my %perms;
+	foreach my $sysattr (@sys_attrs) {
+		$perms{$sysattr} = grep (($_ eq 'IsPleb' || exists $userdetails{$_} || ($_ eq 'IsAuthed' && $authed)), @{$attr_syns{$sysattr}});
+	}
+
+	$session->param('User', $userdetails{User});
+	$session->param('Name', exists $userdetails{Name} ? $userdetails{Name} : $userdetails{User});
+	$session->param($_, $perms{$_}) foreach (@sys_attrs);
+	$session->param('Instance', $config{Root});
+	$session->expire('+10m');
+	$session->flush();
+}
+
 sub get_new_session
 {
 	my ($session, $cgi) = @_;
@@ -658,21 +680,9 @@ sub get_new_session
 	}
 	($expired ? whinge('Session expired', $tmpl) : emit($tmpl)) if $tmpl;
 
-	my %attr_syns = get_attr_synonyms;
-	my @sys_attrs = get_sys_attrs;
-	my %perms;
-	foreach my $sysattr (@sys_attrs) {
-		$perms{$sysattr} = grep (($_ eq 'IsPleb' || exists $userdetails{$_} || ($_ eq 'IsAuthed' && $authed)), @{$attr_syns{$sysattr}});
-	}
-
 	$session = CGI::Session->new($cgi) or die CGI::Session->errstr;
 	print $session->header();
-	$session->param('User', $userdetails{User});
-	$session->param('Name', exists $userdetails{Name} ? $userdetails{Name} : $userdetails{User});
-	$session->param($_, $perms{$_}) foreach (@sys_attrs);
-	$session->param('Instance', $config{Root});
-	$session->expire('+10m');
-	$session->flush();
+	refresh_session($session, $userdetails{User}, $authed);
 
 	return $session;
 }
@@ -3529,11 +3539,6 @@ sub despatch
 				}
 			}
 			bad_token_whinge(gen_manage_accts($person)) unless redeem_edit_token($sessid, $edit_acct ? "edit_$edit_acct" : $person ? 'add_acct' : 'add_vacct', $etoken);
-			if (defined $edit_acct and $edit_acct eq $session->param('User')) {
-				$session->param('User', $new_acct);
-				$session->param('Name', $userdetails{Name});
-				$session->flush();
-			}
 			try_commit_and_unlock(sub {
 				if ($rename) {
 					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
@@ -3559,6 +3564,8 @@ sub despatch
 					add_commit($file, unroot($file) . ': ' . ($edit_acct ? 'modified' : 'created'), $session);
 				}
 			}, $rename ? $old_file : ($edit_acct) ? $file : undef);
+
+			refresh_session($session, $new_acct, $session->param('IsAuthed')) if (defined $edit_acct) && $edit_acct eq $session->param('User');
 
 			my $net = peek_session_data($sessid, $etoken);
 			if ($net) {
