@@ -18,6 +18,7 @@ use Crypt::PasswdMD5;
 use File::Slurp;
 use Git::Wrapper;
 use HTML::Template;
+use Text::Password::Pronounceable;
 use Time::ParseDate;
 use UUID::Tiny;
 use YAML::XS;
@@ -773,6 +774,7 @@ sub gen_manage_accts
 				EMAIL => $acctdetails{email},
 				EMAIL_CL => clean_email($acctdetails{email}) ? '' : 'broken',
 				ATTRS => \@attrs,
+				PW => (exists $acctdetails{Password}),
 			);
 		} else {
 			%outputdetails = ( %outputdetails,
@@ -1692,20 +1694,27 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'view_ppl' or $cgi->param('tmpl') eq 'view_vaccts') {
 		my $acct;
-		my $delete = 0;
+		my ($delete, $cpw, $spw) = (0) x 3;
 		my $person = $cgi->param('tmpl') eq 'view_ppl';
 		my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
 
 		foreach my $p ($cgi->param) {
 			if ($p =~ /^edit_(.+)$/) {
 				$acct = $1;
-				last;
 			}
 			if ($p =~ /^del_(.+)$/) {
 				$acct = $1;
 				$delete = 1;
-				last;
 			}
+			if ($p =~ /^clearpw_(.+)$/) {
+				$acct = $1;
+				$cpw = 1;
+			}
+			if ($p =~ /^setpw_(.+)$/) {
+				$acct = $1;
+				$spw = 1;
+			}
+			last if $acct;
 		}
 
 		$acct = valid_edit_id($acct, $person ? "$config{Root}/users" : "$config{Root}/accounts", 'account', $whinge);
@@ -1716,6 +1725,23 @@ sub despatch_admin
 				unless (-r $acct_file) {
 					unlock($acct_file);
 					$whinge->("Couldn't edit account \"$acct\", file disappeared");
+				}
+				if ($cpw || $spw) {
+					my %acct = read_simp_cfg($acct_file);
+
+					if ($spw) {
+						my $plain = Text::Password::Pronounceable->generate(8, 12);
+						$acct{Password} = unix_md5_crypt($plain);
+					} else {
+						delete $acct{Password};
+					}
+
+					$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+					try_commit_and_unlock(sub {
+						write_simp_cfg($acct_file, %acct);
+						add_commit($acct_file, unroot($acct_file) . ': password ' . ($cpw ? 'cleared' : 'set'), $session);
+					}, $acct_file);
+					emit_with_status("Password for account \"$acct\" " . ($cpw ? 'cleared' : 'set'), gen_manage_accts($person));
 				}
 			}
 			$etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
