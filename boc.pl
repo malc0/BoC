@@ -9,6 +9,7 @@ use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
 use File::Find;
 use List::Util qw(first min sum);
+use Text::Wrap;
 use Time::HiRes qw(usleep);
 
 # non core
@@ -18,6 +19,7 @@ use Crypt::PasswdMD5;
 use File::Slurp;
 use Git::Wrapper;
 use HTML::Template;
+use MIME::Lite;
 use Text::Password::Pronounceable;
 use Time::ParseDate;
 use UUID::Tiny;
@@ -473,6 +475,17 @@ sub load_template
 	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
 	$tmpl->param(STYLE => $config{StyleURL}) if $tmpl->query(name => 'STYLE');
 	$tmpl->param(ETOKEN => $_[1]) if defined $_[1];
+	return $tmpl;
+}
+
+sub load_email_template
+{
+	my ($file, $url) = @_;
+
+	my $tmpl = HTML::Template->new(filename => $file, case_sensitive => 1) or die;
+	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
+	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
+	$tmpl->param(URL => $url, CONTACT => $config{email});
 	return $tmpl;
 }
 
@@ -1652,6 +1665,38 @@ sub delete_common
 	return emit_with_status("Deleted $thing", $done->());
 }
 
+sub mail
+{
+	my ($to, $subj, $text) = @_;
+
+	return undef unless $config{email} && $config{Relay};
+	local ($Text::Wrap::columns) = 72;
+	local ($Text::Wrap::huge) = 'overflow';
+
+	my $msg = MIME::Lite->new(
+		From	=> $config{email},
+		To	=> $to,
+		Subject	=> $subj,
+		Data	=> wrap('', '', $text)
+	);
+
+	($config{Relay} eq 'sendmail') ? $msg->send : $msg->send('smtp', $config{Relay});
+
+	return $msg->last_send_successful;
+}
+
+sub mail_password
+{
+	my ($acct, $plain, $url) = @_;
+
+	my %acct = read_simp_cfg("$config{Root}/users/$acct");
+
+	my $tmpl = load_email_template('new_password.eml', $url);
+	$tmpl->param(NAME => $acct{Name}, PW => $plain, USER => $acct);
+
+	return mail($acct{email}, "New $config{ShortName} password for $acct", $tmpl->output);
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1728,10 +1773,12 @@ sub despatch_admin
 				}
 				if ($cpw || $spw) {
 					my %acct = read_simp_cfg($acct_file);
+					my $mail_ret = '';
 
 					if ($spw) {
 						my $plain = Text::Password::Pronounceable->generate(8, 12);
 						$acct{Password} = unix_md5_crypt($plain);
+						$mail_ret = '(email failed -- check settings)' unless mail_password($acct, $plain, $cgi->url);
 					} else {
 						delete $acct{Password};
 					}
@@ -1741,7 +1788,7 @@ sub despatch_admin
 						write_simp_cfg($acct_file, %acct);
 						add_commit($acct_file, unroot($acct_file) . ': password ' . ($cpw ? 'cleared' : 'set'), $session);
 					}, $acct_file);
-					emit_with_status("Password for account \"$acct\" " . ($cpw ? 'cleared' : 'set'), gen_manage_accts($person));
+					emit_with_status("Password for account \"$acct\" " . ($cpw ? 'cleared' : "set $mail_ret"), gen_manage_accts($person));
 				}
 			}
 			$etoken = get_edit_token($sessid, $acct ? "edit_$acct" : $person ? 'add_acct' : 'add_vacct');
