@@ -634,6 +634,8 @@ sub refresh_session
 {
 	my ($session, $username, $authed) = @_;
 
+	$session->param('AcctMtime', (stat("$config{Root}/users/$username"))[9]);
+
 	my %userdetails = read_simp_cfg("$config{Root}/users/$username");
 	$userdetails{User} = $username;
 
@@ -3622,6 +3624,7 @@ create_datastore($cgi, 'No useable administrator account') unless validate_admin
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty || !(defined $cgi->param('tmpl')) || $cgi->param('tmpl') =~ m/^login(_nopw)?$/ || $session->param('Instance') ne $config{Root});
+refresh_session($session, $session->param('User'), $session->param('IsAuthed')) if (stat("$config{Root}/users/" . $session->param('User')))[9] > $session->param('AcctMtime');
 
 despatch($session);
 
