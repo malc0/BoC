@@ -21,6 +21,11 @@
 
 			<h2><label>Event type: <input type="text" value="<TMPL_VAR NAME=NAME>" name="name"/></label></h2>
 
+			<h3><label>Linked account: <select name="DefAcct" class="<TMPL_VAR NAME=SEL_CL>">
+                                <TMPL_LOOP NAME=ACCTS><option value="<TMPL_VAR NAME=V>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=O></option>
+                                </TMPL_LOOP>
+                        </select></label></h3>
+
 			<table border=1>
 				<tr><th>Fee/Drain</th><th>Column order<br>(&lt; 0 to disable)</th><th>Exceptional</th></tr>
 				<TMPL_LOOP NAME=FEES>

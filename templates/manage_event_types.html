@@ -14,9 +14,9 @@
 			<input type="hidden" name="tmpl" value="manage_event_types"/>
 
 			<table border=1>
-				<tr><th>Type</th><th>Columns</th></tr>
+				<tr><th>Type</th><th>Linked account</th><th>Columns</th></tr>
 				<TMPL_LOOP NAME=ETS>
-				<tr><td class="<TMPL_VAR NAME=NAME_CL>"><TMPL_VAR NAME=NAME></td><td class="<TMPL_VAR NAME=CL>"><TMPL_VAR NAME=COLS></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ET>" value="Edit"/><input type="submit" name="del_<TMPL_VAR NAME=ET>" value="Delete" onclick="return confirm('Really delete event type &quot;<TMPL_VAR NAME=NAME>&quot;?')"/></td></tr>
+				<tr><td class="<TMPL_VAR NAME=NAME_CL>"><TMPL_VAR NAME=NAME></td><td class="<TMPL_VAR NAME=ACCT_CL>"><TMPL_VAR NAME=A></td><td class="<TMPL_VAR NAME=CL>"><TMPL_VAR NAME=COLS></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ET>" value="Edit"/><input type="submit" name="del_<TMPL_VAR NAME=ET>" value="Delete" onclick="return confirm('Really delete event type &quot;<TMPL_VAR NAME=NAME>&quot;?')"/></td></tr>
 				</TMPL_LOOP>
 			</table>
 			<p><input type="submit" name="add" value="Add new event type"/></p>

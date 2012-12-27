@@ -902,13 +902,16 @@ sub gen_manage_event_types
 	}
 	my %comb_descs = (%{{ known_commod_descs }}, %drain_descs, %exp_descs);
 	my %comb_exists = (%cfcds, %drain_descs, %exp_descs);
+	my %vaccts = grep_acct_key('accounts', 'Name');
 
 	my @list;
 	foreach my $et_f (map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/event_types/*")) {
 		my %et = read_htsv("$config{Root}/event_types/$et_f", undef, [ 'Unit' ]);
+		my $link_acct = (exists $et{LinkedAcct}) ? $et{LinkedAcct} : $cf{DefaultAccount};
+		my $valid_link = ($link_acct && exists $vaccts{$link_acct});
 		my ($fees, $exps) = get_event_types(\%et, \%drain_descs);
 		my @cols = map ((defined $comb_descs{$_} && length $comb_descs{$_}) ? $comb_descs{$_} : $_, (@$fees, @$exps));
-		push (@list, { ET => $et_f, NAME => transcode_uri_for_html($et_f), NAME_CL => ($et_f eq 'none' || $et_f =~ /[.]/) ? 'broken' : '', COLS => join (', ', @cols), CL => (scalar grep (!(exists $comb_exists{$_}), (@$fees, @$exps))) ? 'broken' : '' });
+		push (@list, { ET => $et_f, NAME => transcode_uri_for_html($et_f), NAME_CL => ($et_f eq 'none' || $et_f =~ /[.]/) ? 'broken' : '', A => $valid_link ? $vaccts{$link_acct} : $link_acct, ACCT_CL => $valid_link ? '' : 'broken', COLS => join (', ', @cols), CL => (scalar grep (!(exists $comb_exists{$_}), (@$fees, @$exps))) ? 'broken' : '' });
 	}
 	$tmpl->param(ETS => \@list);
 
@@ -925,8 +928,19 @@ sub gen_edit_et
 
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
 
-	my %cds = known_commod_descs;
+	my %vaccts = grep_acct_key('accounts', 'Name');
+	my @sorted_vaccts = sort_AoH(\%vaccts);
 	my %cf = valid_fee_cfg;
+	my $link_acct = (exists $et{LinkedAcct}) ? $et{LinkedAcct} : $cf{DefaultAccount};
+
+	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $link_acct && $link_acct eq $_) }, @sorted_vaccts);
+	unless (defined $link_acct && grep ($_ eq $link_acct, @sorted_vaccts)) {
+		push (@accts, { O => $link_acct, V => $link_acct, S => 1 });
+		$tmpl->param(SEL_CL => 'broken');
+	}
+	$tmpl->param(ACCTS => \@accts);
+
+	my %cds = known_commod_descs;
 	foreach my $thing (@{$cf{Fee}}) {
 		next if grep (defined $_ && $_ eq $thing, @{$et{Unit}});
 		my $pos = push (@{$et{Unit}}, $thing);
@@ -1447,7 +1461,7 @@ sub gen_edit_event
 		%rates = get_rates($evnt{Date});
 	}
 
-	my @feesh = ({ FEE => 'Custom Fee', LINKA => $cf{DefaultAccount} });
+	my @feesh = ({ FEE => 'Custom Fee', LINKA => %et ? $et{LinkedAcct} : $cf{DefaultAccount} });
 	push (@feesh, map ({ CDESC => (exists $rates{$cf{Fee}[$_]}) ? "$rates{$cf{Fee}[$_]} $units[0]" : '', FEE => (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @ccs));
 	my @expsh = map ({ EXP => $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
@@ -1556,7 +1570,10 @@ sub event_to_tg
 	my %colsum;
 
 	my %cf = read_htsv("$config{Root}/config_fees", 1);
-	unless (defined $cf{DefaultAccount} && event_valid(\%evnt, \%cf, 1)) {
+	my %et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($evnt{EventType}), \%cf) if defined $evnt{EventType} && $evnt{EventType} ne 'none';
+	my $def_acct = %et ? $et{LinkedAcct} : $cf{DefaultAccount};
+
+	unless (defined $def_acct && event_valid(\%evnt, \%cf, 1)) {
 		$tg{Date} = 'now';
 		$tg{Name} .= ' (broken)';
 		$tg{Omit} = undef;
@@ -1597,7 +1614,7 @@ sub event_to_tg
 				push (@{$tg{Description}}, $cf{Description}[$mc_row]);
 			}
 		} elsif ($hd eq 'CustomFee') {
-			push (@{$tg{Creditor}}, $cf{DefaultAccount});
+			push (@{$tg{Creditor}}, $def_acct);
 			push (@{$tg{Amount}}, $colsum{CustomFee});
 			push (@{$tg{Currency}}, $evnt{Currency}) if scalar @units;
 			push (@{$tg{Description}}, 'Event fee');
@@ -1971,6 +1988,10 @@ sub despatch_admin
 			$file = "$config{Root}/event_types/" . encode_for_filename($new_id);
 			my $rename = ($edit_id && $edit_id ne encode_for_html($new_id));
 			$whinge->('Event type is already in use') if (-e $file && (!(defined $edit_id) || $rename));
+
+			my %vaccts = grep_acct_key('accounts', 'Name');
+			$whinge->('Missing account name') unless clean_username($cgi->param('DefAcct'));
+			$et{LinkedAcct} = validate_acct(scalar $cgi->param('DefAcct'), \%vaccts, $whinge);
 
 			my %cf = valid_fee_cfg;
 
@@ -3619,6 +3640,7 @@ sub despatch
 			if ($rename) {
 				unlock_dir('transaction_groups', $sessid, $whinge, 'account rename', 'transaction groups');
 				unlock_dir('events', $sessid, $whinge, 'account rename', 'events');
+				unlock_dir('event_types', $sessid, $whinge, 'account rename', 'event types');
 				if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
 					un_commit_lock;
 					$whinge->('Cannot perform account rename at present: config_fees busy');
@@ -3629,6 +3651,7 @@ sub despatch
 				if ($rename) {
 					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
 					dir_mod_all('events', 0, [ $edit_acct ], sub { my ($evnt, $old) = @_; $evnt->{Leader} =~ s/^$old$/$new_acct/ if defined $evnt->{Leader}; foreach (@{$evnt->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
+					dir_mod_all('event_types', 0, [ $edit_acct ], sub { my ($et, $old) = @_; $et->{LinkedAcct} =~ s/^$old$/$new_acct/ if defined $et->{LinkedAcct}; });
 					my %cf = read_htsv("$config{Root}/config_fees", 1);
 					if (%cf) {
 						$cf{DefaultAccount} =~ s/^$edit_acct$/$new_acct/ if defined $cf{DefaultAccount};

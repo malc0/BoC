@@ -44,6 +44,10 @@ sub valid_event_type
 	return ( Empty => 1 ) unless exists $et{Headings};
 	return if scalar grep (!(exists $cf_fees{$_}), @{$et{Unit}});
 
+	my %vaccts = grep_acct_key('accounts', 'Name');
+	return if exists $et{LinkedAcct} && !($et{LinkedAcct} && exists $vaccts{$et{LinkedAcct}});
+	$et{LinkedAcct} = $cf->{DefaultAccount} unless exists $et{LinkedAcct};
+
 	@{$et{Column}} = () unless exists $et{Column};
 	@{$et{Unusual}} = () unless exists $et{Unusual};
 	return %et;
