@@ -712,7 +712,7 @@ sub valid_fee_cfg
 
 	my %acct_names = get_acct_name_map;
 	my $whinge = sub { goto whingefail };
-	validate_acct($cf{MeetAccount}, \%acct_names, $whinge);
+	validate_acct($cf{DefaultAccount}, \%acct_names, $whinge);
 
 	return %cf unless exists $cf{Headings};
 
@@ -1071,9 +1071,9 @@ sub gen_edit_fee_cfg
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my @sorted_vaccts = sort_AoH(\%vaccts);
 
-	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{MeetAccount} && $cfg{MeetAccount} eq $_) }, @sorted_vaccts);
-	unless (defined $cfg{MeetAccount} && grep ($_ eq $cfg{MeetAccount}, @sorted_vaccts)) {
-		push (@accts, { O => $cfg{MeetAccount}, V => $cfg{MeetAccount}, S => 1 });
+	my @accts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cfg{DefaultAccount} && $cfg{DefaultAccount} eq $_) }, @sorted_vaccts);
+	unless (defined $cfg{DefaultAccount} && grep ($_ eq $cfg{DefaultAccount}, @sorted_vaccts)) {
+		push (@accts, { O => $cfg{DefaultAccount}, V => $cfg{DefaultAccount}, S => 1 });
 		$tmpl->param(SEL_CL => 'broken');
 	}
 
@@ -1447,7 +1447,7 @@ sub gen_edit_event
 		%rates = get_rates($evnt{Date});
 	}
 
-	my @feesh = ({ FEE => 'Custom Fee', LINKA => $cf{MeetAccount} });
+	my @feesh = ({ FEE => 'Custom Fee', LINKA => $cf{DefaultAccount} });
 	push (@feesh, map ({ CDESC => (exists $rates{$cf{Fee}[$_]}) ? "$rates{$cf{Fee}[$_]} $units[0]" : '', FEE => (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @ccs));
 	my @expsh = map ({ EXP => $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
@@ -1556,7 +1556,7 @@ sub event_to_tg
 	my %colsum;
 
 	my %cf = read_htsv("$config{Root}/config_fees", 1);
-	unless (defined $cf{MeetAccount} && event_valid(\%evnt, \%cf, 1)) {
+	unless (defined $cf{DefaultAccount} && event_valid(\%evnt, \%cf, 1)) {
 		$tg{Date} = 'now';
 		$tg{Name} .= ' (broken)';
 		$tg{Omit} = undef;
@@ -1597,7 +1597,7 @@ sub event_to_tg
 				push (@{$tg{Description}}, $cf{Description}[$mc_row]);
 			}
 		} elsif ($hd eq 'CustomFee') {
-			push (@{$tg{Creditor}}, $cf{MeetAccount});
+			push (@{$tg{Creditor}}, $cf{DefaultAccount});
 			push (@{$tg{Amount}}, $colsum{CustomFee});
 			push (@{$tg{Currency}}, $evnt{Currency}) if scalar @units;
 			push (@{$tg{Description}}, 'Event fee');
@@ -2162,8 +2162,8 @@ sub despatch_admin
 			my %ppl = grep_acct_key('users', 'Name');
 			my %acct_names = (%vaccts, %ppl);
 
-			$whinge->('Missing account name') unless clean_username($cgi->param('MeetAcct'));
-			$cfg{MeetAccount} = validate_acct(scalar $cgi->param('MeetAcct'), \%vaccts, $whinge);
+			$whinge->('Missing account name') unless clean_username($cgi->param('DefAcct'));
+			$cfg{DefaultAccount} = validate_acct(scalar $cgi->param('DefAcct'), \%vaccts, $whinge);
 
 			my %cds = known_commod_descs;
 			my %recode;
@@ -3631,7 +3631,7 @@ sub despatch
 					dir_mod_all('events', 0, [ $edit_acct ], sub { my ($evnt, $old) = @_; $evnt->{Leader} =~ s/^$old$/$new_acct/ if defined $evnt->{Leader}; foreach (@{$evnt->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
 					my %cf = read_htsv("$config{Root}/config_fees", 1);
 					if (%cf) {
-						$cf{MeetAccount} =~ s/^$edit_acct$/$new_acct/ if defined $cf{MeetAccount};
+						$cf{DefaultAccount} =~ s/^$edit_acct$/$new_acct/ if defined $cf{DefaultAccount};
 						if (exists $cf{Account}) {
 							foreach (@{$cf{Account}}) {
 								s/^$edit_acct$/$new_acct/ if $_;
