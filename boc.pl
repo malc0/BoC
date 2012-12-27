@@ -711,10 +711,8 @@ sub valid_fee_cfg
 	my %cf = read_htsv("$config{Root}/config_fees");
 
 	my %acct_names = get_acct_name_map;
-	my $bad = 0;
-	my $whinge = sub { $bad = 1 };
+	my $whinge = sub { goto whingefail };
 	validate_acct($cf{MeetAccount}, \%acct_names, $whinge);
-	return if $bad;
 
 	return %cf unless exists $cf{Headings};
 
@@ -744,6 +742,9 @@ sub valid_fee_cfg
 	}
 
 	return %cf;
+
+whingefail:
+	return;
 }
 
 sub get_cf_drains

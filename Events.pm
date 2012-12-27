@@ -115,10 +115,8 @@ sub valid_ft
 		return unless exists $ft{$hd};
 	}
 
-	my $bad = 0;
-	my $whinge = sub { $bad = 1 };
+	my $whinge = sub { goto whingefail };
 	validate_units(\%{{read_units_cfg("$root/config_units")}}, $whinge, 1);
-	return if $bad;
 
 	my %cds = known_commod_descs;
 	my @attrs = get_attrs;
@@ -146,6 +144,9 @@ sub valid_ft
 	}
 
 	return %ft;
+
+whingefail:
+	return;
 }
 
 sub meet_valid
