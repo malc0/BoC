@@ -1359,7 +1359,7 @@ sub meet_edit_ok
 
 sub gen_edit_meet
 {
-	my ($edit_id, $mcr, $session, $etoken) = @_;
+	my ($edit_id, $cfr, $session, $etoken) = @_;
 
 	my $tmpl = load_template('edit_meet.html', $etoken);
 	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
@@ -1390,28 +1390,28 @@ sub gen_edit_meet
 	my @currencies = map ({ C => $_, D => $units_cfg{$_}, S => $sel_cur eq $_ }, @units);
 	$tmpl->param(CURS => \@currencies, CUR_CL => $red_unit ? 'unknown' : '');
 
-	my %meet_cfg = %$mcr;
+	my %cf = %$cfr;
 	my %cds = known_commod_descs;
 
 	my %et;
-	%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), $mcr) if defined $meet{EventType} && $meet{EventType} ne 'none';
-	my %drains = get_cf_drains(%meet_cfg);
+	%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), $cfr) if defined $meet{EventType} && $meet{EventType} ne 'none';
+	my %drains = get_cf_drains(%cf);
 
 	my (@ccs, @exps);
 	my %unusual;
 	if (%et) {
 		my ($fee_rows, $exp_rows) = get_event_types(\%et, \%drains, 1);
-		@ccs = map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (map ($et{Unit}[$_], @$fee_rows));
-		@exps = map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (map ($et{Unit}[$_], @$exp_rows));
+		@ccs = map { my $fee = $_; (grep ($fee eq $cf{Fee}[$_], 0 .. $#{$cf{Fee}}))[0] } (map ($et{Unit}[$_], @$fee_rows));
+		@exps = map { my $fee = $_; (grep ($fee eq $cf{Fee}[$_], 0 .. $#{$cf{Fee}}))[0] } (map ($et{Unit}[$_], @$exp_rows));
 		$unusual{$et{Unit}[$_]} = 1 foreach (grep (true($et{Unusual}[$_]), (@$fee_rows, @$exp_rows)));
 	} else {
-		@ccs = grep (exists $cds{$meet_cfg{Fee}[$_]}, 0 .. $#{$meet_cfg{Fee}});
-		push (@ccs, grep (!(exists $cds{$meet_cfg{Fee}[$_]}) && true($meet_cfg{IsDrain}[$_]), 0 .. $#{$meet_cfg{Fee}}));
-		@exps = grep (!(exists $cds{$meet_cfg{Fee}[$_]} || true($meet_cfg{IsDrain}[$_])), 0 .. $#{$meet_cfg{Fee}});
+		@ccs = grep (exists $cds{$cf{Fee}[$_]}, 0 .. $#{$cf{Fee}});
+		push (@ccs, grep (!(exists $cds{$cf{Fee}[$_]}) && true($cf{IsDrain}[$_]), 0 .. $#{$cf{Fee}}));
+		@exps = grep (!(exists $cds{$cf{Fee}[$_]} || true($cf{IsDrain}[$_])), 0 .. $#{$cf{Fee}});
 	}
 	my (@unks, %split_exp_sum, %split_shr_sum, %splits);
 	foreach my $hd (grep (!/^(Person|CustomFee|Notes|Split[1-9](Exps|Shrs))$/, @{$meet{Headings}})) {
-		push (@unks, $hd) unless grep ($meet_cfg{Fee}[$_] eq $hd, (@ccs, @exps));
+		push (@unks, $hd) unless grep ($cf{Fee}[$_] eq $hd, (@ccs, @exps));
 	}
 	foreach my $hd (grep (/^Split[1-9](Exps|Shrs)$/, @{$meet{Headings}})) {
 		if ($hd =~ /Split([1-9])Exps/) {
@@ -1437,9 +1437,9 @@ sub gen_edit_meet
 		%rates = get_rates($meet{Date});
 	}
 
-	my @feesh = ({ FEE => 'Custom Fee', LINKA => $meet_cfg{MeetAccount} });
-	push (@feesh, map ({ CDESC => (exists $rates{$meet_cfg{Fee}[$_]}) ? "$rates{$meet_cfg{Fee}[$_]} $units[0]" : '', FEE => (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @ccs));
-	my @expsh = map ({ EXP => $meet_cfg{Description}[$_], LINKA => $meet_cfg{Account}[$_] }, @exps);
+	my @feesh = ({ FEE => 'Custom Fee', LINKA => $cf{MeetAccount} });
+	push (@feesh, map ({ CDESC => (exists $rates{$cf{Fee}[$_]}) ? "$rates{$cf{Fee}[$_]} $units[0]" : '', FEE => (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @ccs));
+	my @expsh = map ({ EXP => $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
 	my @splitsh = map ({ SPLIT => $_ }, sort keys %splits);
 	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh, NSPLITS => 2 * scalar @splitsh, SPLITSH => \@splitsh);
@@ -1453,7 +1453,7 @@ sub gen_edit_meet
 	my (@ppl, @nas);
 	foreach my $row (0 .. $#{$meet{Person}}) {
 		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row] ? $meet{CustomFee}[$row] : '', D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
-		push (@rfees, map ({ F => $meet_cfg{Fee}[$_], V => ((exists $meet{$meet_cfg{Fee}[$_]}) && $meet{$meet_cfg{Fee}[$_]}[$row]) ? $meet{$meet_cfg{Fee}[$_]}[$row] : '', BOOL => true($meet_cfg{IsBool}[$_]), D_CL => (!(exists $meet{$meet_cfg{Fee}[$_]}) || (defined CleanData::clean_decimal($meet{$meet_cfg{Fee}[$_]}[$row]))) ? '' : 'broken', EXCPT => (exists $unusual{$meet_cfg{Fee}[$_]}) }, (@ccs, @exps)));
+		push (@rfees, map ({ F => $cf{Fee}[$_], V => ((exists $meet{$cf{Fee}[$_]}) && $meet{$cf{Fee}[$_]}[$row]) ? $meet{$cf{Fee}[$_]}[$row] : '', BOOL => true($cf{IsBool}[$_]), D_CL => (!(exists $meet{$cf{Fee}[$_]}) || (defined CleanData::clean_decimal($meet{$cf{Fee}[$_]}[$row]))) ? '' : 'broken', EXCPT => (exists $unusual{$cf{Fee}[$_]}) }, (@ccs, @exps)));
 		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
 		my @rsplits = map ({ F => $_, EV => (exists $meet{"Split${_}Exps"} && $meet{"Split${_}Exps"}[$row]) ? $meet{"Split${_}Exps"}[$row] : '', ED_CL => (!(exists $meet{"Split${_}Exps"}) || (exists $meet{"Split${_}Exps"} && defined CleanData::clean_decimal($meet{"Split${_}Exps"}[$row]))) ? '' : 'broken', SV => (exists $meet{"Split${_}Shrs"} && $meet{"Split${_}Shrs"}[$row]) ? $meet{"Split${_}Shrs"}[$row] : '', SD_CL => (exists $meet{"Split${_}Shrs"} && (!(defined CleanData::clean_decimal($meet{"Split${_}Shrs"}[$row])) || CleanData::clean_decimal($meet{"Split${_}Shrs"}[$row]) < 0) || ($split_exp_sum{$_} && !$split_shr_sum{$_})) ? 'broken' : '' }, sort keys %splits);
 		my $a = $meet{Person}[$row] // '';
@@ -1466,7 +1466,7 @@ sub gen_edit_meet
 	$tmpl->param(PPL => \@ppl);
 	$tmpl->param(SPLITDS => \@splitds);
 	$tmpl->param(EDITOK => meet_edit_ok(\%meet, $session));
-	$tmpl->param(VALID => meet_valid(\%meet, $mcr));
+	$tmpl->param(VALID => meet_valid(\%meet, $cfr));
 
 	return $tmpl;
 }
@@ -1544,8 +1544,8 @@ sub meet_to_tg
 	my %tg = ( Date => $meet{Date}, Name => "Meet: " . ($meet{Name} // '') );
 	my %colsum;
 
-	my %meet_cfg = read_htsv("$config{Root}/config_fees", 1);
-	unless (defined $meet_cfg{MeetAccount} && meet_valid(\%meet, \%meet_cfg, 1)) {
+	my %cf = read_htsv("$config{Root}/config_fees", 1);
+	unless (defined $cf{MeetAccount} && meet_valid(\%meet, \%cf, 1)) {
 		$tg{Date} = 'now';
 		$tg{Name} .= ' (broken)';
 		$tg{Omit} = undef;
@@ -1569,24 +1569,24 @@ sub meet_to_tg
 	foreach my $hd (@{$meet{Headings}}) {
 		next if ($hd eq 'Person' || $hd eq 'Notes');
 		next unless $colsum{$hd};
-		if (grep ($_ eq $hd, grep (defined, @{$meet_cfg{Fee}}))) {
-			my $mc_row = first { $meet_cfg{Fee}[$_] eq $hd } 0 .. $#{$meet_cfg{Fee}};
-			push (@{$tg{Creditor}}, $meet_cfg{Account}[$mc_row]);
+		if (grep ($_ eq $hd, grep (defined, @{$cf{Fee}}))) {
+			my $mc_row = first { $cf{Fee}[$_] eq $hd } 0 .. $#{$cf{Fee}};
+			push (@{$tg{Creditor}}, $cf{Account}[$mc_row]);
 			if (exists $cds{$hd}) {
 				push (@{$tg{Amount}}, $colsum{$hd});
 				push (@{$tg{Currency}}, $hd);
 				push (@{$tg{Description}}, ($cds{$hd} // $hd));
-			} elsif (true($meet_cfg{IsDrain}[$mc_row])) {
+			} elsif (true($cf{IsDrain}[$mc_row])) {
 				push (@{$tg{Amount}}, '*');
 				push (@{$tg{Currency}}, '');
-				push (@{$tg{Description}}, $meet_cfg{Description}[$mc_row]);
+				push (@{$tg{Description}}, $cf{Description}[$mc_row]);
 			} else {
 				push (@{$tg{Amount}}, -$colsum{$hd});
 				push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
-				push (@{$tg{Description}}, $meet_cfg{Description}[$mc_row]);
+				push (@{$tg{Description}}, $cf{Description}[$mc_row]);
 			}
 		} elsif ($hd eq 'CustomFee') {
-			push (@{$tg{Creditor}}, $meet_cfg{MeetAccount});
+			push (@{$tg{Creditor}}, $cf{MeetAccount});
 			push (@{$tg{Amount}}, $colsum{CustomFee});
 			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
 			push (@{$tg{Description}}, 'Meet fee');
@@ -3321,11 +3321,11 @@ sub despatch
 			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 		}
 
-		my %meet_cfg = valid_fee_cfg;
-		$whinge->('Cannot display meet: expenses config is broken') unless %meet_cfg;
+		my %cf = valid_fee_cfg;
+		$whinge->('Cannot display meet: expenses config is broken') unless %cf;
 
 		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
-		whinge('Action not permitted', gen_edit_meet($edit_id, \%meet_cfg, $session, undef)) unless meet_edit_ok(\%meet, $session);
+		whinge('Action not permitted', gen_edit_meet($edit_id, \%cf, $session, undef)) unless meet_edit_ok(\%meet, $session);
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
 			$whinge->("Couldn't get edit lock for meet \"$edit_id\"") unless try_lock($mt_file, $sessid);
@@ -3335,14 +3335,14 @@ sub despatch
 			}
 
 			if (defined $cgi->param('edit')) {
-				emit(gen_edit_meet($edit_id, \%meet_cfg, $session, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_meet($edit_id, \%cf, $session, get_edit_token($sessid, "edit_$edit_id")));
 			} else {
 				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
 			}
 		}
 
 		if (defined $cgi->param('save')) {
-			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%meet_cfg, $session, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%cf, $session, $etoken)) };
 
 			delete $meet{Currency};
 			my @ppl = @{$meet{Person}};
@@ -3366,7 +3366,7 @@ sub despatch
 
 			my %cds = known_commod_descs;
 			my %et;
-			%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%meet_cfg) if defined $meet{EventType} && $meet{EventType} ne 'none';
+			%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%cf) if defined $meet{EventType} && $meet{EventType} ne 'none';
 
 			my %pers_count;
 			foreach my $pers (@{$meet{Person}}) {
@@ -3374,9 +3374,9 @@ sub despatch
 				$pers_count{$pers} = 0 unless exists $pers_count{$pers};
 				my @arr = $cgi->param("${pers}_Custom");
 				push (@{$meet{CustomFee}}, validate_decimal($arr[$pers_count{$pers}], 'Custom fee', 1, $whinge));
-				foreach (%et ? map { my $fee = $_; (grep ($fee eq $meet_cfg{Fee}[$_], 0 .. $#{$meet_cfg{Fee}}))[0] } (@{$et{Unit}}) : 0 .. $#{$meet_cfg{Fee}}) {
-					@arr = $cgi->param("${pers}_@{$meet_cfg{Fee}}[$_]");
-					push (@{$meet{@{$meet_cfg{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$meet_cfg{Fee}[$_]}) ? ($cds{$meet_cfg{Fee}[$_]} // $meet_cfg{Fee}[$_]) : @{$meet_cfg{Description}}[$_] . ' value', 1, $whinge));
+				foreach (%et ? map { my $fee = $_; (grep ($fee eq $cf{Fee}[$_], 0 .. $#{$cf{Fee}}))[0] } (@{$et{Unit}}) : 0 .. $#{$cf{Fee}}) {
+					@arr = $cgi->param("${pers}_@{$cf{Fee}}[$_]");
+					push (@{$meet{@{$cf{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : @{$cf{Description}}[$_] . ' value', 1, $whinge));
 				}
 				foreach (keys %relevant_splits) {
 					@arr = $cgi->param("${pers}_Split${_}E");
@@ -3407,11 +3407,11 @@ sub despatch
 
 			my @midheads;
 			if (%et) {
-				my %drains = get_cf_drains(%meet_cfg);
+				my %drains = get_cf_drains(%cf);
 				my ($fees, $exps) = get_event_types(\%et, \%drains);
 				@midheads = (@$fees, @$exps);
 			} else {
-				@midheads = @{$meet_cfg{Fee}};
+				@midheads = @{$cf{Fee}};
 			}
 			push (@midheads, ("Split${_}Exps", "Split${_}Shrs")) foreach (@compact_splits);
 			@{$meet{Headings}} = ( 'Person', 'CustomFee', @midheads, 'Notes' ) if scalar @{$meet{Person}};
@@ -3438,7 +3438,7 @@ sub despatch
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%meet_cfg, $session, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, $session, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
 		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets($session)) }, 1);
