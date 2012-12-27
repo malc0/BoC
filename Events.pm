@@ -16,7 +16,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(set_event_config_root valid_event_type get_event_types get_ft_fees valid_ft meet_valid);
+our @EXPORT = qw(set_event_config_root valid_event_type get_event_types get_ft_fees valid_ft event_valid);
 
 my $root;
 
@@ -149,33 +149,33 @@ whingefail:
 	return;
 }
 
-sub meet_valid
+sub event_valid
 {
-	my ($mt, $cf, $skip_ppl_chk) = @_;
-	my %meet = %$mt;
+	my ($e, $cf, $skip_ppl_chk) = @_;
+	my %evnt = %$e;
 
-	# no check on Leader or Template -- gen_manage_meets is sufficient for now
+	# no check on Leader or Template -- gen_manage_events is sufficient for now
 
-	foreach (@{$meet{Headings}}) {
-		return 0 unless exists $meet{$_};
+	foreach (@{$evnt{Headings}}) {
+		return 0 unless exists $evnt{$_};
 	}
-	foreach my $hd (grep (ref $meet{$_} && $_ ne 'Headings', keys %meet)) {
-		return 0 unless grep ($_ eq $hd, @{$meet{Headings}});
+	foreach my $hd (grep (ref $evnt{$_} && $_ ne 'Headings', keys %evnt)) {
+		return 0 unless grep ($_ eq $hd, @{$evnt{Headings}});
 	}
 
-	return 0 unless defined clean_date($meet{Date});
+	return 0 unless defined clean_date($evnt{Date});
 
 	my @units = known_units;
-	return 0 if scalar @units > 1 && !(defined $meet{Currency}) && exists $meet{Headings} && scalar grep (!/^(Person|Notes)$/, @{$meet{Headings}});
-	return 0 if !(scalar @units) && defined $meet{Currency} && length $meet{Currency};
-	return 0 if scalar @units && exists $meet{Currency} && !(defined $meet{Currency} && grep ($_ eq $meet{Currency}, @units));
+	return 0 if scalar @units > 1 && !(defined $evnt{Currency}) && exists $evnt{Headings} && scalar grep (!/^(Person|Notes)$/, @{$evnt{Headings}});
+	return 0 if !(scalar @units) && defined $evnt{Currency} && length $evnt{Currency};
+	return 0 if scalar @units && exists $evnt{Currency} && !(defined $evnt{Currency} && grep ($_ eq $evnt{Currency}, @units));
 
 	return 0 unless %$cf;
 
 	my (%split_exp_sum, %split_shr_sum);
-	foreach my $hd (grep (!/^(Person|Notes)$/, @{$meet{Headings}})) {
+	foreach my $hd (grep (!/^(Person|Notes)$/, @{$evnt{Headings}})) {
 		return 0 unless $hd eq 'CustomFee' || grep ($_ eq $hd, grep (defined, @{$cf->{Fee}})) || $hd =~ /^Split[1-9](Exps|Shrs)$/;
-		foreach (@{$meet{$hd}}) {
+		foreach (@{$evnt{$hd}}) {
 			return 0 unless defined clean_decimal($_);
 			if ($hd =~ /^Split([1-9])Shrs$/) {
 				return 0 if clean_decimal($_) < 0;
@@ -192,7 +192,7 @@ sub meet_valid
 
 	my (%ppl, %seen);
 	%ppl = (grep_acct_key('users', 'Name'), grep_acct_key('accounts', 'IsNegated')) unless $skip_ppl_chk;
-	foreach (@{$meet{Person}}) {
+	foreach (@{$evnt{Person}}) {
 		return 0 unless defined;
 		return 0 unless $skip_ppl_chk || exists $ppl{$_};
 		$seen{$_}++

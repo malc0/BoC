@@ -1,22 +1,22 @@
 <!DOCTYPE html public "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 	<head>
-		<title><TMPL_VAR NAME=SN> meets</title>
+		<title><TMPL_VAR NAME=SN> events</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
 		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
 		<style type="text/css">.broken { background-color: red } .unknown { background-color: red }</style>
 	</head>
 	<body>
-		<h1>Meets list</h1>
+		<h1>Events list</h1>
 
 		<form action="boc.pl" method="post">
 		<div>
-			<input type="hidden" name="tmpl" value="manage_meets"/>
+			<input type="hidden" name="tmpl" value="manage_events"/>
 
 			<table border=1>
 				<tr><th>Name</th><th>Start Date</th><th>Duration (days)</th><th>Organizer</th><th>Event type/fee template</th></tr>
-				<TMPL_LOOP NAME=MEETS>
-				<tr><td class="<TMPL_VAR NAME=M_CL>" style="white-space:nowrap"><a href="boc.pl?tmpl=manage_meets&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME></a></td><td class="<TMPL_VAR NAME=D_CL>"><TMPL_VAR NAME=DATE></td><td class="<TMPL_VAR NAME=LEN_CL>"><TMPL_VAR NAME=LEN></td><td class="<TMPL_VAR NAME=LDR_CL>" style="white-space:nowrap"><TMPL_VAR NAME=LEADER></td><td class="<TMPL_VAR NAME=FT_CL>" style="white-space:nowrap"><TMPL_IF NAME=FTID><a href="boc.pl?tmpl=manage_fee_tmpls&amp;view=<TMPL_VAR NAME=FTID>"><TMPL_VAR NAME=FT></a><TMPL_ELSE><TMPL_IF NAME=FT><TMPL_VAR NAME=FT><TMPL_ELSE>None</TMPL_IF></TMPL_IF></td><TMPL_IF NAME=ADDDELOK><td style="white-space:nowrap"><input type="submit" name="lock_<TMPL_VAR NAME=MID>" value="<TMPL_IF NAME=LOCKED>Unlock<TMPL_ELSE>Lock</TMPL_IF>"/> <input type="submit" name="del_<TMPL_VAR NAME=MID>" value="Delete" onclick="return confirm('Really delete meet &quot;<TMPL_VAR NAME=NAME>&quot;?')"/></td></TMPL_IF></tr>
+				<TMPL_LOOP NAME=EVENTS>
+				<tr><td class="<TMPL_VAR NAME=M_CL>" style="white-space:nowrap"><a href="boc.pl?tmpl=manage_events&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME></a></td><td class="<TMPL_VAR NAME=D_CL>"><TMPL_VAR NAME=DATE></td><td class="<TMPL_VAR NAME=LEN_CL>"><TMPL_VAR NAME=LEN></td><td class="<TMPL_VAR NAME=LDR_CL>" style="white-space:nowrap"><TMPL_VAR NAME=LEADER></td><td class="<TMPL_VAR NAME=FT_CL>" style="white-space:nowrap"><TMPL_IF NAME=FTID><a href="boc.pl?tmpl=manage_fee_tmpls&amp;view=<TMPL_VAR NAME=FTID>"><TMPL_VAR NAME=FT></a><TMPL_ELSE><TMPL_IF NAME=FT><TMPL_VAR NAME=FT><TMPL_ELSE>None</TMPL_IF></TMPL_IF></td><TMPL_IF NAME=ADDDELOK><td style="white-space:nowrap"><input type="submit" name="lock_<TMPL_VAR NAME=MID>" value="<TMPL_IF NAME=LOCKED>Unlock<TMPL_ELSE>Lock</TMPL_IF>"/> <input type="submit" name="del_<TMPL_VAR NAME=MID>" value="Delete" onclick="return confirm('Really delete event &quot;<TMPL_VAR NAME=NAME>&quot;?')"/></td></TMPL_IF></tr>
 				</TMPL_LOOP>
 				<TMPL_IF NAME=ADDDELOK><tr><td><input type="text" name="name"/></td><td><input type="text" name="date" style="width:10ex"/></td><td><input type="text" name="len" style="width:4ex"/></td><td><select name="leader">
 						<TMPL_LOOP NAME=PPL><option value="<TMPL_VAR NAME=A>"><TMPL_VAR NAME=N></option>

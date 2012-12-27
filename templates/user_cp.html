@@ -22,8 +22,8 @@
 			<hr />
 			<p><input type="submit" name="disp_accts" value="Accounts summary"/><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel" style="float:right"/></TMPL_IF></p>
 
-			<TMPL_IF NAME=EVENTS><h1><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> events</h1>
-			<TMPL_LOOP NAME=EVENTS><p><a href="boc.pl?tmpl=manage_meets&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME> (<TMPL_VAR NAME=DATE>) &mdash; <i><TMPL_UNLESS NAME=LOCKED>un</TMPL_UNLESS>locked</i></a></p>
+			<TMPL_IF NAME=MYEVENTS><h1><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> events</h1>
+			<TMPL_LOOP NAME=MYEVENTS><p><a href="boc.pl?tmpl=manage_events&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME> (<TMPL_VAR NAME=DATE>) &mdash; <i><TMPL_UNLESS NAME=LOCKED>un</TMPL_UNLESS>locked</i></a></p>
 			</TMPL_LOOP></TMPL_IF>
 
 			<h1>Account summary<TMPL_IF NAME=ACCT>: <TMPL_VAR NAME=ACCT></TMPL_IF></h1>
@@ -34,7 +34,7 @@
 			<table border=1>
 				<tr><th>Description</th><th style="min-width:15%">Date</th><th style="min-width:15%">Value<TMPL_IF NAME=DEFCUR> (<span title="<TMPL_VAR NAME=DEFCURDESC>"><TMPL_VAR NAME=DEFCUR></span>)</TMPL_IF></th></tr>
 				<TMPL_LOOP NAME=CREDITS>
-				<tr class="<TMPL_VAR NAME=TG_CL>"><td><a href="boc.pl?tmpl=manage_<TMPL_IF NAME=MEET>meets<TMPL_ELSE>tgs</TMPL_IF>&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a> <TMPL_IF NAME=TO><TMPL_IF NAME=BIDI>&harr;<TMPL_ELSE>&larr;</TMPL_IF> <TMPL_LOOP NAME=TO><TMPL_VAR NAME=SEP><a href="boc.pl?tmpl=accts_disp&view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=N></a></TMPL_LOOP><TMPL_IF NAME=TO_EXTRA><span title="<TMPL_VAR NAME=TO_EXTRA>"> and others <u>(hover for list)</u></span></TMPL_IF></TMPL_IF></td><td style="text-align:center"><TMPL_VAR NAME=DATE></td><td style="text-align:right" class="<TMPL_VAR NAME=SUMMARY_CL>"><TMPL_VAR NAME=SUMMARY></td></tr>
+				<tr class="<TMPL_VAR NAME=TG_CL>"><td><a href="boc.pl?tmpl=manage_<TMPL_IF NAME=EVENT>events<TMPL_ELSE>tgs</TMPL_IF>&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a> <TMPL_IF NAME=TO><TMPL_IF NAME=BIDI>&harr;<TMPL_ELSE>&larr;</TMPL_IF> <TMPL_LOOP NAME=TO><TMPL_VAR NAME=SEP><a href="boc.pl?tmpl=accts_disp&view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=N></a></TMPL_LOOP><TMPL_IF NAME=TO_EXTRA><span title="<TMPL_VAR NAME=TO_EXTRA>"> and others <u>(hover for list)</u></span></TMPL_IF></TMPL_IF></td><td style="text-align:center"><TMPL_VAR NAME=DATE></td><td style="text-align:right" class="<TMPL_VAR NAME=SUMMARY_CL>"><TMPL_VAR NAME=SUMMARY></td></tr>
 				</TMPL_LOOP>
 				<tr><td colspan=2>Total credits</td><td style="text-align:right"><TMPL_VAR NAME=CRED_TOT></td></tr>
 			</table>
@@ -42,14 +42,14 @@
 			<table border=1>
 				<tr><th>Description</th><th style="min-width:15%">Date</th><th style="min-width:15%">Value<TMPL_IF NAME=DEFCUR> (<span title="<TMPL_VAR NAME=DEFCURDESC>"><TMPL_VAR NAME=DEFCUR></span>)</TMPL_IF></th></tr>
 				<TMPL_LOOP NAME=DEBITS>
-				<tr class="<TMPL_VAR NAME=TG_CL>"><td><a href="boc.pl?tmpl=manage_<TMPL_IF NAME=MEET>meets<TMPL_ELSE>tgs</TMPL_IF>&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a> <TMPL_IF NAME=BIDI>&harr;<TMPL_ELSE>&rarr;</TMPL_IF> <TMPL_LOOP NAME=TO><TMPL_VAR NAME=SEP><a href="boc.pl?tmpl=accts_disp&view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=N></a></TMPL_LOOP><TMPL_IF NAME=TO_EXTRA><span title="<TMPL_VAR NAME=TO_EXTRA>"> and others <u>(hover for list)</u></span></TMPL_IF></td><td style="text-align:center"><TMPL_VAR NAME=DATE></td><td style="text-align:right" class="<TMPL_VAR NAME=SUMMARY_CL>"><TMPL_VAR NAME=SUMMARY></td></tr>
+				<tr class="<TMPL_VAR NAME=TG_CL>"><td><a href="boc.pl?tmpl=manage_<TMPL_IF NAME=EVENT>events<TMPL_ELSE>tgs</TMPL_IF>&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a> <TMPL_IF NAME=BIDI>&harr;<TMPL_ELSE>&rarr;</TMPL_IF> <TMPL_LOOP NAME=TO><TMPL_VAR NAME=SEP><a href="boc.pl?tmpl=accts_disp&view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=N></a></TMPL_LOOP><TMPL_IF NAME=TO_EXTRA><span title="<TMPL_VAR NAME=TO_EXTRA>"> and others <u>(hover for list)</u></span></TMPL_IF></td><td style="text-align:center"><TMPL_VAR NAME=DATE></td><td style="text-align:right" class="<TMPL_VAR NAME=SUMMARY_CL>"><TMPL_VAR NAME=SUMMARY></td></tr>
 				</TMPL_LOOP>
 				<tr><td colspan=2>Total debits</td><td style="text-align:right"><TMPL_VAR NAME=DEB_TOT></td></tr>
 			</table>
 			<TMPL_IF NAME=ACCT>
 			<p><input type="submit" name="to_acct" value="Return to my account"/></p>
 			</TMPL_IF>
-			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/><TMPL_IF NAME=MEETS><input type="submit" name="manage_meets" value="See all meets"/></TMPL_IF></p>
+			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/><TMPL_IF NAME=EVENTS><input type="submit" name="manage_events" value="See all events"/></TMPL_IF></p>
 		</div>
 		</form>
 	</body>

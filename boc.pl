@@ -259,9 +259,9 @@ sub read_tg2
 {
 	my ($tg_file) = @_;
 
-	return read_tg($tg_file) unless $tg_file =~ /.*\/M([^\/]+)$/ && -e "$config{Root}/meets/$1";
+	return read_tg($tg_file) unless $tg_file =~ /.*\/E([^\/]+)$/ && -e "$config{Root}/events/$1";
 
-	return meet_to_tg(%{{read_htsv("$config{Root}/meets/$1", undef, [ 'Person', 'Notes' ])}});
+	return event_to_tg(%{{read_htsv("$config{Root}/events/$1", undef, [ 'Person', 'Notes' ])}});
 }
 
 sub read_htsv_encode
@@ -765,7 +765,7 @@ sub gen_tcp
 
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %cf = valid_fee_cfg;
-	$tmpl->param(VACCTS => scalar keys %vaccts, MEETS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})), CF_UNITS => (exists $cf{Fee} && scalar @{$cf{Fee}}));
+	$tmpl->param(VACCTS => scalar keys %vaccts, EVENTS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})), CF_UNITS => (exists $cf{Fee} && scalar @{$cf{Fee}}));
 
 	return $tmpl;
 }
@@ -1268,7 +1268,7 @@ sub commit_config_units
 		unlock_dir('transaction_groups', $sessid, $whinge, 'unit recode', 'transaction groups');
 		unlock_dir('event_types', $sessid, $whinge, 'unit recode', 'event types');
 		unlock_dir('fee_tmpls', $sessid, $whinge, 'unit recode', 'fee templates');
-		unlock_dir('meets', $sessid, $whinge, 'unit recode', 'meets');
+		unlock_dir('events', $sessid, $whinge, 'unit recode', 'events');
 		if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
 			un_commit_lock;
 			$whinge->('Cannot perform unit recode at present: config_fees busy');
@@ -1283,10 +1283,10 @@ sub commit_config_units
 			dir_mod_all('transaction_groups', 1, \@renames, sub { my ($tg, $old) = @_; foreach (@{$tg->{Currency}}) { s/^$old$/$rename->{$old}/ if $_; } });
 			dir_mod_all('event_types', 0, \@renames, sub { my ($et, $old) = @_; foreach (@{$et->{Unit}}) { s/^$old$/$rename->{$old}/ if $_; } });
 			dir_mod_all('fee_tmpls', 0, \@renames, sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$rename->{$old}/ if $_; } });
-			dir_mod_all('meets', 0, \@renames, sub { my ($meet, $old) = @_;
-				$meet->{Currency} =~ s/^$old$/$rename->{$old}/ if defined $meet->{Currency};
-				s/^$old$/$rename->{$old}/ foreach (@{$meet->{Headings}});
-				$meet->{$rename->{$old}} = delete $meet->{$old} if exists $meet->{$old}; }, 11);
+			dir_mod_all('events', 0, \@renames, sub { my ($evnt, $old) = @_;
+				$evnt->{Currency} =~ s/^$old$/$rename->{$old}/ if defined $evnt->{Currency};
+				s/^$old$/$rename->{$old}/ foreach (@{$evnt->{Headings}});
+				$evnt->{$rename->{$old}} = delete $evnt->{$old} if exists $evnt->{$old}; }, 11);
 			my %cf = read_htsv("$config{Root}/config_fees", 1);
 			if (%cf && exists $cf{Fee}) {
 				foreach my $old (keys %$rename) {
@@ -1308,10 +1308,10 @@ sub commit_config_units
 	}, $cfg_file);
 }
 
-sub gen_manage_meets
+sub gen_manage_events
 {
 	my $session = $_[0];
-	my $tmpl = load_template('manage_meets.html');
+	my $tmpl = load_template('manage_events.html');
 	my %ppl = grep_acct_key('users', 'Name');
 	my %cf = valid_fee_cfg;
 	my @etfs = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_event_type($_, \%cf), glob ("$config{Root}/event_types/*"));
@@ -1327,18 +1327,18 @@ sub gen_manage_meets
 	}
 	push (@{$fts{$_}}, 'none') foreach (keys %fts);
 
-	my @meetlist;
-	foreach my $mid (date_sorted_htsvs('meets')) {
-		my %meet = read_htsv("$config{Root}/meets/$mid", undef, [ 'Person', 'Notes' ]);
-		my $leader = (defined $meet{Leader}) ? ((exists $ppl{$meet{Leader}}) ? $ppl{$meet{Leader}} : $meet{Leader}) : '';
-		$meet{EventType} //= 'none';
-		$meet{Template} //= 'none';
-		my $et_state = $meet{EventType} eq 'none' || !!grep ($_ eq $meet{EventType}, @etfs);
-		my $ft_prefix = ($meet{EventType} ne 'none') ? "$meet{EventType}." : '';
-		my $ft_state = $meet{Template} eq 'none' || !!grep ($_ eq "$ft_prefix$meet{Template}", @ftfs);
-		my $ft_exists = $meet{Template} ne 'none' && -r "$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$meet{Template}");
+	my @evlist;
+	foreach my $mid (date_sorted_htsvs('events')) {
+		my %evnt = read_htsv("$config{Root}/events/$mid", undef, [ 'Person', 'Notes' ]);
+		my $leader = (defined $evnt{Leader}) ? ((exists $ppl{$evnt{Leader}}) ? $ppl{$evnt{Leader}} : $evnt{Leader}) : '';
+		$evnt{EventType} //= 'none';
+		$evnt{Template} //= 'none';
+		my $et_state = $evnt{EventType} eq 'none' || !!grep ($_ eq $evnt{EventType}, @etfs);
+		my $ft_prefix = ($evnt{EventType} ne 'none') ? "$evnt{EventType}." : '';
+		my $ft_state = $evnt{Template} eq 'none' || !!grep ($_ eq "$ft_prefix$evnt{Template}", @ftfs);
+		my $ft_exists = $evnt{Template} ne 'none' && -r "$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$evnt{Template}");
 
-		push (@meetlist, { MID => $mid, NAME => $meet{Name}, M_CL => (defined $meet{Name} && meet_valid(\%meet, \%cf)) ? '' : 'broken', DATE => $meet{Date}, D_CL => (defined clean_date($meet{Date})) ? '' : 'broken', LEN => $meet{Duration}, LEN_CL => (defined $meet{Duration}) ? '' : 'broken', LDR_CL => (defined $meet{Leader} && exists $ppl{$meet{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => ($et_state && $ft_state) ? '' : 'unknown', FT => format_ft_name("$ft_prefix$meet{Template}"), FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename("$ft_prefix$meet{Template}") : '', LOCKED => (exists $meet{Locked}) });
+		push (@evlist, { MID => $mid, NAME => $evnt{Name}, M_CL => (defined $evnt{Name} && event_valid(\%evnt, \%cf)) ? '' : 'broken', DATE => $evnt{Date}, D_CL => (defined clean_date($evnt{Date})) ? '' : 'broken', LEN => $evnt{Duration}, LEN_CL => (defined $evnt{Duration}) ? '' : 'broken', LDR_CL => (defined $evnt{Leader} && exists $ppl{$evnt{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => ($et_state && $ft_state) ? '' : 'unknown', FT => format_ft_name("$ft_prefix$evnt{Template}"), FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename("$ft_prefix$evnt{Template}") : '', LOCKED => (exists $evnt{Locked}) });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, sort_AoH(\%ppl));
 	my @ftlist;
@@ -1346,7 +1346,7 @@ sub gen_manage_meets
 		push (@ftlist, map ({ FTID => $_, FT => format_ft_name($_) }, map ("$et.$_", @{$fts{$et}})));
 	}
 
-	$tmpl->param(MEETS => \@meetlist, PPL => \@people, FTS => \@ftlist, ADDDELOK => $session->param('IsAdmin'));
+	$tmpl->param(EVENTS => \@evlist, PPL => \@people, FTS => \@ftlist, ADDDELOK => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
@@ -1359,35 +1359,35 @@ sub format_et
 	return 'Event';
 }
 
-sub meet_edit_ok
+sub event_edit_ok
 {
-	my ($meet, $session) = @_;
+	my ($evnt, $session) = @_;
 
-	return $session->param('IsAdmin') || ($session->param('User') eq $meet->{Leader} && !(exists $meet->{Locked}) && $session->param('MayEditOwnEvents'));
+	return $session->param('IsAdmin') || ($session->param('User') eq $evnt->{Leader} && !(exists $evnt->{Locked}) && $session->param('MayEditOwnEvents'));
 }
 
-sub gen_edit_meet
+sub gen_edit_event
 {
 	my ($edit_id, $cfr, $session, $etoken) = @_;
 
-	my $tmpl = load_template('edit_meet.html', $etoken);
-	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
+	my $tmpl = load_template('edit_event.html', $etoken);
+	my %evnt = read_htsv("$config{Root}/events/$edit_id", undef, [ 'Person', 'Notes' ]);
 
-	$tmpl->param(ET => format_et($meet{EventType}));
+	$tmpl->param(ET => format_et($evnt{EventType}));
 	$tmpl->param(MID => $edit_id);
 	$tmpl->param(RO => !$etoken);
-	$tmpl->param(NAME => $meet{Name}, DATE => $meet{Date}, DUR => $meet{Duration});
+	$tmpl->param(NAME => $evnt{Name}, DATE => $evnt{Date}, DUR => $evnt{Duration});
 
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 
 	my $sel_cur = $units_cfg{Default};
-	if (exists $meet{Currency}) {
-		$sel_cur = $meet{Currency};
+	if (exists $evnt{Currency}) {
+		$sel_cur = $evnt{Currency};
 		if (@units) {
-			$sel_cur = (scalar @units > 1) ? '' : $units_cfg{Default} unless defined $meet{Currency};
+			$sel_cur = (scalar @units > 1) ? '' : $units_cfg{Default} unless defined $evnt{Currency};
 		} else {
-			push (@units, 'N/A') if defined $meet{Currency};
+			push (@units, 'N/A') if defined $evnt{Currency};
 		}
 	}
 	my $red_unit;
@@ -1404,7 +1404,7 @@ sub gen_edit_meet
 	my %cds = known_commod_descs;
 
 	my %et;
-	%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), $cfr) if defined $meet{EventType} && $meet{EventType} ne 'none';
+	%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($evnt{EventType}), $cfr) if defined $evnt{EventType} && $evnt{EventType} ne 'none';
 	my %drains = get_cf_drains(%cf);
 
 	my (@ccs, @exps);
@@ -1420,16 +1420,16 @@ sub gen_edit_meet
 		@exps = grep (!(exists $cds{$cf{Fee}[$_]} || true($cf{IsDrain}[$_])), 0 .. $#{$cf{Fee}});
 	}
 	my (@unks, %split_exp_sum, %split_shr_sum, %splits);
-	foreach my $hd (grep (!/^(Person|CustomFee|Notes|Split[1-9](Exps|Shrs))$/, @{$meet{Headings}})) {
+	foreach my $hd (grep (!/^(Person|CustomFee|Notes|Split[1-9](Exps|Shrs))$/, @{$evnt{Headings}})) {
 		push (@unks, $hd) unless grep ($cf{Fee}[$_] eq $hd, (@ccs, @exps));
 	}
-	foreach my $hd (grep (/^Split[1-9](Exps|Shrs)$/, @{$meet{Headings}})) {
+	foreach my $hd (grep (/^Split[1-9](Exps|Shrs)$/, @{$evnt{Headings}})) {
 		if ($hd =~ /Split([1-9])Exps/) {
-			$split_exp_sum{$1} += $_ foreach (grep (CleanData::clean_decimal($_), @{$meet{$hd}}));
+			$split_exp_sum{$1} += $_ foreach (grep (CleanData::clean_decimal($_), @{$evnt{$hd}}));
 			$splits{$1} = 1;
 		}
 		if ($hd =~ /Split([1-9])Shrs/) {
-			$split_shr_sum{$1} += $_ foreach (grep (CleanData::clean_decimal($_), @{$meet{$hd}}));
+			$split_shr_sum{$1} += $_ foreach (grep (CleanData::clean_decimal($_), @{$evnt{$hd}}));
 			$splits{$1} = 1;
 		}
 	}
@@ -1443,8 +1443,8 @@ sub gen_edit_meet
 	}
 
 	my %rates;
-	if (clean_date($meet{Date})) {
-		%rates = get_rates($meet{Date});
+	if (clean_date($evnt{Date})) {
+		%rates = get_rates($evnt{Date});
 	}
 
 	my @feesh = ({ FEE => 'Custom Fee', LINKA => $cf{MeetAccount} });
@@ -1455,28 +1455,28 @@ sub gen_edit_meet
 	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh, NSPLITS => 2 * scalar @splitsh, SPLITSH => \@splitsh);
 
 	my %ppl_seen;
-	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
+	$ppl_seen{$evnt{Person}[$_]}++ foreach (grep (defined $evnt{Person}[$_], 0 .. $#{$evnt{Person}}));
 
 	my %accts = grep_acct_key('users', 'Name');
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my (@ppl, @nas);
-	foreach my $row (0 .. $#{$meet{Person}}) {
-		my @rfees = ({ F => 'Custom', V => $meet{CustomFee}[$row] ? $meet{CustomFee}[$row] : '', D_CL => (defined CleanData::clean_decimal($meet{CustomFee}[$row])) ? '' : 'broken' });
-		push (@rfees, map ({ F => $cf{Fee}[$_], V => ((exists $meet{$cf{Fee}[$_]}) && $meet{$cf{Fee}[$_]}[$row]) ? $meet{$cf{Fee}[$_]}[$row] : '', BOOL => true($cf{IsBool}[$_]), D_CL => (!(exists $meet{$cf{Fee}[$_]}) || (defined CleanData::clean_decimal($meet{$cf{Fee}[$_]}[$row]))) ? '' : 'broken', EXCPT => (exists $unusual{$cf{Fee}[$_]}) }, (@ccs, @exps)));
-		push (@rfees, map ({ F => $_, V => $meet{$_}[$row], D_CL => 'unknown' }, @unks));
-		my @rsplits = map ({ F => $_, EV => (exists $meet{"Split${_}Exps"} && $meet{"Split${_}Exps"}[$row]) ? $meet{"Split${_}Exps"}[$row] : '', ED_CL => (!(exists $meet{"Split${_}Exps"}) || (exists $meet{"Split${_}Exps"} && defined CleanData::clean_decimal($meet{"Split${_}Exps"}[$row]))) ? '' : 'broken', SV => (exists $meet{"Split${_}Shrs"} && $meet{"Split${_}Shrs"}[$row]) ? $meet{"Split${_}Shrs"}[$row] : '', SD_CL => (exists $meet{"Split${_}Shrs"} && (!(defined CleanData::clean_decimal($meet{"Split${_}Shrs"}[$row])) || CleanData::clean_decimal($meet{"Split${_}Shrs"}[$row]) < 0) || ($split_exp_sum{$_} && !$split_shr_sum{$_})) ? 'broken' : '' }, sort keys %splits);
-		my $a = $meet{Person}[$row] // '';
+	foreach my $row (0 .. $#{$evnt{Person}}) {
+		my @rfees = ({ F => 'Custom', V => $evnt{CustomFee}[$row] ? $evnt{CustomFee}[$row] : '', D_CL => (defined CleanData::clean_decimal($evnt{CustomFee}[$row])) ? '' : 'broken' });
+		push (@rfees, map ({ F => $cf{Fee}[$_], V => ((exists $evnt{$cf{Fee}[$_]}) && $evnt{$cf{Fee}[$_]}[$row]) ? $evnt{$cf{Fee}[$_]}[$row] : '', BOOL => true($cf{IsBool}[$_]), D_CL => (!(exists $evnt{$cf{Fee}[$_]}) || (defined CleanData::clean_decimal($evnt{$cf{Fee}[$_]}[$row]))) ? '' : 'broken', EXCPT => (exists $unusual{$cf{Fee}[$_]}) }, (@ccs, @exps)));
+		push (@rfees, map ({ F => $_, V => $evnt{$_}[$row], D_CL => 'unknown' }, @unks));
+		my @rsplits = map ({ F => $_, EV => (exists $evnt{"Split${_}Exps"} && $evnt{"Split${_}Exps"}[$row]) ? $evnt{"Split${_}Exps"}[$row] : '', ED_CL => (!(exists $evnt{"Split${_}Exps"}) || (exists $evnt{"Split${_}Exps"} && defined CleanData::clean_decimal($evnt{"Split${_}Exps"}[$row]))) ? '' : 'broken', SV => (exists $evnt{"Split${_}Shrs"} && $evnt{"Split${_}Shrs"}[$row]) ? $evnt{"Split${_}Shrs"}[$row] : '', SD_CL => (exists $evnt{"Split${_}Shrs"} && (!(defined CleanData::clean_decimal($evnt{"Split${_}Shrs"}[$row])) || CleanData::clean_decimal($evnt{"Split${_}Shrs"}[$row]) < 0) || ($split_exp_sum{$_} && !$split_shr_sum{$_})) ? 'broken' : '' }, sort keys %splits);
+		my $a = $evnt{Person}[$row] // '';
 		(exists $neg_accts{$a}) ?
-			push (@nas, { PER_CL => ((exists $neg_accts{$a}) ? 'negated' : 'unknown negated') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $vaccts{$a}) ? $vaccts{$a} : $a, A => $a, FEES => \@rfees, SPLITS => \@rsplits, NOTEV => $meet{Notes}[$row] }) :
-			push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, SPLITS => \@rsplits, NOTEV => $meet{Notes}[$row] });
+			push (@nas, { PER_CL => ((exists $neg_accts{$a}) ? 'negated' : 'unknown negated') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $vaccts{$a}) ? $vaccts{$a} : $a, A => $a, FEES => \@rfees, SPLITS => \@rsplits, NOTEV => $evnt{Notes}[$row] }) :
+			push (@ppl, { PER_CL => ((exists $accts{$a}) ? '' : 'unknown') . ((!(defined $ppl_seen{$a}) || $ppl_seen{$a} == 1) ? '' : ' dup'), NAME => (exists $accts{$a}) ? $accts{$a} : $a, A => $a, FEES => \@rfees, SPLITS => \@rsplits, NOTEV => $evnt{Notes}[$row] });
 	}
 	@ppl = (@ppl, @nas);
-	my @splitds = map ({ SPLIT => $_, SPLITD => $meet{"Split${_}Desc"}, DD_CL => (!$split_exp_sum{$_} || $meet{"Split${_}Desc"}) ? '' : 'broken' }, sort keys %splits);
+	my @splitds = map ({ SPLIT => $_, SPLITD => $evnt{"Split${_}Desc"}, DD_CL => (!$split_exp_sum{$_} || $evnt{"Split${_}Desc"}) ? '' : 'broken' }, sort keys %splits);
 	$tmpl->param(PPL => \@ppl);
 	$tmpl->param(SPLITDS => \@splitds);
-	$tmpl->param(EDITOK => meet_edit_ok(\%meet, $session));
-	$tmpl->param(VALID => meet_valid(\%meet, $cfr));
+	$tmpl->param(EDITOK => event_edit_ok(\%evnt, $session));
+	$tmpl->param(VALID => event_valid(\%evnt, $cfr));
 
 	return $tmpl;
 }
@@ -1488,41 +1488,41 @@ sub mru_event_accts
 
 	my %accts;
 
-	foreach my $mid (reverse date_sorted_htsvs('meets')) {
-		my %meet = read_htsv("$config{Root}/meets/$mid", undef, [ 'Person', 'Notes' ]);
-		last if defined clean_date($meet{Date}) && clean_date($meet{Date}) < $thresh;
-#		next unless !(defined $et) || (defined $meet{EventType} && $et eq $meet{EventType});
-		$accts{$_} = 1 foreach (@{$meet{Person}});
+	foreach my $mid (reverse date_sorted_htsvs('events')) {
+		my %evnt = read_htsv("$config{Root}/events/$mid", undef, [ 'Person', 'Notes' ]);
+		last if defined clean_date($evnt{Date}) && clean_date($evnt{Date}) < $thresh;
+#		next unless !(defined $et) || (defined $evnt{EventType} && $et eq $evnt{EventType});
+		$accts{$_} = 1 foreach (@{$evnt{Person}});
 	}
 
 	return %accts;
 }
 
-sub gen_edit_meet_ppl
+sub gen_edit_event_ppl
 {
 	my ($edit_id, $sessid, $etoken) = @_;
 
-	my $tmpl = load_template('edit_meet_ppl.html', $etoken);
-	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
+	my $tmpl = load_template('edit_event_ppl.html', $etoken);
+	my %evnt = read_htsv("$config{Root}/events/$edit_id", undef, [ 'Person', 'Notes' ]);
 
 	my %accts = grep_acct_key('users', 'Name');
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
-	my @unks = grep (!(exists $accts{$_} || exists $neg_accts{$_}), map ($_ // '', @{$meet{Person}}));
+	my @unks = grep (!(exists $accts{$_} || exists $neg_accts{$_}), map ($_ // '', @{$evnt{Person}}));
 
 	my %ppl_seen;
-	$ppl_seen{$meet{Person}[$_]}++ foreach (grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}}));
+	$ppl_seen{$evnt{Person}[$_]}++ foreach (grep (defined $evnt{Person}[$_], 0 .. $#{$evnt{Person}}));
 
 	my $adds = peek_session_data($sessid, "${etoken}_add_accts");
 	my @adds = split ('\.', $adds) if $adds;
 
 	my %try;
-	%try = mru_event_accts(clean_date($meet{Date}) - ($config{EvMRUPeriod} * 86400)) if $config{EvMRUPeriod};	# 86400 is days to seconds
+	%try = mru_event_accts(clean_date($evnt{Date}) - ($config{EvMRUPeriod} * 86400)) if $config{EvMRUPeriod};	# 86400 is days to seconds
 	my @rppl;
 	foreach my $user (grep { my $u = $_; exists $try{$u} || grep ($_ eq $u, @adds) } sort_AoH(\%accts)) {
 		$ppl_seen{$user} = 0 unless exists $ppl_seen{$user};
 		my @dups = map ({ A => "$user.$_" }, 2 .. $ppl_seen{$user});
-		push (@rppl, { NAME => $accts{$user}, A => $user, Y => (grep ($_ eq $user, @adds) || !!grep ($_ eq $user, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
+		push (@rppl, { NAME => $accts{$user}, A => $user, Y => (grep ($_ eq $user, @adds) || !!grep ($_ eq $user, grep (defined, @{$evnt{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
 	}
 	push (@rppl, { NAME => $_, A => $_, Y => 1, P_CL => ($ppl_seen{$_} && $ppl_seen{$_} > 1) ? 'unknown dup' : 'unknown' }) foreach (@unks);
 
@@ -1530,7 +1530,7 @@ sub gen_edit_meet_ppl
 	foreach my $user (grep { my $u = $_; !(exists $try{$u} || grep ($_ eq $u, @adds)) } sort_AoH(\%accts)) {
 		$ppl_seen{$user} = 0 unless exists $ppl_seen{$user};
 		my @dups = map ({ A => "$user.$_" }, 2 .. $ppl_seen{$user});
-		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (grep ($_ eq $user, @adds) || !!grep ($_ eq $user, grep (defined, @{$meet{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
+		push (@ppl, { NAME => $accts{$user}, A => $user, Y => (grep ($_ eq $user, @adds) || !!grep ($_ eq $user, grep (defined, @{$evnt{Person}}))), DUPS => \@dups, P_CL => ($ppl_seen{$user} > 1) ? 'dup' : '' });
 	}
 	push (@ppl, { NAME => $_, A => $_, Y => 1, P_CL => ($ppl_seen{$_} && $ppl_seen{$_} > 1) ? 'unknown dup' : 'unknown' }) foreach (@unks);
 
@@ -1538,46 +1538,46 @@ sub gen_edit_meet_ppl
 	foreach my $na (grep (exists $neg_accts{$_}, sort_AoH(\%vaccts))) {
 		$ppl_seen{$na} = 0 unless exists $ppl_seen{$na};
 		my @dups = map ({ A => "$na.$_" }, 2 .. $ppl_seen{$na});
-		push (@negs, { NAME => $vaccts{$na}, A => $na, Y => !!grep ($_ eq $na, grep (defined, @{$meet{Person}})), DUPS => \@dups, P_CL => ($ppl_seen{$na} > 1) ? 'dup' : '' });
+		push (@negs, { NAME => $vaccts{$na}, A => $na, Y => !!grep ($_ eq $na, grep (defined, @{$evnt{Person}})), DUPS => \@dups, P_CL => ($ppl_seen{$na} > 1) ? 'dup' : '' });
 	}
 
-	$tmpl->param(ET => format_et($meet{EventType}));
+	$tmpl->param(ET => format_et($evnt{EventType}));
 	$tmpl->param(MID => $edit_id);
-	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl, NEGS => \@negs, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
+	$tmpl->param(NAME => $evnt{Name}, PPL => \@ppl, NEGS => \@negs, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
 	$tmpl->param(RPPL => \@rppl) if @rppl;
 
 	return $tmpl;
 }
 
-sub meet_to_tg
+sub event_to_tg
 {
-	my %meet = @_;
-	my %tg = ( Date => $meet{Date}, Name => format_et($meet{EventType}) . ': ' . ($meet{Name} // '') );
+	my %evnt = @_;
+	my %tg = ( Date => $evnt{Date}, Name => format_et($evnt{EventType}) . ': ' . ($evnt{Name} // '') );
 	my %colsum;
 
 	my %cf = read_htsv("$config{Root}/config_fees", 1);
-	unless (defined $cf{MeetAccount} && meet_valid(\%meet, \%cf, 1)) {
+	unless (defined $cf{MeetAccount} && event_valid(\%evnt, \%cf, 1)) {
 		$tg{Date} = 'now';
 		$tg{Name} .= ' (broken)';
 		$tg{Omit} = undef;
 		return %tg;
 	}
 
-	foreach my $row (0 .. $#{$meet{Person}}) {
-		$meet{Person}[$row] //= '';
-		$colsum{$_} += $meet{$_}[$row] foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}}));
+	foreach my $row (0 .. $#{$evnt{Person}}) {
+		$evnt{Person}[$row] //= '';
+		$colsum{$_} += $evnt{$_}[$row] foreach (grep (!/^(Person|Notes)$/, @{$evnt{Headings}}));
 	}
-	foreach my $row (0 .. $#{$meet{Person}}) {
-		foreach (grep ($colsum{$_} && !($_ =~ /^Split[1-9]Exps$/), @{$meet{Headings}})) {
-			next if $_ =~ /^Split([1-9])Shrs$/ && !(exists $meet{"Split$1Exps"});
-			push (@{$tg{$meet{Person}[$row]}}, $meet{$_}[$row]);
+	foreach my $row (0 .. $#{$evnt{Person}}) {
+		foreach (grep ($colsum{$_} && !($_ =~ /^Split[1-9]Exps$/), @{$evnt{Headings}})) {
+			next if $_ =~ /^Split([1-9])Shrs$/ && !(exists $evnt{"Split$1Exps"});
+			push (@{$tg{$evnt{Person}[$row]}}, $evnt{$_}[$row]);
 		}
 	}
 
 	my @units = known_units;
 	my %cds = known_commod_descs;
 
-	foreach my $hd (@{$meet{Headings}}) {
+	foreach my $hd (@{$evnt{Headings}}) {
 		next if ($hd eq 'Person' || $hd eq 'Notes');
 		next unless $colsum{$hd};
 		if (grep ($_ eq $hd, grep (defined, @{$cf{Fee}}))) {
@@ -1593,38 +1593,38 @@ sub meet_to_tg
 				push (@{$tg{Description}}, $cf{Description}[$mc_row]);
 			} else {
 				push (@{$tg{Amount}}, -$colsum{$hd});
-				push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
+				push (@{$tg{Currency}}, $evnt{Currency}) if scalar @units;
 				push (@{$tg{Description}}, $cf{Description}[$mc_row]);
 			}
 		} elsif ($hd eq 'CustomFee') {
 			push (@{$tg{Creditor}}, $cf{MeetAccount});
 			push (@{$tg{Amount}}, $colsum{CustomFee});
-			push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
-			push (@{$tg{Description}}, 'Meet fee');
+			push (@{$tg{Currency}}, $evnt{Currency}) if scalar @units;
+			push (@{$tg{Description}}, 'Event fee');
 		} elsif ($hd =~ /^Split([1-9])Exps$/) {
 			my $creds = 0;
-			$creds++ foreach (grep ($meet{$hd}[$_], 0 .. $#{$meet{$hd}}));
+			$creds++ foreach (grep ($evnt{$hd}[$_], 0 .. $#{$evnt{$hd}}));
 
-			my $split_desc = $meet{"Split$1Desc"};
+			my $split_desc = $evnt{"Split$1Desc"};
 			push (@{$tg{Description}}, "Split: $split_desc");
 			if ($creds > 1) {
 				my $off = push (@{$tg{Creditor}}, "TrnsfrPot$1");
 				push (@{$tg{Amount}}, '*');
 				push (@{$tg{Currency}}, '') if scalar @units;
-				splice (@{$tg{$_}}, $off, 0, (0) x $creds) foreach (@{$meet{Person}});
+				splice (@{$tg{$_}}, $off, 0, (0) x $creds) foreach (@{$evnt{Person}});
 				$tg{TrnsfrPot}[$_] = $1 foreach ($off .. ($off + $creds - 1));
 				push (@{$tg{Description}}, ('"') x $creds);
 			}
 
-			foreach (grep ($meet{"Split$1Exps"}[$_], 0 .. $#{$meet{"Split$1Exps"}})) {
-				push (@{$tg{Creditor}}, $meet{Person}[$_]);
-				push (@{$tg{Amount}}, $meet{"Split$1Exps"}[$_]);
-				push (@{$tg{Currency}}, $meet{Currency}) if scalar @units;
+			foreach (grep ($evnt{"Split$1Exps"}[$_], 0 .. $#{$evnt{"Split$1Exps"}})) {
+				push (@{$tg{Creditor}}, $evnt{Person}[$_]);
+				push (@{$tg{Amount}}, $evnt{"Split$1Exps"}[$_]);
+				push (@{$tg{Currency}}, $evnt{Currency}) if scalar @units;
 			}
 		}
 	}
 
-	@{$tg{Headings}} = ( 'Creditor', 'Amount', @{$meet{Person}}, 'Description' );
+	@{$tg{Headings}} = ( 'Creditor', 'Amount', @{$evnt{Person}}, 'Description' );
 	splice (@{$tg{Headings}}, 2, 0, 'TrnsfrPot') if exists $tg{TrnsfrPot};
 	splice (@{$tg{Headings}}, 2, 0, 'Currency') if exists $tg{Currency};
 
@@ -1845,53 +1845,53 @@ sub despatch_admin
 
 		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to address alternatives config' : 'Edit address alternatives config cancelled', gen_tcp);
 	}
-	if ($cgi->param('tmpl') eq 'manage_meets') {
-		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
+	if ($cgi->param('tmpl') eq 'manage_events') {
+		my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
 		if (defined $cgi->param('add')) {
-			my %meet;
+			my %evnt;
 			my %ppl = grep_acct_key('users', 'Name');
 
-			$meet{Name} = clean_words($cgi->param('name'));
-			$meet{Date} = validate_date(scalar $cgi->param('date'), $whinge);
-			$meet{Duration} = validate_int(scalar $cgi->param('len'), 'Duration', 1, $whinge);
-			$meet{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
+			$evnt{Name} = clean_words($cgi->param('name'));
+			$evnt{Date} = validate_date(scalar $cgi->param('date'), $whinge);
+			$evnt{Duration} = validate_int(scalar $cgi->param('len'), 'Duration', 1, $whinge);
+			$evnt{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
 			if ($cgi->param('fee_tmpl') && $cgi->param('fee_tmpl') =~ /(.*)\.(.*)/) {
 				my $et = ($1 eq 'none') ? undef : valid_edit_id($1, "$config{Root}/event_types", 'event type', $whinge, 1);
 				my $ft = ($2 eq 'none') ? undef : valid_edit_id($et ? "$et.$2" : $2, "$config{Root}/fee_tmpls", 'fee template', $whinge, 1);
 				$ft =~ s/^$et\.// if $et;
-				$meet{EventType} = $et if $et;
-				$meet{Template} = $ft if $ft;
+				$evnt{EventType} = $et if $et;
+				$evnt{Template} = $ft if $ft;
 			}
 
-			$whinge->('No meet name given') unless length $meet{Name};
-			$whinge->('Zero duration?') unless $meet{Duration} > 0;
+			$whinge->('No event name given') unless length $evnt{Name};
+			$whinge->('Zero duration?') unless $evnt{Duration} > 0;
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			try_commit_and_unlock(sub {
-				my $file = new_uuidfile("$config{Root}/meets");
-				write_simp_cfg($file, %meet);
+				my $file = new_uuidfile("$config{Root}/events");
+				write_simp_cfg($file, %evnt);
 				my @split_f = split('-', unroot($file));
-				add_commit($file, "$split_f[0]...: Meet \"$meet{Name}\" created", $session);
+				add_commit($file, "$split_f[0]...: Event \"$evnt{Name}\" created", $session);
 			});
-			emit_with_status("Added meet \"$meet{Name}\"", gen_manage_meets($session));
+			emit_with_status("Added event \"$evnt{Name}\"", gen_manage_events($session));
 		}
 		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
-			my $mid = valid_edit_id($1, "$config{Root}/meets", 'meet', $whinge, 1);
-			delete_common("$config{Root}/meets/$mid", "meet \"$mid\"", $session, sub { gen_manage_meets($session) }, "$config{Root}/transaction_groups/M$mid");
+			my $mid = valid_edit_id($1, "$config{Root}/events", 'event', $whinge, 1);
+			delete_common("$config{Root}/events/$mid", "event \"$mid\"", $session, sub { gen_manage_events($session) }, "$config{Root}/transaction_groups/E$mid");
 		}
 		if (((grep (/^lock_.+$/, $cgi->param))[0] // '') =~ /^lock_(.+)$/) {
-			my $mid = valid_edit_id($1, "$config{Root}/meets", 'meet', $whinge, 1);
-			my $mt_file = "$config{Root}/meets/$mid";
-			$whinge->("Couldn't get edit lock for meet \"$mid\"") unless try_lock($mt_file, $sessid);
-			my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
-			(exists $meet{Locked}) ? delete $meet{Locked} : ($meet{Locked} = undef);
+			my $mid = valid_edit_id($1, "$config{Root}/events", 'event', $whinge, 1);
+			my $mt_file = "$config{Root}/events/$mid";
+			$whinge->("Couldn't get edit lock for event \"$mid\"") unless try_lock($mt_file, $sessid);
+			my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+			(exists $evnt{Locked}) ? delete $evnt{Locked} : ($evnt{Locked} = undef);
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			try_commit_and_unlock(sub {
-				write_htsv($mt_file, \%meet, 11);
+				write_htsv($mt_file, \%evnt, 11);
 				my @split_mf = split('-', unroot($mt_file));
-				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" " . ((exists $meet{Locked}) ? 'locked' : 'unlocked'), $session);
+				add_commit($mt_file, "$split_mf[0]...: Event \"$evnt{Name}\" " . ((exists $evnt{Locked}) ? 'locked' : 'unlocked'), $session);
 			}, $mt_file);
-			emit_with_status("Meet \"$meet{Name}\" " . ((exists $meet{Locked}) ? 'locked' : 'unlocked'), gen_manage_meets($session));
+			emit_with_status("Event \"$evnt{Name}\" " . ((exists $evnt{Locked}) ? 'locked' : 'unlocked'), gen_manage_events($session));
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_inst_cfg') {
@@ -1996,7 +1996,7 @@ sub despatch_admin
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if ($rename) {
 				unlock_dir('fee_tmpls', $sessid, $whinge, 'ET rename', 'fee templates');
-				unlock_dir('meets', $sessid, $whinge, 'ET rename', 'meets');
+				unlock_dir('events', $sessid, $whinge, 'ET rename', 'events');
 			}
 			bad_token_whinge(gen_manage_event_types) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_et', $etoken);
 			try_commit_and_unlock(sub {
@@ -2008,7 +2008,7 @@ sub despatch_admin
 						(my $ft_id = $ft) =~ s/$from\.//;
 						$git->mv($ft, "$to.$ft_id");
 					}
-					dir_mod_all('meets', 0, [ $edit_id ], sub { my ($meet, $old) = @_; $meet->{EventType} =~ s/^$old$/$new_id/ if defined $meet->{EventType} }, 11);
+					dir_mod_all('events', 0, [ $edit_id ], sub { my ($evnt, $old) = @_; $evnt->{EventType} =~ s/^$old$/$new_id/ if defined $evnt->{EventType} }, 11);
 					$git->mv($old_file, $file);
 				}
 				(mkdir "$config{Root}/event_types" or die) unless (-d "$config{Root}/event_types");
@@ -2121,7 +2121,7 @@ sub despatch_admin
 			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			unlock_dir('meets', $sessid, $whinge, 'FT rename', 'meets') if $rename;
+			unlock_dir('events', $sessid, $whinge, 'FT rename', 'events') if $rename;
 			bad_token_whinge(gen_manage_fee_tmpls) unless redeem_edit_token($sessid, $edit_id ? "edit_$edit_id" : 'add_ft', $etoken);
 			try_commit_and_unlock(sub {
 				if ($rename) {
@@ -2129,7 +2129,7 @@ sub despatch_admin
 					if ($et_id && $old_ft_id =~ /^[^\/.]+\.([^\/]+)$/) {
 						$old_ft_id = $1;
 					}
-					dir_mod_all('meets', 0, [ $old_ft_id ], sub { my ($meet, $old) = @_; $meet->{Template} =~ s/^$old$/$new_ft_id/ if defined $meet->{Template} && ((defined $meet->{EventType} && $et_id && $meet->{EventType} eq $et_id) || !(defined $meet->{EventType})) }, 11);
+					dir_mod_all('events', 0, [ $old_ft_id ], sub { my ($evnt, $old) = @_; $evnt->{Template} =~ s/^$old$/$new_ft_id/ if defined $evnt->{Template} && ((defined $evnt->{EventType} && $et_id && $evnt->{EventType} eq $et_id) || !(defined $evnt->{EventType})) }, 11);
 					$git->mv($old_file, $file);
 				}
 				(mkdir "$config{Root}/fee_tmpls" or die) unless (-d "$config{Root}/fee_tmpls");
@@ -2203,7 +2203,7 @@ sub despatch_admin
 			if (keys %recode) {
 				unlock_dir('event_types', $sessid, $whinge, 'fee recode', 'event types');
 				unlock_dir('fee_tmpls', $sessid, $whinge, 'fee recode', 'fee templates');
-				unlock_dir('meets', $sessid, $whinge, 'fee recode', 'meets');
+				unlock_dir('events', $sessid, $whinge, 'fee recode', 'events');
 			}
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
 			try_commit_and_unlock(sub {
@@ -2212,7 +2212,7 @@ sub despatch_admin
 				if (keys %recode) {
 					dir_mod_all('event_types', 0, [ keys %recode ], sub { my ($et, $old) = @_; foreach (@{$et->{Unit}}) { s/^$old$/$recode{$old}/ if $_; } });
 					dir_mod_all('fee_tmpls', 0, [ keys %recode ], sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$recode{$old}/ if $_; } });
-					dir_mod_all('meets', 0, [ keys %recode ], sub { my ($meet, $old) = @_; s/^$old$/$recode{$old}/ foreach (@{$meet->{Headings}}); $meet->{$recode{$old}} = delete $meet->{$old} if exists $meet->{$old}; }, 11);
+					dir_mod_all('events', 0, [ keys %recode ], sub { my ($evnt, $old) = @_; s/^$old$/$recode{$old}/ foreach (@{$evnt->{Headings}}); $evnt->{$recode{$old}} = delete $evnt->{$old} if exists $evnt->{$old}; }, 11);
 					$commit_msg .= ' AND CODES ALTERED';
 				}
 
@@ -2487,9 +2487,9 @@ sub gen_ucp
 	my $user = $acct // $session->param('User');
 
 	my @events;
-	foreach my $mid (date_sorted_htsvs('meets')) {
-		my %meet = read_htsv("$config{Root}/meets/$mid", undef, [ 'Person', 'Notes' ]);
-		push (@events, { MID => $mid, NAME => $meet{Name}, DATE => $meet{Date}, LOCKED => (exists $meet{Locked}) }) if ($meet{Leader} // '') eq $user;
+	foreach my $mid (date_sorted_htsvs('events')) {
+		my %evnt = read_htsv("$config{Root}/events/$mid", undef, [ 'Person', 'Notes' ]);
+		push (@events, { MID => $mid, NAME => $evnt{Name}, DATE => $evnt{Date}, LOCKED => (exists $evnt{Locked}) }) if ($evnt{Leader} // '') eq $user;
 	}
 
 	my %acct_names = get_acct_name_map;
@@ -2529,10 +2529,10 @@ sub gen_ucp
 			}
 		}
 
-		my $is_meet = $tg =~ /^M/;
+		my $is_event = $tg =~ /^E/;
 		my %outputdetails = (
-			MEET => $is_meet,
-			ACC => $is_meet ? substr ($tg, 1) : $tg,
+			EVENT => $is_event,
+			ACC => $is_event ? substr ($tg, 1) : $tg,
 			TG_CL => (exists $tgdetails{Omit}) ? 'omitted' : '',
 			NAME => $tgdetails{Name},
 			TO => \@to,
@@ -2549,7 +2549,7 @@ sub gen_ucp
 	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (defined $cf{Fee}[$_] && length $cf{Fee}[$_] && !($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_]) || true($cf{IsDrain}[$_])) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]} && defined $cf{Description}[$_] && length $cf{Description}[$_], 0 .. $#{$cf{Description}}));
 	$tmpl->param(SIMPTRANS => scalar @simptransidcounts && !grep ($_ > 0, @simptransidcounts));
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct && $acct ne $session->param('User');
-	$tmpl->param(EVENTS => \@events);
+	$tmpl->param(MYEVENTS => \@events);
 	$tmpl->param(ACCTSN => $user);
 	$tmpl->param(BAL => sprint_monetary($credsum + $debsum));
 	$tmpl->param(CRED_TOT => sprint_monetary($credsum));
@@ -2564,7 +2564,7 @@ sub gen_ucp
 	$tmpl->param(TCP => $session->param('IsAdmin'));
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
 	$tmpl->param(BANK => $session->param('IsAdmin'));
-	$tmpl->param(MEETS => !!valid_fee_cfg);
+	$tmpl->param(EVENTS => !!valid_fee_cfg);
 
 	return $tmpl;
 }
@@ -3007,7 +3007,7 @@ sub despatch
 	return if (defined $cgi->param('logout'));
 
 	emit(gen_manage_tgs($session)) if (defined $cgi->param('manage_tgs'));
-	emit(gen_manage_meets($session)) if (defined $cgi->param('manage_meets'));
+	emit(gen_manage_events($session)) if (defined $cgi->param('manage_events'));
 	emit(gen_ucp($session)) if (defined $cgi->param('to_acct'));
 	emit(gen_accts_disp) if (defined $cgi->param('disp_accts'));
 
@@ -3313,57 +3313,57 @@ sub despatch
 			emit_with_status((defined $cgi->param('save')) ? "Added transaction group \"$tg{Name}\" ($1)" : 'Add transaction group cancelled', $etoken ? gen_ucp($session) : gen_manage_tgs($session));
 		}
 	}
-	if ($cgi->param('tmpl') eq 'manage_meets') {
+	if ($cgi->param('tmpl') eq 'manage_events') {
 		if (defined $cgi->param('view')) {
-			my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
+			my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
 			my %cf = valid_fee_cfg;
-			$whinge->('Cannot view meet: expenses config is broken') unless %cf;
-			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/meets", 'meet', $whinge, 1);
+			$whinge->('Cannot view event: expenses config is broken') unless %cf;
+			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/events", 'event', $whinge, 1);
 
-			emit(gen_edit_meet($mid, \%cf, $session, undef));
+			emit(gen_edit_event($mid, \%cf, $session, undef));
 		}
 	}
-	if ($cgi->param('tmpl') eq 'edit_meet') {
-		my $whinge = sub { whinge($_[0], gen_manage_meets($session)) };
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', $whinge, 1);
-		my $mt_file = "$config{Root}/meets/$edit_id";
+	if ($cgi->param('tmpl') eq 'edit_event') {
+		my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/events", 'event', $whinge, 1);
+		my $mt_file = "$config{Root}/events/$edit_id";
 
 		if (defined $cgi->param('cancel')) {
 			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 		}
 
 		my %cf = valid_fee_cfg;
-		$whinge->('Cannot display meet: expenses config is broken') unless %cf;
+		$whinge->('Cannot display event: expenses config is broken') unless %cf;
 
-		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
-		whinge('Action not permitted', gen_edit_meet($edit_id, \%cf, $session, undef)) unless meet_edit_ok(\%meet, $session);
+		my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+		whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session);
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
-			$whinge->("Couldn't get edit lock for meet \"$edit_id\"") unless try_lock($mt_file, $sessid);
+			$whinge->("Couldn't get edit lock for event \"$edit_id\"") unless try_lock($mt_file, $sessid);
 			unless (-r $mt_file) {
 				unlock($mt_file);
-				$whinge->("Couldn't edit meet \"$edit_id\", file disappeared");
+				$whinge->("Couldn't edit event \"$edit_id\", file disappeared");
 			}
 
 			if (defined $cgi->param('edit')) {
-				emit(gen_edit_meet($edit_id, \%cf, $session, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_event($edit_id, \%cf, $session, get_edit_token($sessid, "edit_$edit_id")));
 			} else {
-				emit(gen_edit_meet_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
+				emit(gen_edit_event_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
 			}
 		}
 
 		if (defined $cgi->param('save')) {
-			$whinge = sub { whinge($_[0], gen_edit_meet($edit_id, \%cf, $session, $etoken)) };
+			$whinge = sub { whinge($_[0], gen_edit_event($edit_id, \%cf, $session, $etoken)) };
 
-			delete $meet{Currency};
-			my @ppl = @{$meet{Person}};
-			delete $meet{$_} foreach (grep (ref $meet{$_} || $_ =~ /^Split[1-9]Desc$/, keys %meet));
-			@{$meet{Person}} = @ppl;
+			delete $evnt{Currency};
+			my @ppl = @{$evnt{Person}};
+			delete $evnt{$_} foreach (grep (ref $evnt{$_} || $_ =~ /^Split[1-9]Desc$/, keys %evnt));
+			@{$evnt{Person}} = @ppl;
 
 			my @units = known_units;
 			$whinge->('No currency definition?') if scalar @units && !(defined $cgi->param('Currency'));
 			if (defined $cgi->param('Currency') && $cgi->param('Currency') ne 'N/A') {
-				$meet{Currency} = validate_unit(scalar $cgi->param('Currency'), \@units, $whinge);
+				$evnt{Currency} = validate_unit(scalar $cgi->param('Currency'), \@units, $whinge);
 			}
 
 			my %relevant_splits;
@@ -3377,43 +3377,43 @@ sub despatch
 
 			my %cds = known_commod_descs;
 			my %et;
-			%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%cf) if defined $meet{EventType} && $meet{EventType} ne 'none';
+			%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($evnt{EventType}), \%cf) if defined $evnt{EventType} && $evnt{EventType} ne 'none';
 
 			my %pers_count;
-			foreach my $pers (@{$meet{Person}}) {
+			foreach my $pers (@{$evnt{Person}}) {
 				$pers //= '';
 				$pers_count{$pers} = 0 unless exists $pers_count{$pers};
 				my @arr = $cgi->param("${pers}_Custom");
-				push (@{$meet{CustomFee}}, validate_decimal($arr[$pers_count{$pers}], 'Custom fee', 1, $whinge));
+				push (@{$evnt{CustomFee}}, validate_decimal($arr[$pers_count{$pers}], 'Custom fee', 1, $whinge));
 				foreach (%et ? map { my $fee = $_; (grep ($fee eq $cf{Fee}[$_], 0 .. $#{$cf{Fee}}))[0] } (@{$et{Unit}}) : 0 .. $#{$cf{Fee}}) {
 					@arr = $cgi->param("${pers}_@{$cf{Fee}}[$_]");
-					push (@{$meet{@{$cf{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : @{$cf{Description}}[$_] . ' value', 1, $whinge));
+					push (@{$evnt{@{$cf{Fee}}[$_]}}, validate_decimal($arr[$pers_count{$pers}], (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : @{$cf{Description}}[$_] . ' value', 1, $whinge));
 				}
 				foreach (keys %relevant_splits) {
 					@arr = $cgi->param("${pers}_Split${_}E");
-					push (@{$meet{"Split${_}Exps"}}, validate_decimal($arr[$pers_count{$pers}], 'Split expense', 0, $whinge));
+					push (@{$evnt{"Split${_}Exps"}}, validate_decimal($arr[$pers_count{$pers}], 'Split expense', 0, $whinge));
 					@arr = $cgi->param("${pers}_Split${_}S");
-					push (@{$meet{"Split${_}Shrs"}}, validate_decimal($arr[$pers_count{$pers}], 'Split debt share', 1, $whinge));
+					push (@{$evnt{"Split${_}Shrs"}}, validate_decimal($arr[$pers_count{$pers}], 'Split debt share', 1, $whinge));
 				}
 				@arr = $cgi->param("${pers}_Notes");
-				push (@{$meet{Notes}}, clean_words($arr[$pers_count{$pers}]));
+				push (@{$evnt{Notes}}, clean_words($arr[$pers_count{$pers}]));
 				$pers_count{$pers}++;
 			}
 
 			my @compact_splits;
 			foreach (sort keys %relevant_splits) {
-				if (!sum (@{$meet{"Split${_}Exps"}})) {
+				if (!sum (@{$evnt{"Split${_}Exps"}})) {
 					delete $relevant_splits{$_};
-					delete $meet{"Split${_}Exps"};
-					delete $meet{"Split${_}Shrs"};
+					delete $evnt{"Split${_}Exps"};
+					delete $evnt{"Split${_}Shrs"};
 					next;
 				}
-				$whinge->('Split expense without shares') unless sum (@{$meet{"Split${_}Shrs"}});
+				$whinge->('Split expense without shares') unless sum (@{$evnt{"Split${_}Shrs"}});
 				push (@compact_splits, 1 + scalar @compact_splits);
-				$meet{'Split' . $compact_splits[-1] . 'Exps'} = delete $meet{"Split${_}Exps"};
-				$meet{'Split' . $compact_splits[-1] . 'Shrs'} = delete $meet{"Split${_}Shrs"};
-				$meet{'Split' . $compact_splits[-1] . 'Desc'} = clean_words($cgi->param("Split${_}D"));
-				$whinge->('Missing split description') unless ($meet{'Split' . $compact_splits[-1] . 'Desc'});
+				$evnt{'Split' . $compact_splits[-1] . 'Exps'} = delete $evnt{"Split${_}Exps"};
+				$evnt{'Split' . $compact_splits[-1] . 'Shrs'} = delete $evnt{"Split${_}Shrs"};
+				$evnt{'Split' . $compact_splits[-1] . 'Desc'} = clean_words($cgi->param("Split${_}D"));
+				$whinge->('Missing split description') unless ($evnt{'Split' . $compact_splits[-1] . 'Desc'});
 			}
 
 			my @midheads;
@@ -3425,35 +3425,35 @@ sub despatch
 				@midheads = @{$cf{Fee}};
 			}
 			push (@midheads, ("Split${_}Exps", "Split${_}Shrs")) foreach (@compact_splits);
-			@{$meet{Headings}} = ( 'Person', 'CustomFee', @midheads, 'Notes' ) if scalar @{$meet{Person}};
+			@{$evnt{Headings}} = ( 'Person', 'CustomFee', @midheads, 'Notes' ) if scalar @{$evnt{Person}};
 
-			my %tg = meet_to_tg(%meet);
+			my %tg = event_to_tg(%evnt);
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			bad_token_whinge(gen_manage_events($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 			try_commit_and_unlock(sub {
-				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
+				my $tg_file = "$config{Root}/transaction_groups/E$edit_id";
 				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
 					(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
 					open (my $fh, '>', $tg_file) or die;
-					say $fh "Meet TGs are autogenerated at runtime";
+					say $fh "Event TGs are autogenerated at runtime";
 					close $fh;
 					$git->add($tg_file);
 				} else {
 					$git->rm($tg_file) if -e $tg_file;
 				}
-				write_htsv($mt_file, \%meet, 11);
+				write_htsv($mt_file, \%evnt, 11);
 				my @split_mf = split('-', unroot($mt_file));
-				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" modified", $session);
+				add_commit($mt_file, "$split_mf[0]...: Event \"$evnt{Name}\" modified", $session);
 			}, $mt_file);
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to meet \"$meet{Name}\" ($1)" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, $session, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to event \"$evnt{Name}\" ($1)" : 'Edit cancelled', gen_edit_event($edit_id, \%cf, $session, undef));
 	}
-	if ($cgi->param('tmpl') eq 'edit_meet_ppl') {
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/meets", 'meet', sub { whinge($_[0], gen_manage_meets($session)) }, 1);
-		my $mt_file = "$config{Root}/meets/$edit_id";
+	if ($cgi->param('tmpl') eq 'edit_event_ppl') {
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/events", 'event', sub { whinge($_[0], gen_manage_events($session)) }, 1);
+		my $mt_file = "$config{Root}/events/$edit_id";
 
 		if (defined $cgi->param('new_user')) {
 			push_session_data($sessid, "${etoken}_editid", $edit_id);
@@ -3466,13 +3466,13 @@ sub despatch
 		}
 
 		my %cf = valid_fee_cfg;
-		whinge('Cannot display meet: expenses config is broken', gen_manage_meets($session)) unless %cf;
+		whinge('Cannot display event: expenses config is broken', gen_manage_events($session)) unless %cf;
 
-		my %meet = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
-		whinge('Action not permitted', gen_edit_meet($edit_id, \%cf, $session, undef)) unless meet_edit_ok(\%meet, $session);
+		my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+		whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session);
 
 		if (defined $cgi->param('save')) {
-			my $whinge = sub { whinge($_[0], gen_edit_meet_ppl($edit_id, $sessid, $etoken)) };
+			my $whinge = sub { whinge($_[0], gen_edit_event_ppl($edit_id, $sessid, $etoken)) };
 			my %accts = grep_acct_key('users', 'Name');
 			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 
@@ -3489,78 +3489,78 @@ sub despatch
 				$seen_ppl{$stripped}++;
 			}
 			$whinge->('Having duplicate people is silly') if grep ($_ > 1, values %seen_ppl);
-			delete $meet{Headings} unless scalar @ppl;
-			if (exists $meet{Headings}) {
+			delete $evnt{Headings} unless scalar @ppl;
+			if (exists $evnt{Headings}) {
 				my %new_m;
 				my %ppl_pos;
-				push (@{$ppl_pos{$meet{Person}[$_]}}, $_) foreach grep (defined $meet{Person}[$_], 0 .. $#{$meet{Person}});
+				push (@{$ppl_pos{$evnt{Person}[$_]}}, $_) foreach grep (defined $evnt{Person}[$_], 0 .. $#{$evnt{Person}});
 				foreach my $p_n (0 .. $#ppl) {
 					(my $pers = $ppl[$p_n]) =~ s/\..*$//;
 					my $inst = ($ppl[$p_n] =~ /\.(\d*)$/) ? $1 - 1 : 0;
 					my $row = $ppl_pos{$pers}[$inst];
 					next unless defined $row;
-					$new_m{$_}[$p_n] = $meet{$_}[$row] foreach (@{$meet{Headings}});
+					$new_m{$_}[$p_n] = $evnt{$_}[$row] foreach (@{$evnt{Headings}});
 				}
-				@{$meet{$_}} = @{$new_m{$_}} foreach (@{$meet{Headings}});
+				@{$evnt{$_}} = @{$new_m{$_}} foreach (@{$evnt{Headings}});
 			} elsif (scalar @ppl) {
-				@{$meet{Headings}} = ( 'Person' );
+				@{$evnt{Headings}} = ( 'Person' );
 			}
-			@{$meet{Person}} = map { s/\..*$//; $_ } (@ppl);
+			@{$evnt{Person}} = map { s/\..*$//; $_ } (@ppl);
 
 			my (%et, %ft);
 			my $ft_prefix = '';
-			if (defined $meet{EventType} && $meet{EventType} ne 'none') {
-				%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($meet{EventType}), \%cf);
-				$ft_prefix = "$meet{EventType}.";
+			if (defined $evnt{EventType} && $evnt{EventType} ne 'none') {
+				%et = valid_event_type("$config{Root}/event_types/" . encode_for_filename($evnt{EventType}), \%cf);
+				$ft_prefix = "$evnt{EventType}.";
 			}
-			%ft = valid_ft("$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$meet{Template}"), \%cf) if defined $meet{Template} && $meet{Template} ne 'none';
-			if (scalar @{$meet{Person}} && %ft) {
+			%ft = valid_ft("$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$evnt{Template}"), \%cf) if defined $evnt{Template} && $evnt{Template} ne 'none';
+			if (scalar @{$evnt{Person}} && %ft) {
 				my %cds = known_commod_descs;
 				my %drains = get_cf_drains(%cf);
 				my ($fees, $exps) = get_event_types(\%et, \%drains);
 				my @feecols = %et ? @$fees : grep (exists $cds{$_} || exists $drains{$_}, @{$cf{Fee}});
 
-				splice (@{$meet{Headings}}, 1, 0, 'CustomFee') if !grep ($_ eq 'CustomFee', @{$meet{Headings}});	# necessary so subsequent ones added at position 2
+				splice (@{$evnt{Headings}}, 1, 0, 'CustomFee') if !grep ($_ eq 'CustomFee', @{$evnt{Headings}});	# necessary so subsequent ones added at position 2
 				foreach my $unit (@feecols) {
-					splice (@{$meet{Headings}}, 2, 0, $unit) if !grep ($_ eq $unit, @{$meet{Headings}});
+					splice (@{$evnt{Headings}}, 2, 0, $unit) if !grep ($_ eq $unit, @{$evnt{Headings}});
 				}
 
 				foreach my $p_n (0 .. $#ppl) {
-					next if exists $neg_accts{$meet{Person}[$p_n]};
-					next if sum (map ((defined $meet{$_}[$p_n]), @{$meet{Headings}})) > 1;
-					my %def_fees = get_ft_fees($meet{Person}[$p_n], %ft);
-					$meet{$_}[$p_n] = $def_fees{$_} foreach (@feecols);
+					next if exists $neg_accts{$evnt{Person}[$p_n]};
+					next if sum (map ((defined $evnt{$_}[$p_n]), @{$evnt{Headings}})) > 1;
+					my %def_fees = get_ft_fees($evnt{Person}[$p_n], %ft);
+					$evnt{$_}[$p_n] = $def_fees{$_} foreach (@feecols);
 				}
 			}
 			foreach my $p_n (0 .. $#ppl) {
-				$meet{$_}[$p_n] //= 0 foreach (grep (!/^(Person|Notes)$/, @{$meet{Headings}}));
+				$evnt{$_}[$p_n] //= 0 foreach (grep (!/^(Person|Notes)$/, @{$evnt{Headings}}));
 			}
 
 			my %tg;
-			%tg = meet_to_tg(%meet) if (scalar @{$meet{Person}});
+			%tg = event_to_tg(%evnt) if (scalar @{$evnt{Person}});
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			bad_token_whinge(gen_manage_meets($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			bad_token_whinge(gen_manage_events($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
 			pop_session_data($sessid, "${etoken}_add_accts");
 			try_commit_and_unlock(sub {
-				my $tg_file = "$config{Root}/transaction_groups/M$edit_id";
+				my $tg_file = "$config{Root}/transaction_groups/E$edit_id";
 				if (exists $tg{Creditor} && scalar @{$tg{Creditor}}) {
 					(mkdir "$config{Root}/transaction_groups" or die) unless (-d "$config{Root}/transaction_groups");
 					open (my $fh, '>', $tg_file) or die;
-					say $fh "Meet TGs are autogenerated at runtime";
+					say $fh "Event TGs are autogenerated at runtime";
 					close $fh;
 					$git->add($tg_file);
 				} else {
 					$git->rm($tg_file) if -e $tg_file;
 				}
-				write_htsv($mt_file, \%meet, 11);
+				write_htsv($mt_file, \%evnt, 11);
 				my @split_mf = split('-', unroot($mt_file));
-				add_commit($mt_file, "$split_mf[0]...: Meet \"$meet{Name}\" participants modified", $session);
+				add_commit($mt_file, "$split_mf[0]...: Event \"$evnt{Name}\" participants modified", $session);
 			}, $mt_file);
 		}
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
-		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$meet{Name}\" ($1) meet participants" : 'Edit cancelled', gen_edit_meet($edit_id, \%cf, $session, undef));
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$evnt{Name}\" ($1) event participants" : 'Edit cancelled', gen_edit_event($edit_id, \%cf, $session, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_acct') {
 		my $person = defined $cgi->param('email');
@@ -3618,7 +3618,7 @@ sub despatch
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if ($rename) {
 				unlock_dir('transaction_groups', $sessid, $whinge, 'account rename', 'transaction groups');
-				unlock_dir('meets', $sessid, $whinge, 'account rename', 'meets');
+				unlock_dir('events', $sessid, $whinge, 'account rename', 'events');
 				if (-e "$config{Root}/.config_fees.lock" && clear_lock("$config{Root}/.config_fees.lock", $sessid)) {
 					un_commit_lock;
 					$whinge->('Cannot perform account rename at present: config_fees busy');
@@ -3628,7 +3628,7 @@ sub despatch
 			try_commit_and_unlock(sub {
 				if ($rename) {
 					dir_mod_all('transaction_groups', 1, [ $edit_acct ], sub { my ($tg, $old) = @_; foreach (@{$tg->{Creditor}}, @{$tg->{Headings}}) { s/^$old$/$new_acct/ if $_; } $tg->{$new_acct} = delete $tg->{$old} if exists $tg->{$old}; });
-					dir_mod_all('meets', 0, [ $edit_acct ], sub { my ($meet, $old) = @_; $meet->{Leader} =~ s/^$old$/$new_acct/ if defined $meet->{Leader}; foreach (@{$meet->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
+					dir_mod_all('events', 0, [ $edit_acct ], sub { my ($evnt, $old) = @_; $evnt->{Leader} =~ s/^$old$/$new_acct/ if defined $evnt->{Leader}; foreach (@{$evnt->{Person}}) { s/^$old$/$new_acct/ if $_; } }, 11);
 					my %cf = read_htsv("$config{Root}/config_fees", 1);
 					if (%cf) {
 						$cf{MeetAccount} =~ s/^$edit_acct$/$new_acct/ if defined $cf{MeetAccount};
@@ -3672,7 +3672,7 @@ sub despatch
 				emit_with_status("Added account \"$new_acct\"", gen_add_edit_acc(undef, $person, $session, $etoken, !$session->param('IsAdmin')));
 			}
 			my $edit_id = $etoken ? pop_session_data($sessid, "${etoken}_editid") : undef;
-			my $tmpl = $etoken ? gen_edit_meet_ppl($edit_id, $sessid, $etoken) : gen_manage_accts($person);
+			my $tmpl = $etoken ? gen_edit_event_ppl($edit_id, $sessid, $etoken) : gen_manage_accts($person);
 			emit_with_status((defined $cgi->param('save')) ? "Added account \"$new_acct\"" : 'Add account cancelled', $tmpl);
 		}
 	}
