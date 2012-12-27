@@ -2212,7 +2212,7 @@ sub despatch_admin
 			unlock($cfg_file) if redeem_edit_token($sessid, 'edit_fee_cfg', $etoken);
 		}
 
-		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to meet form config' : 'Edit meet form config cancelled', gen_tcp);
+		emit_with_status((defined $cgi->param('save')) ? 'Saved edits to expense config' : 'Edit expense config cancelled', gen_tcp);
 	}
 	if ($cgi->param('tmpl') eq 'edit_pers_attrs') {
 		my $cfg_file = "$config{Root}/config_pers_attrs";
