@@ -1351,6 +1351,14 @@ sub gen_manage_meets
 	return $tmpl;
 }
 
+sub format_et
+{
+	my $et = $_[0];
+
+	return $et if defined $et && $et ne 'none';
+	return 'Event';
+}
+
 sub meet_edit_ok
 {
 	my ($meet, $session) = @_;
@@ -1365,6 +1373,7 @@ sub gen_edit_meet
 	my $tmpl = load_template('edit_meet.html', $etoken);
 	my %meet = read_htsv("$config{Root}/meets/$edit_id", undef, [ 'Person', 'Notes' ]);
 
+	$tmpl->param(ET => format_et($meet{EventType}));
 	$tmpl->param(MID => $edit_id);
 	$tmpl->param(RO => !$etoken);
 	$tmpl->param(NAME => $meet{Name}, DATE => $meet{Date}, DUR => $meet{Duration});
@@ -1532,6 +1541,7 @@ sub gen_edit_meet_ppl
 		push (@negs, { NAME => $vaccts{$na}, A => $na, Y => !!grep ($_ eq $na, grep (defined, @{$meet{Person}})), DUPS => \@dups, P_CL => ($ppl_seen{$na} > 1) ? 'dup' : '' });
 	}
 
+	$tmpl->param(ET => format_et($meet{EventType}));
 	$tmpl->param(MID => $edit_id);
 	$tmpl->param(NAME => $meet{Name}, PPL => \@ppl, NEGS => \@negs, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
 	$tmpl->param(RPPL => \@rppl) if @rppl;
@@ -1542,7 +1552,7 @@ sub gen_edit_meet_ppl
 sub meet_to_tg
 {
 	my %meet = @_;
-	my %tg = ( Date => $meet{Date}, Name => "Meet: " . ($meet{Name} // '') );
+	my %tg = ( Date => $meet{Date}, Name => format_et($meet{EventType}) . ': ' . ($meet{Name} // '') );
 	my %colsum;
 
 	my %cf = read_htsv("$config{Root}/config_fees", 1);
