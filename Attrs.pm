@@ -68,7 +68,7 @@ sub get_attr_synonyms
 		next unless $attrs{$syn};
 
 		(my $implieds = $attrs{$syn}) =~ s/\s*//g;
-		
+
 		push (@{$syns1{$_}}, $syn) foreach (split (':', $implieds));
 	}
 

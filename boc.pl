@@ -1160,9 +1160,10 @@ sub gen_edit_attr_groups
 
 	my @attrs;
 	foreach my $attr (@sorted_attrs, 'IsAuthed', 'IsPleb') {
-		my @imps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr) }; } @sorted_attrs;
-		my @simps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'system' }; } get_sys_attrs;
-		my @nimps = map { my $a = $_; { I => $_, C => ($_ eq $attr || defined $cfg{$attr} && !!grep (/\s*$a\s*/, split (':', $cfg{$attr}))), NO => ($_ eq $attr), CL => 'unknown' }; } @extra_attrs;
+		my $imp = $cfg{$attr} // '';
+		my @imps = map ({ I => $_, C => ($_ eq $attr || !!($imp =~ /(^|:)\s*$_\s*(:|$)/)), NO => ($_ eq $attr) }, @sorted_attrs);
+		my @simps = map ({ I => $_, C => ($_ eq $attr || !!($imp =~ /(^|:)\s*$_\s*(:|$)/)), NO => ($_ eq $attr), CL => 'system' }, get_sys_attrs);
+		my @nimps = map ({ I => $_, C => ($_ eq $attr || !!($imp =~ /(^|:)\s*$_\s*(:|$)/)), NO => ($_ eq $attr), CL => 'unknown' }, @extra_attrs);
 		push (@imps, (@simps, @nimps));
 		push (@attrs, { A => $attr, IMPS => \@imps });
 	}
