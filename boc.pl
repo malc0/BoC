@@ -657,7 +657,7 @@ sub refresh_session
 	my @sys_attrs = get_sys_attrs;
 	my %perms;
 	foreach my $sysattr (@sys_attrs) {
-		$perms{$sysattr} = grep (($_ eq 'IsPleb' || exists $userdetails{$_} || ($_ eq 'IsAuthed' && $authed)), @{$attr_syns{$sysattr}});
+		$perms{$sysattr} = grep (attr_condition_met($_, $authed, %userdetails), @{$attr_syns{$sysattr}});
 	}
 
 	$session->param('User', $userdetails{User});
@@ -832,11 +832,13 @@ sub gen_add_edit_acc
 		$tmpl->param(IS_NEGATED => 1) if exists $acctdetails{IsNegated};
 	}
 
-	my %attrs = get_attrs_full;
+	my %attrs = get_attrs_full(0, 1);
 	if ($filt_sys_attrs) {
 		my %syns = get_attr_synonyms;
 		foreach my $sa (get_sys_attrs) {
-			delete $attrs{$_} foreach (@{$syns{$sa}});
+			foreach (@{$syns{$sa}}) {
+				delete $attrs{$_} foreach (split ('&amp;&amp;'));
+			}
 		}
 	}
 	my @attr_set = map ({ A => $_, C => (exists $acctdetails{$_} || $_ eq 'IsPleb'), I => fmt_impl_attrs($attrs{$_}), D => ($_ eq 'IsPleb') }, keys %attrs);
@@ -1026,7 +1028,7 @@ sub gen_edit_fee_tmpl
 	my %ft = gen_ft_tg_common($edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef, 0, 5, !$etoken, 'Fee', 0, 'Unit', 3, 30, \@units);
 	my %oldft = $edit_id ? read_htsv("$config{Root}/fee_tmpls/" . encode_for_filename($edit_id), undef, [ 'Unit', 'Condition' ]) : %ft;
 
-	my %rawattrs = get_attrs_full(1);
+	my %rawattrs = get_attrs_full(1, 1);
 	my %moreattrs;
 	foreach my $row (0 .. $#{$oldft{Fee}}) {
 		next unless defined $ft{Condition}[$row];
@@ -1168,6 +1170,44 @@ sub gen_edit_attr_groups
 		push (@attrs, { A => $attr, IMPS => \@imps });
 	}
 	$tmpl->param(NIMPS => scalar @impsh, IMPSH => \@impsh, ATTRS => \@attrs);
+
+	my %comb_extras;
+	foreach my $comb (grep (/&amp;&amp;/, keys %cfg)) {
+		$comb =~ s/\s*//g;
+		$comb_extras{$_} = 1 foreach (grep (!(exists $cfg{$_}), split ('&amp;&amp;', $comb)));
+	}
+	push (@extra_attrs, sort keys %comb_extras);
+	my @impsh2 = map ({ I => $_ }, (@sorted_attrs, get_sys_attrs, @extra_attrs));
+
+	my @cattrs;
+	foreach my $comb (grep (/&amp;&amp;/, keys %cfg)) {
+		my @imps = map ({ I => $_, C => !!($comb =~ /(^|&amp;&amp;)\s*$_\s*(&amp;&amp;|$)/) }, @sorted_attrs);
+		my @simps = map ({ I => $_, C => !!($comb =~ /(^|&amp;&amp;)\s*$_\s*(&amp;&amp;|$)/), CL => 'system' }, get_sys_attrs);
+		my @nimps = map ({ I => $_, C => !!($comb =~ /(^|&amp;&amp;)\s*$_\s*(&amp;&amp;|$)/), CL => 'unknown' }, @extra_attrs);
+		push (@imps, (@simps, @nimps));
+
+		my $imp = $cfg{$comb} // '';
+		$imp =~ s/\s*//g;
+		foreach my $i (split (':', $imp)) {
+			my $unk = 0;
+			my @ats = map ({ A => $_, S => $i eq $_ }, (@sorted_attrs, get_sys_attrs));
+			unless (grep ($_ eq $i, (@sorted_attrs, get_sys_attrs))) {
+				push (@ats, { A => $i, S => 1 });
+				$unk = 1;
+				$tmpl->param(SEL_CL => 'unknown');
+			}
+			push (@cattrs, { N => scalar @cattrs, IMPS => \@imps, ATS => \@ats, SEL_CL => $unk ? 'unknown'  : '' });
+		}
+	}
+
+	my @imps = map ({ I => $_ }, @sorted_attrs);
+	my @simps = map ({ I => $_, CL => 'system' }, get_sys_attrs);
+	my @nimps = map ({ I => $_, CL => 'unknown' }, @extra_attrs);
+	push (@imps, (@simps, @nimps));
+	my @ats = map ({ A => $_ }, (@sorted_attrs, get_sys_attrs));
+	push (@cattrs, { N => scalar @cattrs, IMPS => \@imps, ATS => \@ats, SEL_CL => '' }) foreach (0 .. 4);
+
+	$tmpl->param(NIMPS2 => scalar @impsh2, IMPSH2 => \@impsh2, CATTRS => \@cattrs);
 
 	return $tmpl;
 }
@@ -2274,6 +2314,7 @@ sub despatch_admin
 			}
 			$cfg{IsAuthed} = $oldcfg{IsAuthed} if $oldcfg{IsAuthed};
 			$cfg{IsPleb} = $oldcfg{IsPleb} if $oldcfg{IsPleb};
+			$cfg{$_} = $oldcfg{$_} foreach (grep (/&amp;&amp;/, keys %oldcfg));
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if (%rename) {
@@ -2310,10 +2351,25 @@ sub despatch_admin
 			my $whinge = sub { whinge($_[0], gen_edit_attr_groups($etoken)) };
 
 			foreach my $attr (get_attrs(1), 'IsAuthed', 'IsPleb') {
-				$cfg{$attr} = join (':', map { s/^${attr}_//; $_ } grep (/^${attr}_/, $cgi->param()));
+				$cfg{$attr} = join (':', sort map { s/^${attr}_//; $_ } grep (/^${attr}_/, $cgi->param()));
 			}
 			delete $cfg{IsAuthed} unless length $cfg{IsAuthed};
 			delete $cfg{IsPleb} unless length $cfg{IsPleb};
+
+			my %comb;
+			foreach my $row (0 .. get_rows(30, $cgi, 'ImpAttr_', sub { $whinge->('No combination rows?') })) {
+				my $imp = $cgi->param("ImpAttr_$row");
+				next unless $imp;
+				next unless grep (/^${row}_/, $cgi->param());
+				push (@{$comb{join ('&&', sort map { s/^${row}_//; $_ } grep (/^${row}_/, $cgi->param()))}}, $imp);
+			}
+			foreach (keys %comb) {
+				if (/&&/) {
+					$cfg{$_} = join (':', sort @{$comb{$_}});
+				} else {
+					$whinge->('No combination specified: use implication table instead');
+				}
+			}
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_tcp) unless redeem_edit_token($sessid, 'edit_attr_groups', $etoken);

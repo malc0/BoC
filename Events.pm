@@ -78,7 +78,7 @@ sub get_ft_fees
 			$ft{Condition}[$_] =~ s/\s*//g;
 			foreach (split (/&amp;&amp;/, $ft{Condition}[$_])) {
 				next unless /^(!?)(.+)$/;
-				my $attr_set = grep (exists $user{$_}, @{$attr_syns{$2}});
+				my $attr_set = grep (attr_condition_met($_, 0, %user), @{$attr_syns{$2}});
 				$relevant = 0 if ($1 ? $attr_set : !$attr_set);
 			}
 		}

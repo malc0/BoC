@@ -10,7 +10,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(init_attr_cfg get_sys_attrs get_attrs get_attrs_full get_attr_synonyms);
+our @EXPORT = qw(init_attr_cfg get_sys_attrs get_attrs get_attrs_full get_attr_synonyms attr_condition_met);
 
 my $cfg_file;
 
@@ -27,9 +27,13 @@ sub get_sys_attrs
 
 sub get_attrs_full
 {
-	my $no_sys = $_[0];
+	my ($no_sys, $no_combs) = @_;
 	my @sys_attrs = get_sys_attrs;
 	my %cfg = read_htsv($cfg_file, 1);
+
+	if ($no_combs) {
+		delete $cfg{$_} foreach (grep (/&amp;&amp;/, keys %cfg));
+	}
 
 	$cfg{$_} = undef foreach (grep (!(exists $cfg{$_}), @sys_attrs));
 	$cfg{IsAdmin} = join (':', grep ($_ ne 'IsAdmin', @sys_attrs));
@@ -42,7 +46,7 @@ sub get_attrs_full
 
 sub get_attrs
 {
-	return sort keys %{{get_attrs_full($_[0])}};
+	return sort keys %{{get_attrs_full($_[0], 1)}};
 }
 
 sub expand_syns
@@ -80,6 +84,21 @@ sub get_attr_synonyms
 	@{$synsx{$_}} = uniq(@{$synsx{$_}}) foreach (keys %synsx);
 
 	return %synsx;
+}
+
+sub attr_condition_met
+{
+	my ($cond, $authed, %attrs) = @_;
+
+	$cond =~ s/\s*//g;
+	foreach (split ('&amp;&amp;', $cond)) {
+		next if $_ eq 'IsPleb';
+		next if $_ eq 'IsAuthed' && $authed;
+		next if exists $attrs{$_};
+		return 0;
+	}
+
+	return 1;
 }
 
 1;
