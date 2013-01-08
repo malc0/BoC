@@ -1353,7 +1353,7 @@ sub gen_manage_events
 		my $ft_state = $evnt{Template} eq 'none' || !!grep ($_ eq "$ft_prefix$evnt{Template}", @ftfs);
 		my $ft_exists = $evnt{Template} ne 'none' && -r "$config{Root}/fee_tmpls/" . encode_for_filename("$ft_prefix$evnt{Template}");
 
-		push (@evlist, { MID => $mid, NAME => $evnt{Name}, M_CL => (defined $evnt{Name} && event_valid(\%evnt, \%cf)) ? '' : 'broken', DATE => $evnt{Date}, D_CL => (defined clean_date($evnt{Date})) ? '' : 'broken', LEN => $evnt{Duration}, LEN_CL => (defined $evnt{Duration}) ? '' : 'broken', LDR_CL => (defined $evnt{Leader} && exists $ppl{$evnt{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => ($et_state && $ft_state) ? '' : 'unknown', FT => format_ft_name("$ft_prefix$evnt{Template}"), FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename("$ft_prefix$evnt{Template}") : '', LOCKED => (exists $evnt{Locked}) });
+		push (@evlist, { MID => $mid, NAME => $evnt{Name}, M_CL => (defined $evnt{Name} && event_valid(\%evnt, \%cf)) ? '' : 'broken', DATE => $evnt{Date}, D_CL => (defined clean_date($evnt{Date})) ? '' : 'broken', LEN => $evnt{Duration}, LEN_CL => (defined clean_int($evnt{Duration}) && clean_int($evnt{Duration}) > 0) ? '' : 'broken', LDR_CL => (defined $evnt{Leader} && exists $ppl{$evnt{Leader}}) ? '' : 'unknown', LEADER => $leader, FT_CL => ($et_state && $ft_state) ? '' : 'unknown', FT => format_ft_name("$ft_prefix$evnt{Template}"), FTID => ($session->param('IsAdmin') && $ft_exists) ? encode_for_filename("$ft_prefix$evnt{Template}") : '', LOCKED => (exists $evnt{Locked}) });
 	}
 	my @people = map ({ A => $_, N => $ppl{$_} }, sort_AoH(\%ppl));
 	my @ftlist;
