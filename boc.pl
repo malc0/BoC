@@ -1535,6 +1535,7 @@ sub gen_edit_event
 	$tmpl->param(PPL => \@ppl);
 	$tmpl->param(SPLITDS => \@splitds);
 	$tmpl->param(EDITOK => event_edit_ok(\%evnt, $session));
+	$tmpl->param(EDITHDRS => event_edit_ok(\%evnt, $session, 1));
 	$tmpl->param(VALID => event_valid(\%evnt, $cfr));
 
 	return $tmpl;
@@ -1604,6 +1605,48 @@ sub gen_edit_event_ppl
 	$tmpl->param(MID => $edit_id);
 	$tmpl->param(NAME => $evnt{Name}, PPL => \@ppl, NEGS => \@negs, DUPTEXT => !!grep ($_ > 1, values %ppl_seen));
 	$tmpl->param(RPPL => \@rppl) if @rppl;
+
+	return $tmpl;
+}
+
+sub gen_edit_event_hdrs
+{
+	my ($edit_id, $cfr, $etoken) = @_;
+
+	my $tmpl = load_template('edit_event_hdrs.html', $etoken);
+	my %evnt = read_htsv("$config{Root}/events/$edit_id", undef, [ 'Person', 'Notes' ]);
+
+	my %ppl = grep_acct_key('users', 'Name');
+	my @people = map ({ A => $_, N => $ppl{$_}, S => (defined $evnt{Leader} && $_ eq $evnt{Leader}) }, sort_AoH(\%ppl));
+	unless (defined $evnt{Leader} && exists $ppl{$evnt{Leader}}) {
+		$evnt{Leader} //= '';
+		push (@people, { A => $evnt{Leader}, N => $evnt{Leader}, S => 1 });
+	}
+
+	my @etfs = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_event_type($_, $cfr), glob ("$config{Root}/event_types/*"));
+	my @ftfs = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_ft($_, $cfr), glob ("$config{Root}/fee_tmpls/*"));
+	my %fts;
+	@{$fts{$_}} = () foreach (@etfs, 'none');
+	foreach (@ftfs) {
+		if (/([^.]+)\.(.+)/) {
+			push (@{$fts{$1}}, $2);
+		} else {
+			push (@{$fts{none}}, $_);
+		}
+	}
+	push (@{$fts{$_}}, 'none') foreach (keys %fts);
+	$evnt{EventType} //= 'none';
+	$evnt{Template} //= 'none';
+	my $et_state = $evnt{EventType} eq 'none' || !!grep ($_ eq $evnt{EventType}, @etfs);
+	my $ft_prefix = ($evnt{EventType} ne 'none') ? "$evnt{EventType}." : '';
+	my $ft_state = $evnt{Template} eq 'none' || !!grep ($_ eq "$ft_prefix$evnt{Template}", @ftfs);
+	my @ftlist;
+	foreach my $et (sort keys %fts) {
+		push (@ftlist, map ({ FTID => $_, FT => format_ft_name($_), S => ("$evnt{EventType}.$evnt{Template}" eq $_) }, map ("$et.$_", @{$fts{$et}})));
+	}
+	push (@ftlist, { FTID => "$ft_prefix$evnt{Template}", FT => format_ft_name("$ft_prefix$evnt{Template}"), S => 1 }) unless $et_state && $ft_state;
+
+	$tmpl->param(MID => $edit_id, NAME => $evnt{Name}, N_CL => (defined $evnt{Name}) ? '' : 'broken', DATE => $evnt{Date}, D_CL => (defined clean_date($evnt{Date})) ? '' : 'broken', DUR => $evnt{Duration}, DUR_CL => (defined clean_int($evnt{Duration}) && clean_int($evnt{Duration}) > 0) ? '' : 'broken', PPL => \@people, LDR_CL => (exists $ppl{$evnt{Leader}}) ? '' : 'unknown', FTS => \@ftlist, FT_CL => ($et_state && $ft_state) ? '' : 'unknown');
 
 	return $tmpl;
 }
@@ -3442,6 +3485,18 @@ sub despatch
 		$whinge->('Cannot display event: expenses config is broken') unless %cf;
 
 		my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+
+		if (defined $cgi->param('edit_hdrs')) {
+			whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session, 1);
+			$whinge->("Couldn't get edit lock for event \"$edit_id\"") unless try_lock($mt_file, $sessid);
+			unless (-r $mt_file) {
+				unlock($mt_file);
+				$whinge->("Couldn't edit event \"$edit_id\", file disappeared");
+			}
+
+			emit(gen_edit_event_hdrs($edit_id, \%cf, get_edit_token($sessid, "edit_$edit_id")));
+		}
+
 		whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session);
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
@@ -3649,6 +3704,59 @@ sub despatch
 
 		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
 		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$evnt{Name}\" ($1) event participants" : 'Edit cancelled', gen_edit_event($edit_id, \%cf, $session, undef));
+	}
+	if ($cgi->param('tmpl') eq 'edit_event_hdrs') {
+		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/events", 'event', sub { whinge($_[0], gen_manage_events($session)) }, 1);
+		my $mt_file = "$config{Root}/events/$edit_id";
+
+		if (defined $cgi->param('cancel')) {
+			unlock($mt_file) if redeem_edit_token($sessid, "edit_$edit_id", $etoken) && $mt_file;
+		}
+
+		my %cf = valid_fee_cfg;
+		whinge('Cannot display event: expenses config is broken', gen_manage_events($session)) unless %cf;
+
+		my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
+
+		whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session, 1);
+
+		if (defined $cgi->param('save')) {
+			my $whinge = sub { whinge($_[0], gen_edit_event_hdrs($edit_id, \%cf, $etoken)) };
+
+			my %ppl = grep_acct_key('users', 'Name');
+
+			$evnt{Name} = clean_words($cgi->param('name'));
+			$evnt{Date} = validate_date(scalar $cgi->param('date'), $whinge);
+			$evnt{Duration} = validate_int(scalar $cgi->param('duration'), 'Duration', 1, $whinge);
+			$evnt{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
+			delete $evnt{EventType};
+			delete $evnt{Template};
+			if ($cgi->param('fee_tmpl') && $cgi->param('fee_tmpl') =~ /(.*)\.(.*)/) {
+				my $et = ($1 eq 'none') ? undef : valid_edit_id($1, "$config{Root}/event_types", 'event type', $whinge, 1);
+				my $ft = ($2 eq 'none') ? undef : valid_edit_id($et ? "$et.$2" : $2, "$config{Root}/fee_tmpls", 'fee template', $whinge, 1);
+				$ft =~ s/^$et\.// if $et;
+				$evnt{EventType} = $et if $et;
+				$evnt{Template} = $ft if $ft;
+			}
+
+			$whinge->('No event name given') unless length $evnt{Name};
+			$whinge->('Zero duration?') unless $evnt{Duration} > 0;
+
+			my %tg;
+			%tg = event_to_tg(%evnt) if (scalar @{$evnt{Person}});
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			bad_token_whinge(gen_manage_events($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
+			try_commit_and_unlock(sub {
+				update_event_tg($edit_id, \%tg);
+				write_htsv($mt_file, \%evnt, 11);
+				my @split_mf = split('-', unroot($mt_file));
+				add_commit($mt_file, "$split_mf[0]...: Event \"$evnt{Name}\" headers modified", $session);
+			}, $mt_file);
+		}
+
+		$mt_file =~ /\/([^\/]{1,4})[^\/]*$/;
+		emit_with_status((defined $cgi->param('save')) ? "Saved edits to \"$evnt{Name}\" ($1) event headers" : 'Edit cancelled', gen_edit_event($edit_id, \%cf, $session, undef));
 	}
 	if ($cgi->param('tmpl') eq 'edit_acct') {
 		my $person = defined $cgi->param('email');

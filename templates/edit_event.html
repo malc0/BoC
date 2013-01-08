@@ -60,8 +60,8 @@
 
 			<TMPL_IF NAME=VALID><p><a href="boc.pl?tmpl=manage_tgs&amp;view=M<TMPL_VAR NAME=MID>">View resulting transaction group</a></p></TMPL_IF>
 
-			<TMPL_IF NAME=EDITOK><p><TMPL_IF NAME=RO><input type="submit" name="edit_ppl" value="Add/Edit participants"/><TMPL_IF NAME=PPL><input type="submit" name="edit" value="Edit values"/></TMPL_IF><TMPL_ELSE>
-			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p></TMPL_IF>
+			<p><TMPL_IF NAME=EDITHDRS><TMPL_IF NAME=RO><input type="submit" name="edit_hdrs" value="Edit basic event details"/></TMPL_IF></TMPL_IF><TMPL_IF NAME=EDITOK><TMPL_IF NAME=RO><input type="submit" name="edit_ppl" value="Add/Edit participants"/><TMPL_IF NAME=PPL><input type="submit" name="edit" value="Edit values"/></TMPL_IF><TMPL_ELSE>
+			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></TMPL_IF></p>
 			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
 			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_events" value="See all events"/></p></TMPL_UNLESS>
 			<p><input type="submit" name="logout" value="Logout"/></p>
