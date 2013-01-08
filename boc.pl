@@ -1688,7 +1688,7 @@ sub delete_common
 	}
 	try_commit_and_unlock(sub {
 		$git->rm($file);
-		$git->rm($extra_file) if $extra_file;
+		$git->rm($extra_file) if $extra_file && -r $extra_file;
 		commit(unroot($file) . ': deleted', $session);
 	}, $file);
 	return emit_with_status("Deleted $thing", $done->());
