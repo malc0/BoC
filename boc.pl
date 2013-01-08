@@ -1401,7 +1401,7 @@ sub gen_manage_events
 		push (@ftlist, map ({ FTID => $_, FT => format_ft_name($_) }, map ("$et.$_", @{$fts{$et}})));
 	}
 
-	$tmpl->param(EVENTS => \@evlist, PPL => \@people, FTS => \@ftlist, ADDDELOK => $session->param('IsAdmin'));
+	$tmpl->param(EVENTS => \@evlist, PPL => \@people, FTS => \@ftlist, ADDDELOK => $session->param('MayStewardEvents'), LOCKOK => $session->param('IsAdmin'));
 
 	return $tmpl;
 }
@@ -1416,9 +1416,13 @@ sub format_et
 
 sub event_edit_ok
 {
-	my ($evnt, $session) = @_;
+	my ($evnt, $session, $steward) = @_;
 
-	return $session->param('IsAdmin') || ($session->param('User') eq $evnt->{Leader} && !(exists $evnt->{Locked}) && $session->param('MayEditOwnEvents'));
+	return 1 if $session->param('IsAdmin');
+	return if exists $evnt->{Locked};
+
+	return $session->param('MayStewardEvents') if $steward;
+	return $session->param('User') eq $evnt->{Leader} && $session->param('MayEditOwnEvents');
 }
 
 sub gen_edit_event
@@ -1905,38 +1909,6 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'manage_events') {
 		my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
-		if (defined $cgi->param('add')) {
-			my %evnt;
-			my %ppl = grep_acct_key('users', 'Name');
-
-			$evnt{Name} = clean_words($cgi->param('name'));
-			$evnt{Date} = validate_date(scalar $cgi->param('date'), $whinge);
-			$evnt{Duration} = validate_int(scalar $cgi->param('len'), 'Duration', 1, $whinge);
-			$evnt{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
-			if ($cgi->param('fee_tmpl') && $cgi->param('fee_tmpl') =~ /(.*)\.(.*)/) {
-				my $et = ($1 eq 'none') ? undef : valid_edit_id($1, "$config{Root}/event_types", 'event type', $whinge, 1);
-				my $ft = ($2 eq 'none') ? undef : valid_edit_id($et ? "$et.$2" : $2, "$config{Root}/fee_tmpls", 'fee template', $whinge, 1);
-				$ft =~ s/^$et\.// if $et;
-				$evnt{EventType} = $et if $et;
-				$evnt{Template} = $ft if $ft;
-			}
-
-			$whinge->('No event name given') unless length $evnt{Name};
-			$whinge->('Zero duration?') unless $evnt{Duration} > 0;
-
-			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
-			try_commit_and_unlock(sub {
-				my $file = new_uuidfile("$config{Root}/events");
-				write_simp_cfg($file, %evnt);
-				my @split_f = split('-', unroot($file));
-				add_commit($file, "$split_f[0]...: Event \"$evnt{Name}\" created", $session);
-			});
-			emit_with_status("Added event \"$evnt{Name}\"", gen_manage_events($session));
-		}
-		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
-			my $mid = valid_edit_id($1, "$config{Root}/events", 'event', $whinge, 1);
-			delete_common("$config{Root}/events/$mid", "event \"$mid\"", $session, sub { gen_manage_events($session) }, "$config{Root}/transaction_groups/E$mid");
-		}
 		if (((grep (/^lock_.+$/, $cgi->param))[0] // '') =~ /^lock_(.+)$/) {
 			my $mid = valid_edit_id($1, "$config{Root}/events", 'event', $whinge, 1);
 			my $mt_file = "$config{Root}/events/$mid";
@@ -3392,13 +3364,51 @@ sub despatch
 		}
 	}
 	if ($cgi->param('tmpl') eq 'manage_events') {
+		my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
 		if (defined $cgi->param('view')) {
-			my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
 			my %cf = valid_fee_cfg;
 			$whinge->('Cannot view event: expenses config is broken') unless %cf;
 			my $mid = valid_edit_id(scalar $cgi->param('view'), "$config{Root}/events", 'event', $whinge, 1);
 
 			emit(gen_edit_event($mid, \%cf, $session, undef));
+		}
+		if (defined $cgi->param('add')) {
+			$whinge->('Action not permitted') unless $session->param('MayStewardEvents');
+
+			my %evnt;
+			my %ppl = grep_acct_key('users', 'Name');
+
+			$evnt{Name} = clean_words($cgi->param('name'));
+			$evnt{Date} = validate_date(scalar $cgi->param('date'), $whinge);
+			$evnt{Duration} = validate_int(scalar $cgi->param('len'), 'Duration', 1, $whinge);
+			$evnt{Leader} = validate_acct(scalar $cgi->param('leader'), \%ppl, $whinge);
+			if ($cgi->param('fee_tmpl') && $cgi->param('fee_tmpl') =~ /(.*)\.(.*)/) {
+				my $et = ($1 eq 'none') ? undef : valid_edit_id($1, "$config{Root}/event_types", 'event type', $whinge, 1);
+				my $ft = ($2 eq 'none') ? undef : valid_edit_id($et ? "$et.$2" : $2, "$config{Root}/fee_tmpls", 'fee template', $whinge, 1);
+				$ft =~ s/^$et\.// if $et;
+				$evnt{EventType} = $et if $et;
+				$evnt{Template} = $ft if $ft;
+			}
+
+			$whinge->('No event name given') unless length $evnt{Name};
+			$whinge->('Zero duration?') unless $evnt{Duration} > 0;
+
+			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
+			try_commit_and_unlock(sub {
+				my $file = new_uuidfile("$config{Root}/events");
+				write_simp_cfg($file, %evnt);
+				my @split_f = split('-', unroot($file));
+				add_commit($file, "$split_f[0]...: Event \"$evnt{Name}\" created", $session);
+			});
+			emit_with_status("Added event \"$evnt{Name}\"", gen_manage_events($session));
+		}
+		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
+			my $mid = valid_edit_id($1, "$config{Root}/events", 'event', $whinge, 1);
+			my %evnt = read_htsv("$config{Root}/events/$mid", undef, [ 'Person', 'Notes' ]);
+			$whinge->('Action not permitted') unless event_edit_ok(\%evnt, $session, 1);
+			$whinge->('Event not empty, you cannot delete it') unless $session->param('IsAdmin') || !(exists $evnt{Person} && scalar @{$evnt{Person}});
+
+			delete_common("$config{Root}/events/$mid", "event \"$mid\"", $session, sub { gen_manage_events($session) }, "$config{Root}/transaction_groups/E$mid");
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_event') {
