@@ -4,6 +4,7 @@ use 5.012;
 use strict;
 use warnings;
 
+use List::Util qw(sum);
 use Scalar::Util qw(looks_like_number);
 
 use Accts qw(grep_acct_key);
@@ -170,7 +171,8 @@ sub event_valid
 	return 0 unless defined clean_date($evnt{Date});
 
 	my @units = known_units;
-	return 0 if scalar @units > 1 && !(defined $evnt{Currency}) && exists $evnt{Headings} && scalar grep (!/^(Person|Notes)$/, @{$evnt{Headings}});
+	my %cds = known_commod_descs;
+	return 0 if scalar @units > 1 && !(defined $evnt{Currency}) && exists $evnt{Headings} && scalar grep (!(/^(Person|Notes)$/ || ($_ eq 'CustomFee' && (sum map (abs (clean_decimal($_)), @{$evnt{CustomFee}})) == 0) || exists $cds{$_}), @{$evnt{Headings}});
 	return 0 if !(scalar @units) && defined $evnt{Currency} && length $evnt{Currency};
 	return 0 if scalar @units && exists $evnt{Currency} && !(defined $evnt{Currency} && grep ($_ eq $evnt{Currency}, @units));
 
