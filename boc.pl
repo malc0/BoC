@@ -3629,7 +3629,7 @@ sub despatch
 			my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 
 			my %seen_ppl;
-			my (@ppl, @nas);
+			my @ppl;
 			foreach (map { /^Pers_(.*)/; $1 } grep (/^Pers_.+$/, $cgi->param)) {
 				(my $stripped = $_) =~ s/\..*$//;
 				push (@ppl, $_) if validate_acct($stripped, \%accts, $whinge);
@@ -3642,6 +3642,7 @@ sub despatch
 			}
 			$whinge->('Having duplicate people is silly') if grep ($_ > 1, values %seen_ppl);
 			delete $evnt{Headings} unless scalar @ppl;
+			@ppl = sort @ppl;
 			if (exists $evnt{Headings}) {
 				my %new_m;
 				my %ppl_pos;
