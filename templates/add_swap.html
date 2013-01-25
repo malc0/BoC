@@ -11,9 +11,11 @@
 		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
 				this.save.clicked = false;
 				if (this.Amount.value < 0)
-					return confirm('Really submit with negative amount (take funds from ' + this.Creditor.options[this.Creditor.selectedIndex].text + ' account)?');
+					if (!confirm('Really submit with negative amount (take funds from ' + this.Creditor.options[this.Creditor.selectedIndex].text + ' account)?'))
+						return false;
 <TMPL_UNLESS NAME=SWAP>		if (this.Description.value.search(/^\s*$/) >= 0)
-					return confirm('Really submit without details (Step 5)?');</TMPL_UNLESS>
+					if (!confirm('Really submit without details (Step 5)?'))
+						return false;</TMPL_UNLESS>
 			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="add_<TMPL_UNLESS NAME=SWAP>vacct_</TMPL_UNLESS>swap"/>
