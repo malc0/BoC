@@ -16,13 +16,14 @@
 				var sub = true;
 				var whinged = new Object();
 				for (i = 0; sub && i < this.elements.length; i++) {
-					if (this.elements[i].name.search(/^(.+)_Custom$/) >= 0 && this.elements[i].defaultValue != this.elements[i].value)
+					var ele = this.elements[i];
+					if (ele.name.search(/^(.+)_Custom$/) >= 0 && ele.defaultValue != ele.value)
 						if (!confirm('Really set/change custom fee for participant \'' + RegExp.$1 + '\'?'))
 							sub = false;
-					if ('exceptional' in this.elements[i].dataset && !(this.elements[i].dataset.exceptional in whinged) && this.elements[i].defaultValue != this.elements[i].value) {
-						if (!confirm('Really set/modify value(s) in \'' + this.elements[i].dataset.exceptional + '\' column?'))
+					if ('exceptional' in ele.dataset && !(ele.dataset.exceptional in whinged) && (ele.defaultValue != ele.value || ele.defaultChecked != ele.checked)) {
+						if (!confirm('Really set/modify value(s) in \'' + ele.dataset.exceptional + '\' column?'))
 							sub = false;
-						whinged[this.elements[i].dataset.exceptional] = 1;
+						whinged[ele.dataset.exceptional] = 1;
 					}
 				}
 				return sub;
