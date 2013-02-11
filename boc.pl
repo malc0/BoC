@@ -1340,7 +1340,9 @@ sub commit_config_units
 			dir_mod_all('fee_tmpls', 0, \@renames, sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$rename->{$old}/ if $_; } });
 			dir_mod_all('events', 0, \@renames, sub { my ($evnt, $old) = @_;
 				$evnt->{Currency} =~ s/^$old$/$rename->{$old}/ if defined $evnt->{Currency};
-				s/^$old$/$rename->{$old}/ foreach (@{$evnt->{Headings}});
+				if (defined $evnt->{Headings}) {
+					s/^$old$/$rename->{$old}/ foreach (@{$evnt->{Headings}});
+				}
 				$evnt->{$rename->{$old}} = delete $evnt->{$old} if exists $evnt->{$old}; }, 11);
 			my %cf = read_htsv("$config{Root}/config_fees", 1);
 			if (%cf && exists $cf{Fee}) {
@@ -2289,7 +2291,11 @@ sub despatch_admin
 				if (keys %recode) {
 					dir_mod_all('event_types', 0, [ keys %recode ], sub { my ($et, $old) = @_; foreach (@{$et->{Unit}}) { s/^$old$/$recode{$old}/ if $_; } });
 					dir_mod_all('fee_tmpls', 0, [ keys %recode ], sub { my ($ft, $old) = @_; foreach (@{$ft->{Unit}}) { s/^$old$/$recode{$old}/ if $_; } });
-					dir_mod_all('events', 0, [ keys %recode ], sub { my ($evnt, $old) = @_; s/^$old$/$recode{$old}/ foreach (@{$evnt->{Headings}}); $evnt->{$recode{$old}} = delete $evnt->{$old} if exists $evnt->{$old}; }, 11);
+					dir_mod_all('events', 0, [ keys %recode ], sub { my ($evnt, $old) = @_;
+						if (defined $evnt->{Headings}) {
+							s/^$old$/$recode{$old}/ foreach (@{$evnt->{Headings}});
+						}
+						$evnt->{$recode{$old}} = delete $evnt->{$old} if exists $evnt->{$old}; }, 11);
 					$commit_msg .= ' AND CODES ALTERED';
 				}
 
