@@ -3033,6 +3033,7 @@ sub gen_tg
 			my $shares = sum map (CleanData::clean_decimal($tgdetails{$_}[$row]), @sorted_in_use);
 			$per_share = $tp ? -$row_tps : -$amnt / $shares;
 		}
+		$tgdetails{Currency}[$row] //= '';
 		my $unk_cur = !grep ($_ eq $tgdetails{Currency}[$row], @units);
 		my @currencies = map ({ C => $_, S => ($_ eq $tgdetails{Currency}[$row]), CDESC => ($units_cfg{$_} // $_), RATE => (exists $rates{$_}) ? "$rates{$_} $units[0]" : '' }, $unk_cur ? (@units, $tgdetails{Currency}[$row]) : @units);
 		my @rowcontents = map ({ D => 1 * sprintf ('%.3f', (($calced && ((!$tp && (exists $negated{$cred})) xor (exists $negated{$_}))) ? -1 : 1) * $tgdetails{$_}[$row] * ($per_share // 1)), N => "${_}_$row", D_CL => ((exists $unknown{$_}) ? 'unknown_d' : '') . ((exists $vaccts{$_}) ? ' vacct' : '') }, @sorted_in_use);
