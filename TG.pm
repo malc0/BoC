@@ -203,7 +203,7 @@ sub tg_tp_amnt_per_share
 
 sub compute_tg
 {
-	my ($id, $tgr, $valid_accts, $nar, $rsr, $die) = @_;
+	my ($id, $tgr, $valid_accts, $nar, $rsr, $die, $vrel_acc, $vrel_accts) = @_;
 	my %tg = %{$tgr};
 	my %resolved = $rsr ? %{$rsr} : ();
 	$die = sub { confess $_[0] } unless $die;
@@ -221,13 +221,31 @@ sub compute_tg
 	my $neg_error = 0;
 	my %relevant_accts;
 	foreach my $tp (grep (defined $calced_tps[$_], 1 .. ($#cred_accts + 10))) {
+		my ($vrel_amnt, $vrel_prop);
+
+		if ($vrel_acc && exists $calced_tps[$tp]{$vrel_acc} && $calced_tps[$tp]{$vrel_acc}) {
+			$vrel_amnt = $calced_tps[$tp]{$vrel_acc};
+			my $vrel_same;
+			$vrel_same += $calced_tps[$tp]{$_} foreach (grep ($calced_tps[$tp]{$_} * $vrel_amnt > 0, keys $calced_tps[$tp]));
+			$vrel_prop = $vrel_amnt / $vrel_same;
+		}
 		foreach (grep ($calced_tps[$tp]{$_}, keys $calced_tps[$tp])) {
 			my $samnt = $calced_tps[$tp]{$_};
+
+			$vrel_accts->{$_} += $samnt if $vrel_amnt && $_ eq $vrel_acc;
+			$vrel_accts->{$_} += $samnt * $vrel_prop if $vrel_amnt && $samnt * $vrel_amnt < 0;
+
 			if (exists $nar->{$_}) {
 				$samnt *= -1;
 				$neg_error += 2 * $samnt;
 			}
 			$relevant_accts{$_} += $samnt;
+		}
+	}
+
+	if ($vrel_acc) {
+		foreach (keys $vrel_accts) {
+			$vrel_accts->{$_} *= -1 if exists $nar->{$_};
 		}
 	}
 

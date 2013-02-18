@@ -356,17 +356,21 @@ sub nonfinite
 
 sub compute_tg_c
 {
-	my ($tg, $omit, $neg_accts, $resolved, $die) = @_;
+	my ($tg, $omit, $neg_accts, $resolved, $rel_acc, $rel_accts, $die) = @_;
 
-	if (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units")) {
-		my ($fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
+	my %computed;
+	my $use_precomp = (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units"));
+	if ($use_precomp) {
+		(my $fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
 		close $fh;
-		return %computed;
-	} else {
+		$use_precomp = !($rel_acc && exists $computed{$rel_acc});
+	}
+
+	unless ($use_precomp) {
 		my %tgdetails = %{$tgds{$tg}};
 		return if $omit && exists $tgdetails{Omit};
 
-		my %computed = compute_tg($tg, \%tgdetails, undef, $neg_accts, $resolved, $die);
+		%computed = compute_tg($tg, \%tgdetails, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts);
 
 		# check for drains directly; this means resolution can be done without account validation,
 		# and account validation can be done separately from resolution
@@ -378,9 +382,9 @@ sub compute_tg_c
 			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
 			write_and_close($fh, %computed);
 		}
-
-		return %computed;
 	}
+
+	return %computed;
 }
 
 sub drained_accts
@@ -2600,31 +2604,36 @@ sub gen_ucp
 	my $debsum = 0;
 	my (@credlist, @debtlist);
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
-		my %computed = eval { compute_tg_c($tg, undef, \%neg_accts, \%resolved) };
+		my %rcomputed;
+		my %computed = eval { compute_tg_c($tg, undef, \%neg_accts, \%resolved, $user, \%rcomputed) };
 		my $tg_indet = nonfinite(values %computed);
 		my $tg_broken = $@ ne '' || (%resolved && $tg_indet) || exists $dds{$tg};
 		next unless exists $computed{$user} or $tg_broken;
 
 		my %tgdetails = %{$tgds{$tg}};
-		my @to;
-		my @to_extras;
-		my $bidi = 1;
+		my (@to, @from, @to_extras, @from_extras);
+		my $bidi = !(exists $neg_accts{$user});
 		unless ($tg_broken) {
+			# foreach one that would appear in @to
+			foreach (grep ($_ ne $user && (!$rcomputed{$_} || (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} < 0))), keys %rcomputed)) {
+				$bidi = (exists $neg_accts{$user}) if !(exists $neg_accts{$_});
+			}
 			$computed{$user} >= 0 ? $credsum : $debsum += $computed{$user} unless exists $tgdetails{Omit};
 
-			if (($computed{$user} < 0 && exists $neg_accts{$user}) || ($computed{$user} > 0 && !(exists $neg_accts{$user}))) {
-				@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep (exists $neg_accts{$_} ? $computed{$_} > 0 : $computed{$_} < 0, keys %computed));
-			} elsif (($computed{$user} > 0 && exists $neg_accts{$user}) || ($computed{$user} < 0 && !(exists $neg_accts{$user}))) {
-				@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep (exists $neg_accts{$_} ? $computed{$_} < 0 : $computed{$_} > 0, keys %computed));
-			}
+			@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep ($_ ne $user && (!$rcomputed{$_} || ($bidi && exists $neg_accts{$user}) || (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} < 0))), keys %rcomputed));
+			@from = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep ($_ ne $user && !($rcomputed{$_} && $bidi && exists $neg_accts{$user}) && (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} >= 0)), keys %rcomputed));
+
 			$to[0]->{SEP} = '' if scalar @to;
 			$to[-1]->{SEP} = ' and ' if scalar @to > 1;
 			if (scalar @to > 5) {
 				@to_extras = map ($to[$_]->{N}, (4 .. $#to));
 				$#to = 3;
 			}
-			foreach (@to) {
-				$bidi = 0 if (exists $neg_accts{$user}) == (exists $neg_accts{$_->{A}});
+			$from[0]->{SEP} = '' if scalar @from;
+			$from[-1]->{SEP} = ' and ' if scalar @from > 1;
+			if (scalar @from > 5) {
+				@from_extras = map ($from[$_]->{N}, (4 .. $#from));
+				$#from = 3;
 			}
 		}
 
@@ -2636,6 +2645,8 @@ sub gen_ucp
 			NAME => $tgdetails{Name},
 			TO => \@to,
 			TO_EXTRA => join (', ', @to_extras),
+			FROM => \@from,
+			FROM_EXTRA => join (', ', @from_extras),
 			BIDI => $bidi,
 			DATE => $tgdetails{Date},
 			SUMMARY_CL => $tg_broken ? 'broken' : $tg_indet ? 'indet' : '',
@@ -2833,7 +2844,7 @@ sub gen_manage_tgs
 	my %daterates;
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
 		my $tg_fail;
-		my %computed = eval { compute_tg_c($tg, undef, \%neg_accts, \%resolved, sub { $tg_fail = $_[0]; die }) };
+		my %computed = eval { compute_tg_c($tg, undef, \%neg_accts, \%resolved, undef, undef, sub { $tg_fail = $_[0]; die }) };
 		my %tgdetails = %{$tgds{$tg}};
 		my %rates = get_rates($tgdetails{Date}) unless $@;
 		my @unks = unk_computed_accts(\%acct_names, \%computed) unless $@;
