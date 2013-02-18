@@ -153,93 +153,81 @@ sub stround
 
 sub tg_tp_amnt_per_share
 {
-	my ($head_accts, $cred_accts, $tg, $rates, $resolved, $neg_accts) = @_;
+	my ($head_accts, $cred_accts, $tg, $rates, $resolved, $neg_accts, $calced_tps) = @_;
 
-	my @tp_net = (0) x 10;
-	my @tp_shares = (0) x 10;
+	$calced_tps //= \(my %tp_amnts);
+
+	my (@tp_shares, my @tp_unres);
 
 	foreach my $row (grep (defined $$cred_accts[$_], 0 .. $#$cred_accts)) {
-		next unless ($tg->{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ || (defined $tg->{TrnsfrPot}[$row] && $tg->{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/));
-		my $tp = $1;
+		my $cred = $tg->{Creditor}[$row];
+		my $tp = ($cred =~ /^TrnsfrPot(\d)$/ || (defined $tg->{TrnsfrPot}[$row] && $tg->{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) ? $1 : $row + 10;
+		$tp_shares[$tp]{$_} += clean_decimal($tg->{$_}[$row]) foreach @$head_accts;
 
+		next if $cred =~ /^TrnsfrPot\d$/;
 		my $amnt;
+
+		# if it's a drain
 		if ($tg->{Amount}[$row] =~ /^\s*[*]\s*$/) {
+			# amount is resolved amount (if available) or +inf
 			$amnt = (exists $resolved->{$tg->{Creditor}[$row]} && abs $resolved->{$tg->{Creditor}[$row]} != 0+'inf') ? -$resolved->{$tg->{Creditor}[$row]} : 0+'inf';
 		} else {
+			# amnt is Amount in presentation currency
 			$amnt = $tg->{Amount}[$row] * ((scalar keys %$rates < 2) ? 1 : $rates->{$tg->{Currency}[$row]});
 		}
 
-		$tp_net[$tp] += (exists $neg_accts->{$tg->{Creditor}[$row]}) ? -$amnt : $amnt if (defined $tg->{TrnsfrPot}[$row] && $tg->{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/);
-		$tp_shares[$tp] += clean_decimal($tg->{$$head_accts[$_]}[$row]) foreach (0 .. $#$head_accts);
+		if ($amnt == 0+'inf') {
+			$tp_unres[$tp]{$cred} = 1;
+		} else {
+			$$calced_tps[$tp]{$cred} += (exists $neg_accts->{$cred}) ? -$amnt : $amnt;
+		}
 	}
 
-	return map ($tp_shares[$_] ? $tp_net[$_] / $tp_shares[$_] : 0, (0 .. 9));
+	my @taps;
+	foreach my $tp (1 .. ($#$cred_accts + 10)) {
+		my $net = (keys %{$tp_unres[$tp]}) ? 0+'inf' : sum values %{$$calced_tps[$tp]};
+		$taps[$tp] = (sum values %{$tp_shares[$tp]}) ? $net / (sum values %{$tp_shares[$tp]}) : 0;
+
+		foreach (keys $tp_shares[$tp]) {
+			# 1) skip share if an inf share already applied (avoids inf-inf=nan case)
+			# 2) skip share if sharee is creditor and amnt is unresolved.  this allows self-draining accts.
+			# not exporting inf is ok, since other shares will still cause drain detection, and if there are no other shares
+			# self-draining is a no-op or calculable in the final pass (for multiple TP drain-sources)
+			next if ($$calced_tps[$tp]{$_} && abs $$calced_tps[$tp]{$_} == 0+'inf') || exists $tp_unres[$tp]{$_};
+			$$calced_tps[$tp]{$_} -= $taps[$tp] * $tp_shares[$tp]{$_};
+		}
+	}
+
+	return @taps;
 }
 
 sub compute_tg
 {
 	my ($id, $tgr, $valid_accts, $nar, $rsr, $die) = @_;
 	my %tg = %{$tgr};
-	my %neg_accts = %{$nar};
 	my %resolved = $rsr ? %{$rsr} : ();
 	$die = sub { confess $_[0] } unless $die;
 
-	my @cred_accts = validate_tg($id, \%tg, $die, $valid_accts);
+	my @cred_accts = validate_tg($id, $tgr, $die, $valid_accts);
 	my %rates = get_rates($tg{Date}, sub { $die->("Currency config: $_[0]"); });
 
-	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
-	my %relevant_accts;
-
-	foreach my $row (0 .. $#cred_accts) {
-		next unless defined $cred_accts[$row];
-		foreach my $head (@all_head_accts) {
-			$relevant_accts{$head} = 0 if clean_decimal($tg{$head}[$row]) != 0;
-		}
-	}
-	my @head_accts = keys %relevant_accts;
-	foreach my $row (0 .. $#cred_accts) {
-		next unless defined $cred_accts[$row];
-		next if $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/;
-		$relevant_accts{$tg{Creditor}[$row]} = 0;
+	my @head_accts;
+	foreach my $head (grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}})) {
+		push (@head_accts, $head) if !!grep (defined $cred_accts[$_] && (clean_decimal($tg{$head}[$_]) != 0), 0 .. $#cred_accts);
 	}
 
-	my @taps = tg_tp_amnt_per_share(\@head_accts, \@cred_accts, $tgr, \%rates, \%resolved, $nar);
+	my @calced_tps;
+	tg_tp_amnt_per_share(\@head_accts, \@cred_accts, $tgr, \%rates, \%resolved, $nar, \@calced_tps);
 	my $neg_error = 0;
-	foreach my $row (0 .. $#cred_accts) {
-		next unless defined $cred_accts[$row];
-
-		my $amnt;
-		if ($tg{Amount}[$row] =~ /^\s*[*]\s*$/ && !($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
-			$amnt = (exists $resolved{$tg{Creditor}[$row]} && abs $resolved{$tg{Creditor}[$row]} != 0+'inf') ? -$resolved{$tg{Creditor}[$row]} : 0+'inf';
-		} elsif (!($tg{Creditor}[$row] =~ /^TrnsfrPot\d$/)) {
-			$amnt = $tg{Amount}[$row] * ((scalar keys %rates < 2) ? 1 : $rates{$tg{Currency}[$row]});
-		}
-
-		$relevant_accts{$tg{Creditor}[$row]} += $amnt unless $tg{Creditor}[$row] =~ /^TrnsfrPot\d$/ || $amnt == 0+'inf';
-		if (exists $neg_accts{$tg{Creditor}[$row]}) {
-			$neg_error += 2 * $amnt;
-			$amnt *= -1;
-		}
-
-		my @shares = map (clean_decimal($tg{$_}[$row]), @head_accts);
-		my $per_share;
-		if ($tg{Creditor}[$row] =~ /^TrnsfrPot(\d)$/ || (defined $tg{TrnsfrPot}[$row] && $tg{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) {
-			$per_share = $taps[$1];
-		} else {
-			$per_share = $amnt / sum @shares;
-		}
-		foreach (0 .. $#head_accts) {
-			next if abs $relevant_accts{$head_accts[$_]} == 0+'inf';	# avoid inf-inf=nan cases
-			# inf * 0 = nan, not 0
-			my $samnt = $shares[$_] ? $per_share * $shares[$_] : 0;
-			# allow self-draining accts.  not exporting inf is ok, since other shares will still cause drain detection,
-			# and if there are no other shares self-draining is a no-op
-			$samnt = 0 if $tg{Creditor}[$row] eq $head_accts[$_] && abs $amnt == 0+'inf';
-			if (exists $neg_accts{$head_accts[$_]}) {
-				$neg_error += 2 * $samnt;
+	my %relevant_accts;
+	foreach my $tp (grep (defined $calced_tps[$_], 1 .. ($#cred_accts + 10))) {
+		foreach (grep ($calced_tps[$tp]{$_}, keys $calced_tps[$tp])) {
+			my $samnt = $calced_tps[$tp]{$_};
+			if (exists $nar->{$_}) {
 				$samnt *= -1;
+				$neg_error += 2 * $samnt;
 			}
-			$relevant_accts{$head_accts[$_]} -= $samnt;
+			$relevant_accts{$_} += $samnt;
 		}
 	}
 
