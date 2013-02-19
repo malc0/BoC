@@ -30,6 +30,16 @@ hr  {
 div.clear {
   clear: both;
   }
+div.nav {
+  position:relative;
+  right:370px;
+  float:left;
+  width:300px;
+  margin-right:-370px
+}
+p.nav {
+  text-align:right;
+}
 /*Headings*/
 h1, h2, h3, h4 {
   font-weight: bold;
