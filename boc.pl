@@ -505,7 +505,7 @@ sub emit
 sub emit_with_status
 {
 	my ($status, $tmpl) = @_;
-	$tmpl->param(STATUS => encode_for_html("Status: $status"));
+	$tmpl->param(STATUS => encode_for_html($status));
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
@@ -513,7 +513,7 @@ sub emit_with_status
 sub whinge
 {
 	my ($whinge, $tmpl) = @_;
-	$tmpl->param(STATUS => encode_for_html($whinge));
+	$tmpl->query(name => 'WHINGE') ? $tmpl->param(WHINGE => encode_for_html($whinge)) : $tmpl->param(STATUS => encode_for_html($whinge));
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
@@ -768,7 +768,7 @@ sub gen_tcp
 	my $tmpl = load_template('treasurer_cp.html');
 
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
-	validate_units(\%units_cfg, sub { $tmpl->param(STATUS => 'Units config broken: fix it!') }, 1);
+	validate_units(\%units_cfg, sub { $tmpl->param(WHINGE => 'Units config broken: fix it!') }, 1);
 
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %cf = valid_fee_cfg;
