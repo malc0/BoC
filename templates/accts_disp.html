@@ -6,13 +6,20 @@
 		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
 	</head>
 	<body>
-		<h1>Accounts summary</h1>
-
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="accts_disp"/>
 			<input type="hidden" name="last_nz" value="<TMPL_VAR NAME=NOZEROS>"/>
 			<input type="hidden" name="last_sort" value="<TMPL_VAR NAME=SORT>"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<div class="nav">
+				<p class="nav"><input type="submit" name="to_acct" value="My account"/></p>
+				<p class="nav"><input type="submit" name="manage_tgs" value="See all transaction groups"/><br/>
+				<p class="nav"><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel"/></TMPL_IF></p>
+			</div>
+
+			<h1>Accounts summary</h1>
 
 			<input type="submit" <TMPL_IF NAME=NOZEROS>name="showzeros" value="Show accounts with zero balance"<TMPL_ELSE>name="nozeros" value="Hide accounts with zero balance"</TMPL_IF>/>
 
@@ -48,9 +55,6 @@
 			</table>
 			<TMPL_IF NAME=DEFCUR><p>All accounts denominated in <TMPL_VAR NAME=DEFCUR></p></TMPL_IF>
 			</TMPL_IF>
-
-			<p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/></p>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

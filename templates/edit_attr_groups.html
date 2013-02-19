@@ -7,12 +7,14 @@
 		<style type="text/css">.system { background-color: lavender } .unknown { background-color: orange }</style>
 	</head>
 	<body>
-		<h1>Attribute group configuration</h1>
-
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="edit_attr_groups"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+
+			<h1>Attribute group configuration</h1>
 
 			<h2>Attributes implied by one attribute</h2>
 
@@ -38,8 +40,6 @@
 			</table>
 
 			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save changes"/></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

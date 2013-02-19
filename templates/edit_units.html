@@ -7,10 +7,6 @@
 		 <style type="text/css">td { text-align: center }</style>
 	</head>
 	<body>
-		<h1>Currency configuration</h1>
-
-		<h3>Beware: changing a code defining an existing unit will re-code that unit, not create a new one.</h3>
-
 		<form action="boc.pl" method="post" onsubmit="if (this.rates.clicked) {
 				this.rates.clicked = false;
 				var sub = true;
@@ -30,6 +26,12 @@
 			<input type="hidden" name="tmpl" value="edit_units"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
 			
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+
+			<h1>Currency configuration</h1>
+
+			<h3>Beware: changing a code defining an existing unit will re-code that unit, not create a new one.</h3>
+
 			<table border=1>
 				<tr><th>Currency description</th><th>Short code</th><th>Commodity</th><th>Anchor currency</th><th>Presentation default</th></tr>
 
@@ -45,8 +47,6 @@
 			</table>
 
 			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="rates" value="Proceed to set exchange rates" onclick="this.clicked = true"/></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

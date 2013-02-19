@@ -12,15 +12,22 @@
 			<input type="hidden" name="tmpl" value="ucp"/>
 			<input type="hidden" name="acct" value="<TMPL_VAR NAME=ACCTSN>"/>
 
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<div class="nav">
+				<TMPL_IF NAME=ACCT>
+					<p class="nav"><input type="submit" name="to_acct" value="My account"/></p>
+				</TMPL_IF>
+				<p class="nav"><input type="submit" name="disp_accts" value="Accounts summary"/></p>
+				<p class="nav"><input type="submit" name="manage_tgs" value="See all transaction groups"/><br/>
+				<TMPL_IF NAME=EVENTS><input type="submit" name="manage_events" value="See all events"/></TMPL_IF></p>
+				<p class="nav"><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel"/></TMPL_IF></p>
+			</div>
+
 			<div style="margin:1em 0"><TMPL_IF NAME=ADDTG><TMPL_IF NAME=SIMPTRANS><input type="submit" name="add_vacct_swap" value="Add simple communal expense"/>
 				<input type="submit" name="add_vacct_split" value="Add multi-creditor/category communal expense"/></TMPL_IF><br>
 				<input type="submit" name="add_swap" value="Add person-to-person swap"/>
 				<input type="submit" name="add_split" value="Add a set of expenses split across a number of people"/>
-				<TMPL_IF NAME=BANK><br><input type="submit" name="add_bank_split" value="Add credit/debit to real-world account"/></TMPL_IF></TMPL_IF>
-				<div style="float:right">Logged in as <TMPL_VAR NAME=LOGIN> <input type="submit" name="logout" value="Logout"/></div></div>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<hr />
-			<p><input type="submit" name="disp_accts" value="Accounts summary"/><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel" style="float:right"/></TMPL_IF></p>
+				<TMPL_IF NAME=BANK><br><input type="submit" name="add_bank_split" value="Add credit/debit to real-world account"/></TMPL_IF></TMPL_IF></div>
 
 			<TMPL_IF NAME=MYEVENTS><h1><TMPL_UNLESS NAME=ACCT>My<TMPL_ELSE><TMPL_VAR NAME=ACCT>&apos;s</TMPL_UNLESS> events</h1>
 			<TMPL_LOOP NAME=MYEVENTS><p><a href="boc.pl?tmpl=manage_events&amp;view=<TMPL_VAR NAME=MID>"><TMPL_VAR NAME=NAME> (<TMPL_VAR NAME=DATE>) &mdash; <i><TMPL_UNLESS NAME=LOCKED>un</TMPL_UNLESS>locked</i></a></p>
@@ -46,10 +53,6 @@
 				</TMPL_LOOP>
 				<tr><td colspan=2>Total debits</td><td style="text-align:right"><TMPL_VAR NAME=DEB_TOT></td></tr>
 			</table>
-			<TMPL_IF NAME=ACCT>
-			<p><input type="submit" name="to_acct" value="Return to my account"/></p>
-			</TMPL_IF>
-			<p><input type="submit" name="manage_tgs" value="See all transaction groups"/><TMPL_IF NAME=EVENTS><input type="submit" name="manage_events" value="See all events"/></TMPL_IF></p>
 		</div>
 		</form>
 	</body>

@@ -7,11 +7,18 @@
 		<style type="text/css">.broken { background-color: red }</style>
 	</head>
 	<body>
-		<h1><TMPL_IF NAME=USER_ACCT>User<TMPL_ELSE>Virtual</TMPL_IF> accounts</h1>
-
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="view_<TMPL_IF NAME=USER_ACCT>ppl<TMPL_ELSE>vaccts</TMPL_IF>"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<div class="nav">
+				<p class="nav"><input type="submit" name="to_cp" value="Return to control panel"/></p>
+			</div>
+
+			<h1><TMPL_IF NAME=USER_ACCT>User<TMPL_ELSE>Virtual</TMPL_IF> accounts</h1>
+
+			<p><input type="submit" name="add" value="Add account"/></p>
 
 			<table border=1>
 				<TMPL_IF NAME=USER_ACCT>
@@ -26,10 +33,6 @@
 				</TMPL_LOOP>
 				</TMPL_IF>
 			</table>
-			<p><input type="submit" name="add" value="Add account"/></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

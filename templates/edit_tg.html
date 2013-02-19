@@ -27,6 +27,14 @@
 			<TMPL_IF NAME=TG_ID><input type="hidden" name="tg_id" value="<TMPL_VAR NAME=TG_ID>"/></TMPL_IF>
 			<input type="hidden" name="def_cred" value="<TMPL_VAR NAME=DEF_CRED>"/>
 
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<TMPL_UNLESS NAME=ETOKEN><div class="nav">
+				<p class="nav"><input type="submit" name="to_acct" value="My account"/></p>
+				<p class="nav"><input type="submit" name="disp_accts" value="Accounts summary"/></p>
+				<p class="nav"><input type="submit" name="manage_tgs" value="See all transaction groups"/><br/>
+				<p class="nav"><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel"/></TMPL_IF></p>
+			</div></TMPL_UNLESS>
+
 			<TMPL_IF NAME=RO><h1><TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h1><TMPL_IF NAME=TG_ID>Edit<TMPL_ELSE>New</TMPL_IF> transaction group</h1>
 			
 			<h2><label>Transaction group name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="tg_name" style="width:40ex"/></label></h2></TMPL_IF>
@@ -101,9 +109,6 @@
 			<p><TMPL_IF NAME=RO><TMPL_IF NAME=IN_CVS><input type="submit" name="hidecvs" value="Show share values"/><TMPL_ELSE><input type="submit" name="showcvs" value="Show calculated values"/></TMPL_IF></p>
 			<p><TMPL_IF NAME=EDITOK><input type="submit" name="edit" value="Edit"/><TMPL_IF NAME=DELTG><input type="submit" name="delete" value="Delete" onclick="return confirm('Really delete TG?')"/></TMPL_IF></TMPL_IF><TMPL_ELSE>
 			<input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="manage_tgs" value="See all transaction groups"/></p></TMPL_UNLESS>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

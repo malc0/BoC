@@ -7,8 +7,6 @@
 		<style type="text/css">.outerp { display:inline-block; margin:2px 20px } .innerp { display:inline-block; width:22ex } .outerv { display:block; margin:2px 20px } .innerv { display:inline-block; width:40ex }</style>
 	</head>
 	<body>
-		<h1><TMPL_IF NAME=BANK>Add a real-world credit/debit to a number of virtual accounts<TMPL_ELSE>Add a set of expenses to be split across a number of <TMPL_IF NAME=VACCT>categories<TMPL_ELSE>people</TMPL_IF></TMPL_IF></h1>
-
 		<form action="boc.pl" method="post"<TMPL_UNLESS NAME=BANK> onsubmit="if (this.save.clicked) {
 				this.save.clicked = false;
 				var neg = false;
@@ -21,6 +19,10 @@
 		<div>
 			<input type="hidden" name="tmpl" value="add_<TMPL_IF NAME=BANK>bank_<TMPL_ELSE><TMPL_IF NAME=VACCT>vacct_</TMPL_IF></TMPL_IF>split"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+
+			<h1><TMPL_IF NAME=BANK>Add a real-world credit/debit to a number of virtual accounts<TMPL_ELSE>Add a set of expenses to be split across a number of <TMPL_IF NAME=VACCT>categories<TMPL_ELSE>people</TMPL_IF></TMPL_IF></h1>
 
 			<h2>Step 1: give a short descriptive name (e.g. &quot;Purchase of bees&quot;, or &quot;<TMPL_IF NAME=BANK>Cheques paid in<TMPL_ELSE><TMPL_IF NAME=VACCT>John at Tesco<TMPL_ELSE>Session at Hilde&apos;s</TMPL_IF></TMPL_IF>&quot;)</h2>
 			<p><input type="text" name="tg_name" size=40/></p>
@@ -60,8 +62,6 @@
 			<p><textarea name="Description" cols=80 rows=5></textarea></p>
 
 			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Done"<TMPL_UNLESS NAME=BANK> onclick="this.clicked = true"</TMPL_UNLESS>/></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

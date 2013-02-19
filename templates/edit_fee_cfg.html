@@ -7,8 +7,6 @@
 		<style type="text/css">.broken { background-color: red }</style>
 	</head>
 	<body>
-		<h1>Charge/credit/expense configuration</h1>
-
 		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
 				this.save.clicked = false;
 				var sub = true;
@@ -27,6 +25,10 @@
 		<div>
 			<input type="hidden" name="tmpl" value="edit_fee_cfg"/>
 			<input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+
+			<h1>Charge/credit/expense configuration</h1>
 
 			<h3><label>Default event account: <select name="DefAcct" class="<TMPL_VAR NAME=SEL_CL>">
 				<option value="">Select account</option>
@@ -55,8 +57,6 @@
 			</table>
 
 			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save changes" onclick="this.clicked = true"/></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

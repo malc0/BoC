@@ -7,11 +7,16 @@
 		<style type="text/css">.broken { background-color: red }</style>
 	</head>
 	<body>
-		<h1>Event types</h1>
-
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="manage_event_types"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<div class="nav">
+				<p class="nav"><input type="submit" name="to_cp" value="Return to control panel"/></p>
+			</div>
+
+			<h1>Event types</h1>
 
 			<table border=1>
 				<tr><th>Type</th><th>Linked account</th><th>Columns</th></tr>
@@ -19,10 +24,8 @@
 				<tr><td class="<TMPL_VAR NAME=NAME_CL>"><TMPL_VAR NAME=NAME></td><td class="<TMPL_VAR NAME=ACCT_CL>"><TMPL_VAR NAME=A></td><td class="<TMPL_VAR NAME=CL>"><TMPL_VAR NAME=COLS></td><td><input type="submit" name="edit_<TMPL_VAR NAME=ET>" value="Edit"/><input type="submit" name="del_<TMPL_VAR NAME=ET>" value="Delete" onclick="return confirm('Really delete event type &quot;<TMPL_VAR NAME=NAME>&quot;?')"/></td></tr>
 				</TMPL_LOOP>
 			</table>
+
 			<p><input type="submit" name="add" value="Add new event type"/></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="to_cp" value="Return to control panel"/></p>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

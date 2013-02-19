@@ -7,11 +7,19 @@
 		<style type="text/css">.broken { background-color: red } .unknown { background-color: red }</style>
 	</head>
 	<body>
-		<h1>Events list</h1>
-
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="manage_events"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<div class="nav">
+				<p class="nav"><input type="submit" name="to_acct" value="My account"/></p>
+				<p class="nav"><input type="submit" name="disp_accts" value="Accounts summary"/></p>
+				<p class="nav"><input type="submit" name="manage_tgs" value="See all transaction groups"/><br/>
+				<p class="nav"><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel"/></TMPL_IF></p>
+			</div>
+
+			<h1>Events list</h1>
 
 			<table border=1>
 				<tr><th>Name</th><th>Start Date</th><th>Duration (days)</th><th>Organizer</th><th>Event type/fee template</th></tr>
@@ -27,10 +35,6 @@
 		                                </TMPL_LOOP>
 					</select></td><td><input type="submit" name="add" value="Add"/></td></tr></TMPL_IF>
 			</table>
-
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/></p>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

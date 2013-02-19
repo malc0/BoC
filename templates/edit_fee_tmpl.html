@@ -7,8 +7,6 @@
 		<style type="text/css">.broken { background-color: red }</style>
 	</head>
 	<body>
-		<h1>Fee template configuration</h1>
-
 		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
 				this.save.clicked = false;
 				if ('ft_id' in this && this.ft_id.value != this.name.value)
@@ -22,6 +20,14 @@
 			<TMPL_IF NAME=ET><input type="hidden" name="event_type" value="<TMPL_VAR NAME=ET>"/><TMPL_UNLESS NAME=RO><h2>Event type: <TMPL_VAR NAME=ET></h2></TMPL_UNLESS></TMPL_IF>
 
 			<TMPL_IF NAME=RO><h1><TMPL_IF NAME=ET><TMPL_VAR NAME=ET>:</TMPL_IF> <TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Template name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="name"/></label></h2></TMPL_IF>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<TMPL_UNLESS NAME=ETOKEN><div class="nav">
+				<p class="nav"><input type="submit" name="manage_fee_tmpls" value="See all fee templates"/></p>
+				<p class="nav"><input type="submit" name="to_cp" value="Return to control panel"/></p>
+			</div></TMPL_UNLESS>
+
+			<h1>Fee template configuration</h1>
 
 			<table border=1>
 				<tr><th rowspan=2 class="<TMPL_VAR NAME=FH_CL>">Fee/Drain</th><TMPL_IF NAME=NATTRS><th rowspan=2 class="<TMPL_VAR NAME=AH_CL>">Condition</th><th colspan=<TMPL_VAR NAME=NATTRS> class="<TMPL_VAR NAME=AH_CL>">Attributes</th></tr>
@@ -42,9 +48,6 @@
 
 			<p><TMPL_IF NAME=RO><input type="submit" name="edit" value="Edit"/><TMPL_ELSE>
 			   <input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save" onclick="this.clicked = true"/></TMPL_IF></p>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<TMPL_UNLESS NAME=ETOKEN><p><input type="submit" name="to_cp" value="Return to control panel"/><input type="submit" name="manage_fee_tmpls" value="See all fee templates"/></p></TMPL_UNLESS>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

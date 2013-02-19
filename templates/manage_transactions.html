@@ -7,11 +7,20 @@
 		<style type="text/css">tr.omitted { background-color: grey } td.broken { background-color: red } td.indet { background-color: yellow }</style>
 	</head>
 	<body>
-		<h1>Transaction groups</h1>
-
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="manage_tgs"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<div class="nav">
+				<p class="nav"><input type="submit" name="to_acct" value="My account"/></p>
+				<p class="nav"><input type="submit" name="disp_accts" value="Accounts summary"/></p>
+				<p class="nav"><TMPL_IF NAME=TCP><input type="submit" name="to_cp" value="Admin control panel"/></TMPL_IF></p>
+			</div>
+
+			<h1>Transaction groups</h1>
+
+			<TMPL_IF NAME=ADDTG><p><input type="submit" name="add" value="Add new transaction group"/></p></TMPL_IF>
 
 			<table border=1>
 				<tr><th style="min-width:50%">Name</th><th>Date</th><th>Summary</th></tr>
@@ -20,11 +29,6 @@
 				</TMPL_LOOP>
 			</table>
 			<TMPL_IF NAME=DEFCUR><p>All transactions denominated in <TMPL_VAR NAME=DEFCUR></p></TMPL_IF>
-
-			<TMPL_IF NAME=ADDTG><p><input type="submit" name="add" value="Add new transaction group"/></p></TMPL_IF>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="to_acct" value="Return to <TMPL_VAR NAME=SN> start page"/><input type="submit" name="disp_accts" value="Accounts summary"/></p>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>

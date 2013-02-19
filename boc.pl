@@ -474,11 +474,14 @@ sub resolve_accts
 
 sub load_template
 {
-	my $tmpl = HTML::Template->new(filename => "$_[0]", global_vars => 1, case_sensitive => 1) or die;
+	my ($file, $etoken, $session) = @_;
+
+	my $tmpl = HTML::Template->new(filename => $file, global_vars => 1, case_sensitive => 1) or die;
 	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
 	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
 	$tmpl->param(STYLE => $config{StyleURL}) if $tmpl->query(name => 'STYLE');
-	$tmpl->param(ETOKEN => $_[1]) if defined $_[1];
+	$tmpl->param(ETOKEN => $etoken) if $etoken;
+	$tmpl->param(TCP => $session->param('IsAdmin')) if $session;
 	return $tmpl;
 }
 
@@ -1372,7 +1375,7 @@ sub commit_config_units
 sub gen_manage_events
 {
 	my $session = $_[0];
-	my $tmpl = load_template('manage_events.html');
+	my $tmpl = load_template('manage_events.html', undef, $session);
 	my %ppl = grep_acct_key('users', 'Name');
 	my %cf = valid_fee_cfg;
 	my @etfs = map { /.*\/([^\/]*)/; transcode_uri_for_html($1) } grep (!!valid_event_type($_, \%cf), glob ("$config{Root}/event_types/*"));
@@ -1435,7 +1438,7 @@ sub gen_edit_event
 {
 	my ($edit_id, $cfr, $session, $etoken) = @_;
 
-	my $tmpl = load_template('edit_event.html', $etoken);
+	my $tmpl = load_template('edit_event.html', $etoken, $session);
 	my %evnt = read_htsv("$config{Root}/events/$edit_id", undef, [ 'Person', 'Notes' ]);
 
 	$tmpl->param(ET => format_et($evnt{EventType}));
@@ -2586,7 +2589,7 @@ sub unk_computed_accts
 sub gen_ucp
 {
 	my ($session, $acct) = @_;
-	my $tmpl = load_template('user_cp.html');
+	my $tmpl = load_template('user_cp.html', undef, $session);
 	my $user = $acct // $session->param('User');
 
 	my @events;
@@ -2671,7 +2674,6 @@ sub gen_ucp
 	$tmpl->param(CREDITS => \@credlist);
 	$tmpl->param(DEBITS => \@debtlist);
 	$tmpl->param(LOGIN => $session->param('User'));
-	$tmpl->param(TCP => $session->param('IsAdmin'));
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
 	$tmpl->param(BANK => $session->param('IsAdmin'));
 	$tmpl->param(EVENTS => !!valid_fee_cfg);
@@ -2681,8 +2683,8 @@ sub gen_ucp
 
 sub gen_accts_disp
 {
-	my ($nozeros, $by_bal) = @_;
-	my $tmpl = load_template('accts_disp.html');
+	my ($session, $nozeros, $by_bal) = @_;
+	my $tmpl = load_template('accts_disp.html', undef, $session);
 
 	my %dds = double_drainers;
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
@@ -2834,7 +2836,7 @@ sub gen_add_split
 sub gen_manage_tgs
 {
 	my $session = $_[0];
-	my $tmpl = load_template('manage_transactions.html');
+	my $tmpl = load_template('manage_transactions.html', undef, $session);
 	my %acct_names = get_acct_name_map;
 	my %dds = double_drainers;
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
@@ -2916,7 +2918,7 @@ sub gen_tg
 {
 	my ($edit_id, $calced, $def_cred, $session, $etoken) = @_;
 
-	my $tmpl = load_template('edit_tg.html', $etoken);
+	my $tmpl = load_template('edit_tg.html', $etoken, $session);
 
 	my %ppl = grep_acct_key('users', 'Name');
 	$def_cred = $session->param('User') unless $def_cred && exists $ppl{$def_cred};
@@ -3138,7 +3140,7 @@ sub despatch
 	emit(gen_manage_tgs($session)) if (defined $cgi->param('manage_tgs'));
 	emit(gen_manage_events($session)) if (defined $cgi->param('manage_events'));
 	emit(gen_ucp($session)) if (defined $cgi->param('to_acct'));
-	emit(gen_accts_disp) if (defined $cgi->param('disp_accts'));
+	emit(gen_accts_disp($session)) if (defined $cgi->param('disp_accts'));
 
 	despatch_admin($session) if $session->param('IsAdmin');
 
@@ -3334,7 +3336,7 @@ sub despatch
 		$nozeros = 1 if defined $cgi->param('nozeros');
 		$sort = $cgi->param('sort') if defined $cgi->param('sort');
 
-		emit(gen_accts_disp($nozeros, $sort eq 'bal'));
+		emit(gen_accts_disp($session, $nozeros, $sort eq 'bal'));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };

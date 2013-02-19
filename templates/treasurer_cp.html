@@ -6,11 +6,19 @@
 		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
 	</head>
 	<body>
-		<h1><TMPL_VAR NAME=LN> control panel</h1>
-
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="tcp"/>
+
+			<TMPL_INCLUDE NAME=logout_status.tmpl>
+			<div class="nav">
+				<p class="nav"><input type="submit" name="to_acct" value="My account"/></p>
+				<p class="nav"><input type="submit" name="disp_accts" value="Accounts summary"/></p>
+				<p class="nav"><input type="submit" name="manage_tgs" value="See all transaction groups"/><br/>
+				<TMPL_IF NAME=EVENTS><input type="submit" name="manage_events" value="See all events"/></TMPL_IF></p>
+			</div>
+
+			<h1><TMPL_VAR NAME=LN> control panel</h1>
 
 			<h2>Account management</h2>
 			<p><input type="submit" name="view_ppl" value="Manage people"/><input type="submit" name="view_accts" value="Manage virtual accounts"/></p>
@@ -28,10 +36,6 @@
 
 			<h2>General configuration</h2>
 			<p><input type="submit" name="edit_inst_cfg" value="Edit installation configuration"/></p>
-			<br>
-			<TMPL_IF NAME=STATUS><p><b><TMPL_VAR NAME=STATUS></b></p></TMPL_IF>
-			<p><input type="submit" name="to_acct" value="Exit control panel to account view"/></p>
-			<p><input type="submit" name="logout" value="Logout"/></p>
 		</div>
 		</form>
 	</body>
