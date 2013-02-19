@@ -155,14 +155,14 @@ sub tg_tp_amnt_per_share
 {
 	my ($head_accts, $cred_accts, $tg, $rates, $resolved, $neg_accts, $calced_tps) = @_;
 
-	$calced_tps //= \(my %tp_amnts);
+	$calced_tps //= \(my @tp_amnts);
 
 	my (@tp_shares, my @tp_unres);
 
 	foreach my $row (grep (defined $$cred_accts[$_], 0 .. $#$cred_accts)) {
 		my $cred = $tg->{Creditor}[$row];
 		my $tp = ($cred =~ /^TrnsfrPot(\d)$/ || (defined $tg->{TrnsfrPot}[$row] && $tg->{TrnsfrPot}[$row] =~ /^\s*(\d)\s*$/)) ? $1 : $row + 10;
-		$tp_shares[$tp]{$_} += clean_decimal($tg->{$_}[$row]) foreach @$head_accts;
+		$tp_shares[$tp]{$_} += clean_decimal($tg->{$_}[$row]) foreach (grep (clean_decimal($tg->{$_}[$row]) != 0, @$head_accts));
 
 		next if $cred =~ /^TrnsfrPot\d$/;
 		my $amnt;
@@ -184,16 +184,16 @@ sub tg_tp_amnt_per_share
 	}
 
 	my @taps;
-	foreach my $tp (1 .. ($#$cred_accts + 10)) {
+	foreach my $tp (grep ($tp_shares[$_], 1 .. ($#$cred_accts + 10))) {
 		my $net = (keys %{$tp_unres[$tp]}) ? 0+'inf' : sum values %{$$calced_tps[$tp]};
 		$taps[$tp] = (sum values %{$tp_shares[$tp]}) ? $net / (sum values %{$tp_shares[$tp]}) : 0;
 
 		foreach (keys $tp_shares[$tp]) {
-			# 1) skip share if an inf share already applied (avoids inf-inf=nan case)
 			# 2) skip share if sharee is creditor and amnt is unresolved.  this allows self-draining accts.
 			# not exporting inf is ok, since other shares will still cause drain detection, and if there are no other shares
 			# self-draining is a no-op or calculable in the final pass (for multiple TP drain-sources)
-			next if ($$calced_tps[$tp]{$_} && abs $$calced_tps[$tp]{$_} == 0+'inf') || exists $tp_unres[$tp]{$_};
+			# 1) skip share if an inf share already applied (avoids inf-inf=nan case)
+			next if exists $tp_unres[$tp]{$_} || ($$calced_tps[$tp]{$_} && abs $$calced_tps[$tp]{$_} == 0+'inf');
 			$$calced_tps[$tp]{$_} -= $taps[$tp] * $tp_shares[$tp]{$_};
 		}
 	}
@@ -227,7 +227,7 @@ sub compute_tg
 			$vrel_amnt = $calced_tps[$tp]{$vrel_acc};
 			my $vrel_same;
 			$vrel_same += $calced_tps[$tp]{$_} foreach (grep ($calced_tps[$tp]{$_} * $vrel_amnt > 0, keys $calced_tps[$tp]));
-			$vrel_prop = $vrel_amnt / $vrel_same;
+			$vrel_prop = $vrel_same ? ($vrel_amnt / $vrel_same) : 0;
 		}
 		foreach (grep ($calced_tps[$tp]{$_}, keys $calced_tps[$tp])) {
 			my $samnt = $calced_tps[$tp]{$_};
