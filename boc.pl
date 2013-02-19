@@ -636,6 +636,7 @@ sub clear_old_session_locks
 {
 	my $sessid = $_[0];
 	my @locks = glob ("$config{Root}/*/.*.lock");
+	push (@locks, glob ("$config{Root}/.config*.lock"));
 	push (@locks, "$config{Root}/.DSLOCK.lock");
 
 	no autodie qw(open);	# file may not exist
