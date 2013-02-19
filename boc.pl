@@ -2617,6 +2617,9 @@ sub gen_ucp
 		my (@to, @from, @to_extras, @from_extras);
 		my $bidi = !(exists $neg_accts{$user});
 		unless ($tg_broken) {
+			# since 0 net entries are listed in credits, force appearance of credit for arrow selection purposes
+			$rcomputed{$user} = 1 if $rcomputed{$user} == 0;
+
 			# foreach one that would appear in @to
 			foreach (grep ($_ ne $user && (!$rcomputed{$_} || (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} < 0))), keys %rcomputed)) {
 				$bidi = (exists $neg_accts{$user}) if !(exists $neg_accts{$_});
