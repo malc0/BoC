@@ -1,3 +1,3 @@
 <span style="font-size:1.4em"><TMPL_VAR NAME=LN></span><div style="float:right"><TMPL_IF NAME=LOGIN>Logged in as <TMPL_VAR NAME=LOGIN> </TMPL_IF><input type="submit" name="logout" value="Logout"/></div>
-<TMPL_IF NAME=STATUS><p><b>Status: <TMPL_VAR NAME=STATUS></b></p></TMPL_IF><TMPL_IF NAME=WHINGE><p style="color:red"><b><TMPL_VAR NAME=WHINGE></b></p></TMPL_IF>
+<TMPL_IF NAME=STATUS><p><b>Status: <TMPL_VAR NAME=STATUS></b></p></TMPL_IF><TMPL_IF NAME=WHINGE><p style="color:red"><b><TMPL_VAR NAME=WHINGE></b><TMPL_IF NAME=BREAKLOCK> <input type="submit" name="<TMPL_VAR NAME=BREAKLOCK>" value="Proceed anyway"/> (other changes will be lost)</TMPL_IF></p></TMPL_IF>
 <hr />

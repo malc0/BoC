@@ -1833,11 +1833,18 @@ sub mail_password
 
 sub lock_or_whinge
 {
-	my ($file, $thing, $session, $bail) = @_;
+	my ($file, $thing, $session, $bail, $action, $etkey) = @_;
 
-	whinge("Couldn\'t get edit lock for $thing", $bail->()) unless try_lock($file, $session->id());
+	my $break = grep ("force_$action" eq $_, $session->query()->param);
+	my $rv = try_lock($file, $session->id(), $break);
+	pop_session_data($session->id(), $etkey ? $etkey : $action) if $rv && $break;
+	return if $rv;
 
-	return;
+	whinge(ucfirst $thing . ' is being edited by another user session', $bail->()) unless defined $rv;
+
+	my $tmpl = $bail->();
+	$tmpl->param(BREAKLOCK => "force_$action");
+	whinge("You are already editing $thing!", $tmpl);
 }
 
 sub despatch_admin
@@ -1852,30 +1859,30 @@ sub despatch_admin
 	if ($cgi->param('tmpl') eq 'tcp') {
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
-		if (defined $cgi->param('edit_addr_alts')) {
-			lock_or_whinge("$config{Root}/config_addr_alts", 'configuration file "config_addr_alts"', $session, sub { gen_tcp });
+		if (grep (/^(force_)?edit_addr_alts$/, $cgi->param)) {
+			lock_or_whinge("$config{Root}/config_addr_alts", 'configuration file "config_addr_alts"', $session, sub { gen_tcp }, 'edit_addr_alts');
 			emit(gen_edit_addr_alts(get_edit_token($sessid, 'edit_addr_alts')));
 		}
-		if (defined $cgi->param('edit_inst_cfg')) {
-			lock_or_whinge("$config{Root}/config", 'configuration file "config"', $session, sub { gen_tcp });
+		if (grep (/^(force_)?edit_inst_cfg$/, $cgi->param)) {
+			lock_or_whinge("$config{Root}/config", 'configuration file "config"', $session, sub { gen_tcp }, 'edit_inst_cfg');
 			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
 		}
 		emit(gen_manage_event_types) if (defined $cgi->param('manage_event_types'));
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
-		if (defined $cgi->param('edit_fee_cfg')) {
-			lock_or_whinge("$config{Root}/config_fees", 'configuration file "config_fees"', $session, sub { gen_tcp });
+		if (grep (/^(force_)?edit_fee_cfg$/, $cgi->param)) {
+			lock_or_whinge("$config{Root}/config_fees", 'configuration file "config_fees"', $session, sub { gen_tcp }, 'edit_fee_cfg');
 			emit(gen_edit_fee_cfg(get_edit_token($sessid, 'edit_fee_cfg')));
 		}
-		if (defined $cgi->param('edit_pers_attrs')) {
-			lock_or_whinge("$config{Root}/config_pers_attrs", 'configuration file "config_pers_attrs"', $session, sub { gen_tcp });
+		if (grep (/^(force_)?edit_pers_attrs$/, $cgi->param)) {
+			lock_or_whinge("$config{Root}/config_pers_attrs", 'configuration file "config_pers_attrs"', $session, sub { gen_tcp }, 'edit_pers_attrs');
 			emit(gen_edit_pers_attrs(get_edit_token($sessid, 'edit_pers_attrs')));
 		}
-		if (defined $cgi->param('edit_attr_groups')) {
-			lock_or_whinge("$config{Root}/config_pers_attrs", 'configuration file "config_pers_attrs"', $session, sub { gen_tcp });
+		if (grep (/^(force_)?edit_attr_groups$/, $cgi->param)) {
+			lock_or_whinge("$config{Root}/config_pers_attrs", 'configuration file "config_pers_attrs"', $session, sub { gen_tcp }, 'edit_attr_groups');
 			emit(gen_edit_attr_groups(get_edit_token($sessid, 'edit_attr_groups')));
 		}
-		if (defined $cgi->param('edit_units')) {
-			lock_or_whinge("$config{Root}/config_units", 'configuration file "config_units"', $session, sub { gen_tcp });
+		if (grep (/^(force_)?edit_units$/, $cgi->param)) {
+			lock_or_whinge("$config{Root}/config_units", 'configuration file "config_units"', $session, sub { gen_tcp }, 'edit_units');
 			emit(gen_edit_units(get_edit_token($sessid, 'edit_units')));
 		}
 	}
@@ -1885,30 +1892,34 @@ sub despatch_admin
 		my $person = $cgi->param('tmpl') eq 'view_ppl';
 		my $whinge = sub { whinge($_[0], gen_manage_accts($person)) };
 
-		foreach my $p ($cgi->param) {
-			if ($p =~ /^edit_(.+)$/) {
-				$acct = $1;
+		my $p;
+		foreach ($cgi->param) {
+			if (/^(force_)?edit_(.+)$/) {
+				$acct = $2;
 			}
-			if ($p =~ /^del_(.+)$/) {
+			if (/^del_(.+)$/) {
 				$acct = $1;
 				$delete = 1;
 			}
-			if ($p =~ /^clearpw_(.+)$/) {
-				$acct = $1;
+			if (/^(force_)?clearpw_(.+)$/) {
+				$acct = $2;
 				$cpw = 1;
 			}
-			if ($p =~ /^setpw_(.+)$/) {
-				$acct = $1;
+			if (/^(force_)?setpw_(.+)$/) {
+				$acct = $2;
 				$spw = 1;
 			}
-			last if $acct;
+			if ($acct) {
+				($p = $_) =~ s/^force_//;
+				last;
+			}
 		}
 
 		$acct = valid_edit_id($acct, $person ? "$config{Root}/users" : "$config{Root}/accounts", 'account', $whinge);
 		my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 		unless ($delete) {
 			if ($acct) {
-				lock_or_whinge($acct_file, "account \"$acct\"", $session, sub { gen_manage_accts($person) });
+				lock_or_whinge($acct_file, "account \"$acct\"", $session, sub { gen_manage_accts($person) }, $p, "edit_$acct");
 				unless (-r $acct_file) {
 					unlock($acct_file);
 					$whinge->("Couldn't edit account \"$acct\", file disappeared");
@@ -1978,10 +1989,10 @@ sub despatch_admin
 	}
 	if ($cgi->param('tmpl') eq 'manage_events') {
 		my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
-		if (((grep (/^lock_.+$/, $cgi->param))[0] // '') =~ /^lock_(.+)$/) {
-			my $mid = valid_edit_id($1, "$config{Root}/events", 'event', $whinge, 1);
+		if (((grep (/^(force_)?lock_.+$/, $cgi->param))[0] // '') =~ /^(force_)?lock_(.+)$/) {
+			my $mid = valid_edit_id($2, "$config{Root}/events", 'event', $whinge, 1);
 			my $mt_file = "$config{Root}/events/$mid";
-			lock_or_whinge($mt_file, "event \"$mid\"", $session, sub { gen_manage_events($session) });
+			lock_or_whinge($mt_file, "event \"$mid\"", $session, sub { gen_manage_events($session) }, "lock_$mid", "edit_$mid");
 			my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 			(exists $evnt{Locked}) ? delete $evnt{Locked} : ($evnt{Locked} = undef);
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
@@ -2022,12 +2033,12 @@ sub despatch_admin
 		my $delete = 0;
 		my $whinge = sub { whinge($_[0], gen_manage_event_types) };
 
-		foreach my $p ($cgi->param) {
-			if ($p =~ /^edit_(.+)$/) {
-				$et = $1;
+		foreach ($cgi->param) {
+			if (/^(force_)?edit_(.+)$/) {
+				$et = $2;
 				last;
 			}
-			if ($p =~ /^del_(.+)$/) {
+			if (/^del_(.+)$/) {
 				$et = $1;
 				$delete = 1;
 				last;
@@ -2038,7 +2049,7 @@ sub despatch_admin
 		my $et_file = "$config{Root}/event_types/$et" if $et;
 		unless ($delete) {
 			if ($et) {
-				lock_or_whinge($et_file, "event type \"$et\"", $session, sub { gen_manage_event_types });
+				lock_or_whinge($et_file, "event type \"$et\"", $session, sub { gen_manage_event_types }, "edit_$et");
 				unless (-r $et_file) {
 					unlock($et_file);
 					$whinge->("Couldn't edit event type \"$et\", file disappeared");
@@ -2150,18 +2161,24 @@ sub despatch_admin
 			emit(gen_edit_fee_tmpl($view, $view ? undef : get_edit_token($sessid, 'add_ft'), $et_id, \%et));
 		}
 	}
-	if ($cgi->param('tmpl') eq 'edit_fee_tmpl') {
+	if ($cgi->param('tmpl') eq 'edit_fee_tmpl' || ($cgi->param('tmpl') eq 'manage_fee_tmpls' && grep (/^force_edit_.+/, $cgi->param))) {
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
 		my $whinge = sub { whinge($_[0], gen_manage_fee_tmpls) };
+		my $is_edit = $cgi->param('tmpl') eq 'manage_fee_tmpls' || defined $cgi->param('edit');
 
-		my $edit_id = valid_edit_id(scalar $cgi->param('ft_id'), "$config{Root}/fee_tmpls", 'fee template', $whinge, (defined $cgi->param('edit')));
+		my $ft_id = $cgi->param('ft_id');
+		($ft_id = (grep (/^force_edit_.+/, $cgi->param))[0]) =~ s/^force_edit_// if $cgi->param('tmpl') eq 'manage_fee_tmpls';
+		my $edit_id = valid_edit_id($ft_id, "$config{Root}/fee_tmpls", 'fee template', $whinge, $is_edit);
+
 		my $et_id = $cgi->param('event_type') ? valid_edit_id(scalar $cgi->param('event_type'), "$config{Root}/event_types", 'event type', $whinge, 1) : undef;
+		$et_id = $1 if $is_edit && !$et_id && $ft_id =~ /^([^\/.]+)\.[^\/]+$/;
+
 		my %cf = valid_fee_cfg;
 		my %et = $et_id ? valid_event_type("$config{Root}/event_types/$et_id", \%cf) : ();
 		my $file = $edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef;
 
-		if (defined $cgi->param('edit')) {
-			lock_or_whinge($file, "fee template \"$edit_id\"", $session, sub { gen_manage_fee_tmpls });
+		if ($is_edit) {
+			lock_or_whinge($file, "fee template \"$edit_id\"", $session, sub { gen_manage_fee_tmpls }, "edit_$edit_id");
 			unless (-r $file) {
 				unlock($file);
 				$whinge->("Couldn't edit fee template \"$edit_id\", file disappeared");
@@ -3370,9 +3387,12 @@ sub despatch
 			delete_common("$config{Root}/transaction_groups/$edit_id", "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 		}
 	}
-	if ($cgi->param('tmpl') eq 'edit_tg') {
+	if ($cgi->param('tmpl') eq 'edit_tg' || ($cgi->param('tmpl') eq 'manage_tgs' && grep (/^force_edit_.+/, $cgi->param))) {
 		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
-		my $edit_id = valid_edit_id(scalar $cgi->param('tg_id'), "$config{Root}/transaction_groups", 'TG', $whinge, (defined $cgi->param('edit')));
+		my $is_edit = $cgi->param('tmpl') eq 'manage_tgs' || defined $cgi->param('edit');
+		my $tg_id = $cgi->param('tg_id');
+		($tg_id = (grep (/^force_edit_.+/, $cgi->param))[0]) =~ s/^force_edit_// if $cgi->param('tmpl') eq 'manage_tgs';
+		my $edit_id = valid_edit_id($tg_id, "$config{Root}/transaction_groups", 'TG', $whinge, $is_edit);
 
 		if (defined $cgi->param('showcvs') || defined $cgi->param('hidecvs')) {
 			emit(gen_tg($edit_id, (defined $cgi->param('showcvs')), scalar $cgi->param('def_cred'), $session, undef));
@@ -3381,10 +3401,10 @@ sub despatch
 		whinge('Action not permitted', $edit_id ? gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef) : gen_manage_tgs($session)) unless $session->param('MayAddEditTGs');
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
-		if (defined $cgi->param('edit')) {
+		if ($is_edit) {
 			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef)) if $edit_id =~ /^[A-Z]/;
 
-			lock_or_whinge($tgfile, "transaction group \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
+			lock_or_whinge($tgfile, "transaction group \"$edit_id\"", $session, sub { gen_manage_tgs($session) }, "edit_$edit_id");
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				$whinge->("Couldn't edit transaction group \"$edit_id\", file disappeared");
@@ -3512,9 +3532,11 @@ sub despatch
 			delete_common("$config{Root}/events/$mid", "event \"$mid\"", $session, sub { gen_manage_events($session) }, "$config{Root}/transaction_groups/E$mid");
 		}
 	}
-	if ($cgi->param('tmpl') eq 'edit_event') {
+	if ($cgi->param('tmpl') eq 'edit_event' || ($cgi->param('tmpl') eq 'manage_events' && grep (/^force_edit_.+/, $cgi->param))) {
 		my $whinge = sub { whinge($_[0], gen_manage_events($session)) };
-		my $edit_id = valid_edit_id(scalar $cgi->param('m_id'), "$config{Root}/events", 'event', $whinge, 1);
+		my $m_id = $cgi->param('m_id');
+		($m_id = (grep (/^force_edit_.+/, $cgi->param))[0]) =~ s/^force_edit.*_// if $cgi->param('tmpl') eq 'manage_events';
+		my $edit_id = valid_edit_id($m_id, "$config{Root}/events", 'event', $whinge, 1);
 		my $mt_file = "$config{Root}/events/$edit_id";
 
 		if (defined $cgi->param('cancel')) {
@@ -3526,9 +3548,9 @@ sub despatch
 
 		my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 
-		if (defined $cgi->param('edit_hdrs')) {
+		if (defined $cgi->param('edit_hdrs') || grep (/^force_edit_hdrs_.+/, $cgi->param)) {
 			whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session, 1);
-			lock_or_whinge($mt_file, "event \"$edit_id\"", $session, sub { gen_manage_events($session) });
+			lock_or_whinge($mt_file, "event \"$edit_id\"", $session, sub { gen_manage_events($session) }, "edit_hdrs_$edit_id", "edit_$edit_id");
 			unless (-r $mt_file) {
 				unlock($mt_file);
 				$whinge->("Couldn't edit event \"$edit_id\", file disappeared");
@@ -3539,14 +3561,15 @@ sub despatch
 
 		whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session);
 
-		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
-			lock_or_whinge($mt_file, "event \"$edit_id\"", $session, sub { gen_manage_events($session) });
+		if (defined $cgi->param('edit_ppl') || defined $cgi->param('edit') || $cgi->param('tmpl') eq 'manage_events') {
+			my $edit = defined $cgi->param('edit') || ($cgi->param('tmpl') eq 'manage_events' && !grep (/^force_edit_ppl_.+/, $cgi->param));
+			lock_or_whinge($mt_file, "event \"$edit_id\"", $session, sub { gen_manage_events($session) }, ($edit ? 'edit_' : 'edit_ppl_') . $edit_id, "edit_$edit_id");
 			unless (-r $mt_file) {
 				unlock($mt_file);
 				$whinge->("Couldn't edit event \"$edit_id\", file disappeared");
 			}
 
-			if (defined $cgi->param('edit')) {
+			if ($edit) {
 				emit(gen_edit_event($edit_id, \%cf, $session, get_edit_token($sessid, "edit_$edit_id")));
 			} else {
 				emit(gen_edit_event_ppl($edit_id, $sessid, get_edit_token($sessid, "edit_$edit_id")));
