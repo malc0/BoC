@@ -158,7 +158,7 @@ sub redeem_edit_token
 
 sub try_lock_raw
 {
-	my ($file, $sessid) = @_;
+	my ($file, $sessid, $renew) = @_;
 	my $lockfile = "$file.lock";
 	$lockfile =~ s/^(.*\/)([^\/]*)/$1.$2/;	# insert a . to hide file (especially from directory globbing)
 	my $lock;
@@ -167,7 +167,15 @@ sub try_lock_raw
 	unless (sysopen ($lock, $lockfile, O_WRONLY | O_EXCL | O_CREAT)) {	# we assume it's not on NFSv2
 		my $mtime = (stat($lockfile))[9];
 
-		return undef if defined $mtime and (time() - $mtime) < 600;
+		if ($mtime && (time() - $mtime) < 600) {
+			my $mine = 0;
+
+			return undef unless open ($lock, '<', $lockfile);
+			$mine = $sessid eq <$lock>;
+			close ($lock);
+
+			return ($mine ? 0 : undef) unless $mine && $renew;
+		}
 
 		return undef unless open ($lock, '+>', $lockfile);
 		return undef unless flock ($lock, LOCK_EX | LOCK_NB);
@@ -212,10 +220,10 @@ sub un_commit_lock
 
 sub try_lock
 {
-	my ($file, $sessid) = @_;
+	my ($file, $sessid, $renew) = @_;
 
 	return undef unless try_commit_lock($sessid);
-	my $rv = try_lock_raw($file, $sessid);
+	my $rv = try_lock_raw($file, $sessid, $renew);
 	un_commit_lock;
 	return $rv;
 }
