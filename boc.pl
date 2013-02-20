@@ -1831,6 +1831,15 @@ sub mail_password
 	return mail($acct{email}, "New $config{ShortName} password for $acct", $tmpl->output);
 }
 
+sub lock_or_whinge
+{
+	my ($file, $thing, $session, $bail) = @_;
+
+	whinge("Couldn\'t get edit lock for $thing", $bail->()) unless try_lock($file, $session->id());
+
+	return;
+}
+
 sub despatch_admin
 {
 	my $session = $_[0];
@@ -1841,33 +1850,32 @@ sub despatch_admin
 	emit(gen_tcp) if defined $cgi->param('to_cp');
 
 	if ($cgi->param('tmpl') eq 'tcp') {
-		my $whinge = sub { whinge('Couldn\'t get edit lock for configuration file', gen_tcp) };
 		emit(gen_manage_accts(1)) if (defined $cgi->param('view_ppl'));
 		emit(gen_manage_accts(0)) if (defined $cgi->param('view_accts'));
 		if (defined $cgi->param('edit_addr_alts')) {
-			$whinge->() unless try_lock("$config{Root}/config_addr_alts", $sessid);
+			lock_or_whinge("$config{Root}/config_addr_alts", 'configuration file "config_addr_alts"', $session, sub { gen_tcp });
 			emit(gen_edit_addr_alts(get_edit_token($sessid, 'edit_addr_alts')));
 		}
 		if (defined $cgi->param('edit_inst_cfg')) {
-			$whinge->() unless try_lock("$config{Root}/config", $sessid);
+			lock_or_whinge("$config{Root}/config", 'configuration file "config"', $session, sub { gen_tcp });
 			emit(gen_edit_inst_cfg(get_edit_token($sessid, 'edit_inst_cfg')));
 		}
 		emit(gen_manage_event_types) if (defined $cgi->param('manage_event_types'));
 		emit(gen_manage_fee_tmpls) if (defined $cgi->param('manage_fee_tmpls'));
 		if (defined $cgi->param('edit_fee_cfg')) {
-			$whinge->() unless try_lock("$config{Root}/config_fees", $sessid);
+			lock_or_whinge("$config{Root}/config_fees", 'configuration file "config_fees"', $session, sub { gen_tcp });
 			emit(gen_edit_fee_cfg(get_edit_token($sessid, 'edit_fee_cfg')));
 		}
 		if (defined $cgi->param('edit_pers_attrs')) {
-			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
+			lock_or_whinge("$config{Root}/config_pers_attrs", 'configuration file "config_pers_attrs"', $session, sub { gen_tcp });
 			emit(gen_edit_pers_attrs(get_edit_token($sessid, 'edit_pers_attrs')));
 		}
 		if (defined $cgi->param('edit_attr_groups')) {
-			$whinge->() unless try_lock("$config{Root}/config_pers_attrs", $sessid);
+			lock_or_whinge("$config{Root}/config_pers_attrs", 'configuration file "config_pers_attrs"', $session, sub { gen_tcp });
 			emit(gen_edit_attr_groups(get_edit_token($sessid, 'edit_attr_groups')));
 		}
 		if (defined $cgi->param('edit_units')) {
-			$whinge->() unless try_lock("$config{Root}/config_units", $sessid);
+			lock_or_whinge("$config{Root}/config_units", 'configuration file "config_units"', $session, sub { gen_tcp });
 			emit(gen_edit_units(get_edit_token($sessid, 'edit_units')));
 		}
 	}
@@ -1900,7 +1908,7 @@ sub despatch_admin
 		my $acct_file = $person ? "$config{Root}/users/$acct" : "$config{Root}/accounts/$acct" if $acct;
 		unless ($delete) {
 			if ($acct) {
-				$whinge->("Couldn't get edit lock for account \"$acct\"") unless try_lock($acct_file, $sessid);
+				lock_or_whinge($acct_file, "account \"$acct\"", $session, sub { gen_manage_accts($person) });
 				unless (-r $acct_file) {
 					unlock($acct_file);
 					$whinge->("Couldn't edit account \"$acct\", file disappeared");
@@ -1973,7 +1981,7 @@ sub despatch_admin
 		if (((grep (/^lock_.+$/, $cgi->param))[0] // '') =~ /^lock_(.+)$/) {
 			my $mid = valid_edit_id($1, "$config{Root}/events", 'event', $whinge, 1);
 			my $mt_file = "$config{Root}/events/$mid";
-			$whinge->("Couldn't get edit lock for event \"$mid\"") unless try_lock($mt_file, $sessid);
+			lock_or_whinge($mt_file, "event \"$mid\"", $session, sub { gen_manage_events($session) });
 			my %evnt = read_htsv($mt_file, undef, [ 'Person', 'Notes' ]);
 			(exists $evnt{Locked}) ? delete $evnt{Locked} : ($evnt{Locked} = undef);
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
@@ -2030,7 +2038,7 @@ sub despatch_admin
 		my $et_file = "$config{Root}/event_types/$et" if $et;
 		unless ($delete) {
 			if ($et) {
-				$whinge->("Couldn't get edit lock for event type \"$et\"") unless try_lock($et_file, $sessid);
+				lock_or_whinge($et_file, "event type \"$et\"", $session, sub { gen_manage_event_types });
 				unless (-r $et_file) {
 					unlock($et_file);
 					$whinge->("Couldn't edit event type \"$et\", file disappeared");
@@ -2153,7 +2161,7 @@ sub despatch_admin
 		my $file = $edit_id ? "$config{Root}/fee_tmpls/" . encode_for_filename($edit_id) : undef;
 
 		if (defined $cgi->param('edit')) {
-			$whinge->("Couldn't get edit lock for fee template \"$edit_id\"") unless try_lock($file, $sessid);
+			lock_or_whinge($file, "fee template \"$edit_id\"", $session, sub { gen_manage_fee_tmpls });
 			unless (-r $file) {
 				unlock($file);
 				$whinge->("Couldn't edit fee template \"$edit_id\", file disappeared");
@@ -3376,7 +3384,7 @@ sub despatch
 		if (defined $cgi->param('edit')) {
 			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef)) if $edit_id =~ /^[A-Z]/;
 
-			$whinge->("Couldn't get edit lock for transaction group \"$edit_id\"") unless try_lock($tgfile, $sessid);
+			lock_or_whinge($tgfile, "transaction group \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 			unless (-r $tgfile) {
 				unlock($tgfile);
 				$whinge->("Couldn't edit transaction group \"$edit_id\", file disappeared");
@@ -3520,7 +3528,7 @@ sub despatch
 
 		if (defined $cgi->param('edit_hdrs')) {
 			whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session, 1);
-			$whinge->("Couldn't get edit lock for event \"$edit_id\"") unless try_lock($mt_file, $sessid);
+			lock_or_whinge($mt_file, "event \"$edit_id\"", $session, sub { gen_manage_events($session) });
 			unless (-r $mt_file) {
 				unlock($mt_file);
 				$whinge->("Couldn't edit event \"$edit_id\", file disappeared");
@@ -3532,7 +3540,7 @@ sub despatch
 		whinge('Action not permitted', gen_edit_event($edit_id, \%cf, $session, undef)) unless event_edit_ok(\%evnt, $session);
 
 		if (defined $cgi->param('edit_ppl') or defined $cgi->param('edit')) {
-			$whinge->("Couldn't get edit lock for event \"$edit_id\"") unless try_lock($mt_file, $sessid);
+			lock_or_whinge($mt_file, "event \"$edit_id\"", $session, sub { gen_manage_events($session) });
 			unless (-r $mt_file) {
 				unlock($mt_file);
 				$whinge->("Couldn't edit event \"$edit_id\", file disappeared");
