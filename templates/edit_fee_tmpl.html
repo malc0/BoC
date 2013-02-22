@@ -7,10 +7,13 @@
 		<style type="text/css">.broken { background-color: red }</style>
 	</head>
 	<body>
-		<form action="boc.pl" method="post" onsubmit="if (this.save.clicked) {
+		<form action="boc.pl" method="post" onsubmit="if (this.save && this.save.clicked) {
 				this.save.clicked = false;
-				if ('ft_id' in this && this.ft_id.value != this.name.value)
-					return confirm('Really rename fee template?');
+				if ('ft_id' in this) {
+					var newftid = (('event_type' in this) ? (this.event_type.value + '.') : '') + this.name.value;
+					if (this.ft_id.value != newftid)
+						return confirm('Really rename fee template?');
+				}
 			} return true">
 		<div>
 			<input type="hidden" name="tmpl" value="edit_fee_tmpl"/>
