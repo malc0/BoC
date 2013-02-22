@@ -17,10 +17,6 @@
 			<TMPL_IF NAME=ETOKEN><input type="hidden" name="etoken" value="<TMPL_VAR NAME=ETOKEN>"/></TMPL_IF>
 			<TMPL_IF NAME=FTID><input type="hidden" name="ft_id" value="<TMPL_VAR NAME=FTID>"/></TMPL_IF>
 
-			<TMPL_IF NAME=ET><input type="hidden" name="event_type" value="<TMPL_VAR NAME=ET>"/><TMPL_UNLESS NAME=RO><h2>Event type: <TMPL_VAR NAME=ET></h2></TMPL_UNLESS></TMPL_IF>
-
-			<TMPL_IF NAME=RO><h1><TMPL_IF NAME=ET><TMPL_VAR NAME=ET>:</TMPL_IF> <TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Template name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="name"/></label></h2></TMPL_IF>
-
 			<TMPL_INCLUDE NAME=logout_status.tmpl>
 			<TMPL_UNLESS NAME=ETOKEN><div class="nav">
 				<p class="nav"><input type="submit" name="manage_fee_tmpls" value="See all fee templates"/></p>
@@ -28,6 +24,10 @@
 			</div></TMPL_UNLESS>
 
 			<h1>Fee template configuration</h1>
+
+			<TMPL_IF NAME=ET><input type="hidden" name="event_type" value="<TMPL_VAR NAME=ET>"/><TMPL_UNLESS NAME=RO><h2>Event type: <TMPL_VAR NAME=ET></h2></TMPL_UNLESS></TMPL_IF>
+
+			<TMPL_IF NAME=RO><h1><TMPL_IF NAME=ET><TMPL_VAR NAME=ET>:</TMPL_IF> <TMPL_VAR NAME=NAME></h1><TMPL_ELSE><h2><label>Template name: <input type="text" value="<TMPL_VAR NAME=NAME>" name="name"/></label></h2></TMPL_IF>
 
 			<table border=1>
 				<tr><th rowspan=2 class="<TMPL_VAR NAME=FH_CL>">Fee/Drain</th><TMPL_IF NAME=NATTRS><th rowspan=2 class="<TMPL_VAR NAME=AH_CL>">Condition</th><th colspan=<TMPL_VAR NAME=NATTRS> class="<TMPL_VAR NAME=AH_CL>">Attributes</th></tr>
