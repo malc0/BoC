@@ -2610,7 +2610,7 @@ sub date_sorted_htsvs
 
 sub sprint_monetary
 {
-	return sprintf($_[0] ? '%+.2f' : '0.00', $_[0]);
+	return sprintf(($_[0] && abs $_[0] > .001 )? '%+.2f' : '0.00', $_[0]);
 }
 
 sub unk_computed_accts
