@@ -2610,7 +2610,9 @@ sub date_sorted_htsvs
 
 sub sprint_monetary
 {
-	return sprintf(($_[0] && abs $_[0] > .001 )? '%+.2f' : '0.00', $_[0]);
+	my ($value, $no_plus) = @_;
+
+	return sprintf(($value && abs $value > .001 )? ($no_plus ? '%.2f' : '%+.2f') : '0.00', $value);
 }
 
 sub unk_computed_accts
@@ -2801,7 +2803,7 @@ sub gen_accts_disp
 	$tmpl->param(NOZEROS => $nozeros);
 	$tmpl->param(UNKNOWN => \@unklist) if scalar @unklist;
 	$tmpl->param(PPL => \@ppllist) if scalar @ppllist;
-	$tmpl->param(SDEBTS => -$sum_debts, SCREDS => $sum_creds);
+	$tmpl->param(SDEBTS => sprint_monetary(-$sum_debts, 1), SCREDS => sprint_monetary($sum_creds, 1));
 	$tmpl->param(VACCTS => \@vacctslist) if scalar @vacctslist;
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
