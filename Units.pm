@@ -253,6 +253,18 @@ sub get_rates
 	}
 	my %cfg = %sorted_cfg;
 
+	my ($date_lower, $date_upper) = (0, 10000000000);
+	foreach (@{$cfg{Date}}) {
+		$date_lower = $_ if $date >= $_;
+		if ($date < $_) {
+			$date_upper = $_;
+			last;
+		}
+	}
+	foreach (keys %rates) {
+		return %{$rates{$_}} if $date_lower <= $_ && $_ < $date_upper;
+	}
+
 	my @units = known_units(%cfg);
 
 	my %rate;
