@@ -10,7 +10,7 @@ use CGI::Carp qw(fatalsToBrowser);
 use File::Find;
 use List::Util qw(first min sum);
 use Text::Wrap;
-use Time::HiRes qw(usleep);
+use Time::HiRes qw(stat usleep);
 
 # non core
 use CGI::Session '-ip-match';
@@ -218,6 +218,20 @@ sub un_commit_lock
 	return unlink "$config{Root}/.DSLOCK.lock";
 }
 
+sub cache_lock
+{
+	# NOTE: VERY important this is against DSLOCK: we are trying to
+	# guarantee no data-store writes during the lock
+	# FIXME: no use of sessid (since we normally don't have it)
+	# Seems very unlikely you'd ordinarily get stuck between lock and unlock
+	return try_lock_raw("$config{Root}/DSLOCK", 'cache');
+}
+
+sub cache_unlock
+{
+	return un_commit_lock;
+}
+
 sub try_lock
 {
 	my ($file, $sessid, $renew) = @_;
@@ -261,6 +275,11 @@ sub write_simp_cfg
 	my ($file, %cfg) = @_;
 
 	return write_htsv($file, \%cfg);
+}
+
+sub fmtime
+{
+	return ((stat ("$config{Root}/$_[0]"))[9] // 0);
 }
 
 sub read_tg2
@@ -362,6 +381,11 @@ sub nonfinite
 	return $infinite;
 }
 
+sub newest
+{
+	return (sort map (((stat)[9] // 0), grep (-f, glob ("$config{Root}/* $config{Root}/*/*"))))[-1];
+}
+
 sub compute_tg_c
 {
 	my ($tg, $omit, $neg_accts, $resolved, $rel_acc, $rel_accts, $die) = @_;
@@ -401,6 +425,11 @@ sub drained_accts
 	$exempt = '' unless $exempt;
 	my %drained;
 
+	my $newest = newest;
+	if (fmtime('transaction_groups/.tgds') > $newest) {
+		(my $fh, %tgds) = flock_and_read("$config{Root}/transaction_groups/.tgds");
+		close $fh;
+	}
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 		$tg = $1 if $tg =~ /([^\/]*)$/;
 		$tgds{$tg} = \%{{read_tg2("$config{Root}/transaction_groups/$tg")}} unless exists $tgds{$tg};
@@ -410,6 +439,13 @@ sub drained_accts
 		foreach (0 .. $#{$tgdetails{Creditor}}) {
 			push (@{$drained{$tgdetails{Creditor}[$_]}}, $tg) if (defined $tgdetails{Creditor}[$_] && $tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/)) && $tg ne $exempt && !($to_zero_only && $tgdetails{$tgdetails{Creditor}[$_]}[$_]);
 		}
+	}
+	if (cache_lock) {
+		unless (newest != $newest || fmtime('transaction_groups/.tgds') > $newest) {
+			my $fh = flock_only("$config{Root}/transaction_groups/.tgds");
+			write_and_close($fh, %tgds);
+		}
+		cache_unlock;
 	}
 
 	return %drained;
@@ -664,7 +700,7 @@ sub refresh_session
 {
 	my ($session, $username, $authed) = @_;
 
-	$session->param('AcctMtime', (stat("$config{Root}/users/$username"))[9]);
+	$session->param('AcctMtime', fmtime("users/$username"));
 
 	my %userdetails = read_simp_cfg("$config{Root}/users/$username");
 	$userdetails{User} = $username;
@@ -3981,7 +4017,7 @@ create_datastore($cgi, 'No useable administrator account') unless validate_admin
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty || !(defined $cgi->param('tmpl')) || $cgi->param('tmpl') =~ m/^login(_nopw)?$/ || $session->param('Instance') ne $config{Root});
-refresh_session($session, $session->param('User'), $session->param('IsAuthed')) if (stat("$config{Root}/users/" . $session->param('User')))[9] > $session->param('AcctMtime');
+refresh_session($session, $session->param('User'), $session->param('IsAuthed')) if fmtime('users/' . $session->param('User')) > $session->param('AcctMtime');
 
 despatch($session);
 
