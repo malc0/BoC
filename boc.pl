@@ -409,30 +409,39 @@ sub compute_tg_c
 {
 	my ($tg, $omit, $neg_accts, $resolved, $rel_acc, $rel_accts, $die) = @_;
 
+	return if $omit && exists $tgds{$tg}->{Omit};
+
 	my %computed;
-	my $use_precomp = (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp" && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/transaction_groups/$tg") && (-M "$config{Root}/transaction_groups/.$tg.precomp" < -M "$config{Root}/config_units"));
-	if ($use_precomp) {
+	my $newest = newest;
+	if (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp") {
 		(my $fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
 		close $fh;
-		$use_precomp = !($rel_acc && exists $computed{$rel_acc});
-	}
 
-	unless ($use_precomp) {
-		my %tgdetails = %{$tgds{$tg}};
-		return if $omit && exists $tgdetails{Omit};
+		goto compute_me if $rel_acc && exists $computed{$rel_acc};
 
-		%computed = compute_tg($tg, \%tgdetails, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts);
+		return %computed if fmtime("transaction_groups/.$tg.precomp") > $newest;
+
+		goto compute_me if $tg =~ /^[A-Z]/ || exists $tgds{$tg}->{Omit};
+		goto compute_me if (-M "$config{Root}/transaction_groups/.$tg.precomp" > -M "$config{Root}/transaction_groups/$tg") || (-M "$config{Root}/transaction_groups/.$tg.precomp" > -M "$config{Root}/config_units");
 
 		# check for drains directly; this means resolution can be done without account validation,
 		# and account validation can be done separately from resolution
-		my $is_drain = 0;
-		foreach (0 .. $#{$tgdetails{Creditor}}) {
-			$is_drain = 1 if $tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/);
+		foreach (0 .. $#{$tgds{$tg}->{Creditor}}) {
+			goto compute_me if $tgds{$tg}->{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgds{$tg}->{Creditor}[$_] =~ /^TrnsfrPot\d$/);
 		}
-		if (!(exists $tgdetails{Omit}) && !$is_drain && !($tg =~ /^[A-Z]/)) {
+
+		return %computed;
+	}
+
+compute_me:
+	%computed = compute_tg($tg, $tgds{$tg}, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts);
+
+	unless (nonfinite(values %computed) || !cache_lock) {
+		if (newest == $newest) {
 			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
 			write_and_close($fh, %computed);
 		}
+		cache_unlock;
 	}
 
 	return %computed;
