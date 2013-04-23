@@ -20,12 +20,14 @@ my %units_valid;
 my %rates;
 my %clean_dates;
 my %sorted_cfg;
+my %saved_cfg;
 
 sub init_units_cfg
 {
 	if ($cfg_file && $_[0] ne $cfg_file) {
 		undef %rates;
 		undef %sorted_cfg;
+		undef %saved_cfg;
 	}
 	$cfg_file = $_[0];
 	return;
@@ -53,6 +55,7 @@ sub known_currs
 sub read_units_cfg
 {
 	my ($file, $nofix) = @_;
+	return %saved_cfg if %saved_cfg && $file eq $cfg_file && !$nofix;
 	my %cfg = read_htsv($file, 1);
 
 	return %cfg if $nofix;
@@ -70,6 +73,7 @@ sub read_units_cfg
 	}
 	# Default always exists and is valid if @units
 	$cfg{Default} = ((exists $cfg{Anchor}) ? $cfg{Anchor} : $units[0]) unless ($cfg{Default} and exists $cfg{$cfg{Default}});
+	%saved_cfg = %cfg if $file eq $cfg_file;
 
 	return %cfg;
 }
@@ -92,6 +96,7 @@ sub write_units_cfg
 	if ($file eq $cfg_file) {
 		undef %rates;
 		undef %sorted_cfg;
+		undef %saved_cfg;
 	}
 	delete $units_valid{$file};
 
