@@ -217,11 +217,18 @@ sub clean_date
 	return $clean_dates{$_[0]};
 }
 
+sub clean_cfg_dates
+{
+	my $cfg = $_[0];
+
+	$_ = clean_date($_) foreach (@{$cfg->{Date}}); 
+}
+
 sub date_sort_rates
 {
 	my %cfg = @_;
 
-	my @order = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, clean_date($cfg{Date}[$_]) ], 0 .. $#{$cfg{Date}}));	# Schwartzian transform ftw
+	my @order = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Date}[$_] ], 0 .. $#{$cfg{Date}}));	# Schwartzian transform ftw
 
 	foreach (keys %cfg) {
 		next if $_ eq 'Headings' or not ref $cfg{$_};
@@ -241,6 +248,7 @@ sub get_rates
 	unless (%sorted_cfg) {
 		%sorted_cfg = read_units_cfg($cfg_file);
 		validate_units(\%sorted_cfg, $die, undef, $cfg_file);
+		clean_cfg_dates(\%sorted_cfg);
 		%sorted_cfg = date_sort_rates(%sorted_cfg);
 	}
 	my %cfg = %sorted_cfg;
@@ -256,7 +264,7 @@ sub get_rates
 		my $row = 0;
 		do {
 			$rate{$unit} = 1 / $cfg{"$unit/$cfg{Anchor}"}[$row] if $cfg{"$unit/$cfg{Anchor}"}[$row];
-		} while $row < $#{$cfg{Date}} and (clean_date($cfg{Date}[++$row]) <= $date or not exists $rate{$unit});
+		} while $row < $#{$cfg{Date}} and ($cfg{Date}[++$row] <= $date or not exists $rate{$unit});
 	}
 	foreach my $unit (@units) {
 		next if exists $rate{$unit};
@@ -267,7 +275,7 @@ sub get_rates
 		my $row = 0;
 		do {
 			$rate{$unit} = $cfg{"$in/$unit"}[$row] if $cfg{"$in/$unit"}[$row];
-		} while $row < $#{$cfg{Date}} and (clean_date($cfg{Date}[++$row]) <= $date or not exists $rate{$unit});
+		} while $row < $#{$cfg{Date}} and ($cfg{Date}[++$row] <= $date or not exists $rate{$unit});
 
 		$rate{$unit} *= $rate{$in};
 	}
