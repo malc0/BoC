@@ -8,7 +8,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(set_htsv_callbacks read_htsv write_htsv grep_htsv_key);
+our @EXPORT = qw(set_htsv_callbacks read_htsv write_htsv);
 
 my ($read_encoder, $write_encoder, $write_complete);
 
@@ -132,20 +132,6 @@ sub write_htsv
 	$write_complete->($file) if $write_complete;
 
 	return;
-}
-
-sub grep_htsv_key
-{
-	my ($path, $key, $all) = @_;
-
-	my %response;
-	foreach (grep (-f, glob ($path))) {
-		my %contents = read_htsv($_);
-		(my $file = $_) =~ s/^.*\///;
-		$response{$file} = $contents{$key} if ($all || exists $contents{$key});
-	}
-
-	return %response;
 }
 
 1;

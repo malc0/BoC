@@ -654,19 +654,6 @@ sub create_datastore
 	return;
 }
 
-sub validate_admins
-{
-	my @users = grep { (my $acct = $_) =~ s/^.*\///; clean_username($acct) } glob ("$config{Root}/users/*");
-
-	my @valid_admins;
-	foreach my $user (@users) {
-		my %userdetails = read_simp_cfg($user);
-		push (@valid_admins, $user) if (exists $userdetails{IsAdmin} and defined $userdetails{Password});
-	}
-
-	return scalar @valid_admins;
-}
-
 sub gen_login
 {
 	my $tmpl = load_template('login.html');
@@ -4047,12 +4034,16 @@ sub despatch
 
 sub clear_caches
 {
+	my ($filename) = @_;
+
 	# the approach here is to ensure in-process caches are consistent WITHOUT threads:
 	# we would need more locking for threading with shared caches...
 	undef %tgds;
 	undef %pres;
 	undef %evs;
 	clear_cache_tg;
+	clear_cache_accts if $filename =~ /(users|accounts)\/[a-z0-9\-+_]*$/;
+
 	return;
 }
 
@@ -4080,7 +4071,7 @@ init_units_cfg("$config{Root}/config_units");
 set_event_config_root($config{Root});
 
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
-create_datastore($cgi, 'No useable administrator account') unless validate_admins;
+create_datastore($cgi, 'No useable administrator account') unless scalar grep (defined, grep_acct_key('users', 'IsAdmin', 'Password'));
 
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty || !(defined $cgi->param('tmpl')) || $cgi->param('tmpl') =~ m/^login(_nopw)?$/ || $session->param('Instance') ne $config{Root});
