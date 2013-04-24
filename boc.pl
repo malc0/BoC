@@ -19,11 +19,11 @@ use Crypt::PasswdMD5;
 use File::Slurp;
 use Git::Wrapper;
 use HTML::Template;
+use JSON::XS;
 use MIME::Lite;
 use Text::Password::Pronounceable;
 use Time::ParseDate;
 use UUID::Tiny;
-use YAML::XS;
 
 use lib '.';
 use Accts;
@@ -62,17 +62,18 @@ sub flock_and_read
 	sysopen(my $fh, $filename, O_RDWR|O_CREAT) or die;
 	flock ($fh, LOCK_EX) or die;
 
-	my $data = read_file($fh);
-	my %datah = Load($data);
+	my $data;
+	read_file($fh, buf_ref => \$data);
+	my $datahr = $data ? decode_json($data) : {};
 
-	return ($fh, %datah);
+	return ($fh, %$datahr);
 }
 
 sub write_and_close
 {
 	my ($fh, %datah) = @_;
 
-	my $data = Dump(%datah);
+	my $data = encode_json(\%datah);
 	seek ($fh, 0, SEEK_SET);
 	truncate ($fh, 0);
 	return write_file($fh, $data);	# write_file does close() for us
