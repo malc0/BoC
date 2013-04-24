@@ -436,7 +436,7 @@ sub compute_tg_c
 compute_me:
 	%computed = compute_tg($tg, $tgds{$tg}, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts);
 
-	unless (nonfinite(values %computed) || !cache_lock) {
+	unless ($rel_acc || nonfinite(values %computed) || !cache_lock) {
 		if (newest == $newest) {
 			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
 			write_and_close($fh, %computed);
