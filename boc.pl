@@ -434,7 +434,7 @@ sub compute_tg_c
 	}
 
 compute_me:
-	%computed = compute_tg($tg, $tgds{$tg}, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts);
+	%computed = compute_tg($tg, $tgds{$tg}, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts, fmtime("transaction_groups/.$tg.precomp") > $newest);
 
 	unless ($rel_acc || nonfinite(values %computed) || !cache_lock) {
 		if (newest == $newest) {

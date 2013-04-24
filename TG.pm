@@ -142,6 +142,26 @@ sub validate_tg
 	return @compact_creds;
 }
 
+sub compact_creds_only
+{
+	my (%tg) = @_;
+
+	my @all_head_accts = grep ((/^(.*)$/ and $1 ne 'Creditor' and $1 ne 'Amount' and $1 ne 'Currency' and $1 ne 'TrnsfrPot' and $1 ne 'Description'), @{$tg{Headings}});
+	my @compact_creds = @{$tg{Creditor}};
+	ROW: foreach my $row (0 .. $#{$tg{Creditor}}) {
+		next if $tg{Amount}[$row] =~ /^\s*[*]\s*$/ || clean_decimal($tg{Amount}[$row]) != 0;
+
+		foreach (@all_head_accts) {
+			next ROW unless clean_decimal($tg{$_}[$row]) == 0;
+		}
+		next if grep ($_ eq 'TrnsfrPot', @{$tg{Headings}}) && defined $tg{TrnsfrPot}[$row] && $tg{TrnsfrPot}[$row] =~ /^\s*[1-9]\s*$/;
+
+		$compact_creds[$row] = undef;
+	}
+
+	return @compact_creds;
+}
+
 sub stround
 {
 	my ($n, $places) = @_;
@@ -203,12 +223,12 @@ sub tg_tp_amnt_per_share
 
 sub compute_tg
 {
-	my ($id, $tgr, $valid_accts, $nar, $rsr, $die, $vrel_acc, $vrel_accts) = @_;
+	my ($id, $tgr, $valid_accts, $nar, $rsr, $die, $vrel_acc, $vrel_accts, $no_full_validate) = @_;
 	my %tg = %{$tgr};
 	my %resolved = $rsr ? %{$rsr} : ();
 	$die = sub { confess $_[0] } unless $die;
 
-	my @cred_accts = validate_tg($id, $tgr, $die, $valid_accts);
+	my @cred_accts = $no_full_validate ? compact_creds_only(%tg) : validate_tg($id, $tgr, $die, $valid_accts);
 	my %rates = get_rates($tg{Date}, sub { $die->("Currency config: $_[0]"); });
 
 	my @head_accts;
