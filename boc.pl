@@ -4,7 +4,7 @@ use 5.014;	# get guaranteed correct exception handling
 use autodie;
 use warnings;
 
-use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_NB SEEK_SET);
+use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_SH LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
 use File::Find;
@@ -49,36 +49,45 @@ sub update_global_config
 	return;
 }
 
-sub flock_only
-{
-	sysopen(my $fh, $_[0], O_RDWR|O_CREAT) or die;
-	flock ($fh, LOCK_EX) or die;
-
-	return $fh;
-}
-
 sub flock_and_read
 {
-	my $filename = $_[0];
+	my ($filename, $shared) = @_;
 
-	sysopen(my $fh, $filename, O_RDWR|O_CREAT) or die;
-	flock ($fh, LOCK_EX) or die;
+	sysopen (my $fh, $filename, O_RDWR|O_CREAT) or die;
+	flock ($fh, $shared ? LOCK_SH : LOCK_EX) or die;
 
 	my $data;
 	read_file($fh, buf_ref => \$data);
 	my $datahr = $data ? decode_json($data) : {};
 
-	return ($fh, %$datahr);
+	return ($fh, $datahr);
+}
+
+sub flock_rc
+{
+	(my $fh, my $hr) = flock_and_read($_[0], 1);
+	close $fh or die;
+	return $hr;
 }
 
 sub write_and_close
 {
-	my ($fh, %datah) = @_;
+	my ($fh, $datahr) = @_;
 
-	my $data = encode_json(\%datah);
-	seek ($fh, 0, SEEK_SET);
-	truncate ($fh, 0);
+	my $data = encode_json($datahr);
+	seek ($fh, 0, SEEK_SET) or die;
+	truncate ($fh, 0) or die;
 	return write_file($fh, $data);	# write_file does close() for us
+}
+
+sub flock_wc
+{
+	my ($filename, $hr) = @_;
+
+	sysopen (my $fh, $filename, O_RDWR|O_CREAT) or die;
+	flock ($fh, LOCK_EX) or die;
+
+	return write_and_close($fh, $hr);
 }
 
 sub push_session_data
@@ -87,10 +96,10 @@ sub push_session_data
 
 	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
 
-	my ($fh, %data) = flock_and_read($file);
-	$data{$key} = $value;
+	my ($fh, $data) = flock_and_read($file);
+	$data->{$key} = $value;
 
-	return write_and_close($fh, %data);
+	return write_and_close($fh, $data);
 }
 
 sub pop_session_data
@@ -99,17 +108,17 @@ sub pop_session_data
 
 	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
 
-	my ($fh, %data) = flock_and_read($file);
+	my ($fh, $data) = flock_and_read($file);
 
-	unless (defined $data{$key}) {
+	unless (defined $data->{$key}) {
 		close ($fh);
 		return undef;
 	}
 
-	my $value = $data{$key};
-	delete $data{$key};
+	my $value = $data->{$key};
+	delete $data->{$key};
 
-	write_and_close($fh, %data);
+	write_and_close($fh, $data);
 
 	return $value;
 }
@@ -120,10 +129,7 @@ sub peek_session_data
 
 	my $file = File::Spec->tmpdir() . '/' . sprintf("${CGI::Session::Driver::file::FileName}_bocdata", $sessid);
 
-	my ($fh, %data) = flock_and_read($file);
-	close ($fh);
-
-	return $data{$key};
+	return flock_rc($file)->{$key};
 }
 
 sub get_edit_token
@@ -293,16 +299,11 @@ sub read_tg2
 		(my $tg = $tg_file) =~ s/.*\/([^\/]+)$/$1/;
 		my $mtime = fmtime('transaction_groups/$tg');
 		if (fmtime("transaction_groups/.$tg.json") > $mtime) {
-			(my $fh, my %tgd) = flock_and_read("$config{Root}/transaction_groups/.$tg.json");
-			close $fh;
-			return %tgd;
+			return %{flock_rc("$config{Root}/transaction_groups/.$tg.json")};
 		} else {
 			my %tgd = read_tg($tg_file);
 			if (cache_lock) {
-				if (fmtime('transaction_groups/$tg') == $mtime) {
-					my $fh = flock_only("$config{Root}/transaction_groups/.$tg.json");
-					write_and_close($fh, %tgd);
-				}
+				flock_wc("$config{Root}/transaction_groups/.$tg.json", \%tgd) if fmtime('transaction_groups/$tg') == $mtime;
 				cache_unlock;
 			}
 			return %tgd;
@@ -420,8 +421,7 @@ sub compute_tg_c
 	my %computed;
 	my $newest = newest;
 	if (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp") {
-		(my $fh, %computed) = flock_and_read("$config{Root}/transaction_groups/.$tg.precomp");
-		close $fh;
+		%computed = %{flock_rc("$config{Root}/transaction_groups/.$tg.precomp")};
 
 		goto compute_me if $rel_acc && exists $computed{$rel_acc};
 
@@ -443,10 +443,7 @@ compute_me:
 	%computed = compute_tg($tg, $tgds{$tg}, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts, fmtime("transaction_groups/.$tg.precomp") > $newest);
 
 	unless ($rel_acc || nonfinite(values %computed) || !cache_lock) {
-		if (newest == $newest) {
-			my $fh = flock_only("$config{Root}/transaction_groups/.$tg.precomp");
-			write_and_close($fh, %computed);
-		}
+		flock_wc("$config{Root}/transaction_groups/.$tg.precomp", \%computed) if newest == $newest;
 		cache_unlock;
 	}
 
@@ -460,10 +457,7 @@ sub drained_accts
 	my %drained;
 
 	my $newest = newest;
-	if (fmtime('transaction_groups/.tgds') > $newest) {
-		(my $fh, %tgds) = flock_and_read("$config{Root}/transaction_groups/.tgds");
-		close $fh;
-	}
+	%tgds = %{flock_rc("$config{Root}/transaction_groups/.tgds")} if fmtime('transaction_groups/.tgds') > $newest;
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 		$tg = $1 if $tg =~ /([^\/]*)$/;
 		$tgds{$tg} = \%{{read_tg2("$config{Root}/transaction_groups/$tg")}} unless exists $tgds{$tg};
@@ -475,10 +469,7 @@ sub drained_accts
 		}
 	}
 	if (cache_lock) {
-		unless (newest != $newest || fmtime('transaction_groups/.tgds') > $newest) {
-			my $fh = flock_only("$config{Root}/transaction_groups/.tgds");
-			write_and_close($fh, %tgds);
-		}
+		flock_wc("$config{Root}/transaction_groups/.tgds", \%tgds) unless (newest != $newest || fmtime('transaction_groups/.tgds') > $newest);
 		cache_unlock;
 	}
 
@@ -516,10 +507,7 @@ sub resolve_accts
 	my $loops = 50;
 
 	my $newest = newest;
-	if (fmtime('transaction_groups/.pres') > $newest) {
-		(my $fh, %pres) = flock_and_read("$config{Root}/transaction_groups/.pres");
-		close $fh;
-	}
+	%pres = %{flock_rc("$config{Root}/transaction_groups/.pres")} if fmtime('transaction_groups/.pres') > $newest;
 	while ($loops--) {
 		my %running;
 
@@ -552,10 +540,7 @@ sub resolve_accts
 
 		if (nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved) {
 			if (cache_lock) {
-				unless (newest != $newest || fmtime('transaction_groups/.pres') > $newest) {
-					my $fh = flock_only("$config{Root}/transaction_groups/.pres");
-					write_and_close($fh, %pres);
-				}
+				flock_wc("$config{Root}/transaction_groups/.pres", \%pres) unless (newest != $newest || fmtime('transaction_groups/.pres') > $newest);
 				cache_unlock;
 			}
 			return %resolved;
@@ -2707,18 +2692,12 @@ sub gen_ucp
 
 	my @events;
 	my $newest = newest;
-	if (fmtime('events/.evs') > $newest) {
-		(my $fh, %evs) = flock_and_read("$config{Root}/events/.evs");
-		close $fh;
-	}
+	%evs = %{flock_rc("$config{Root}/events/.evs")} if fmtime('events/.evs') > $newest;
 	foreach my $mid (date_sorted_htsvs('events')) {
 		push (@events, { MID => $mid, NAME => $evs{$mid}->{Name}, DATE => $evs{$mid}->{Date}, LOCKED => (exists $evs{$mid}->{Locked}) }) if ($evs{$mid}->{Leader} // '') eq $user;
 	}
 	if (cache_lock) {
-		unless (newest != $newest || fmtime('events/.evs') > $newest) {
-			my $fh = flock_only("$config{Root}/events/.evs");
-			write_and_close($fh, %evs);
-		}
+		flock_wc("$config{Root}/events/.evs", \%evs) unless (newest != $newest || fmtime('events/.evs') > $newest);
 		cache_unlock;
 	}
 
