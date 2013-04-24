@@ -37,6 +37,7 @@ use Units;
 my %config;
 my $git;
 my %tgds;	# only ever used in generate phase, so never twice in one request
+my %pres;
 
 sub update_global_config
 {
@@ -411,6 +412,10 @@ sub compute_tg_c
 
 	return if $omit && exists $tgds{$tg}->{Omit};
 
+	if (-r "$config{Root}/transaction_groups/$tg" && exists $pres{$tg}) {
+		return %{$pres{$tg}} unless $rel_acc && exists $pres{$tg}->{$rel_acc};
+	}
+
 	my %computed;
 	my $newest = newest;
 	if (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp") {
@@ -509,6 +514,11 @@ sub resolve_accts
 	my %resolved;
 	my $loops = 50;
 
+	my $newest = newest;
+	if (fmtime('transaction_groups/.pres') > $newest) {
+		(my $fh, %pres) = flock_and_read("$config{Root}/transaction_groups/.pres");
+		close $fh;
+	}
 	while ($loops--) {
 		my %running;
 
@@ -521,6 +531,7 @@ sub resolve_accts
 				$running{$_} = 0 unless exists $running{$_};
 				$running{$_} += $computed{$_};
 			}
+			$pres{$tg} = \%computed unless $pres{$tg} || nonfinite(values %computed);
 		}
 
 		my $unresolved = nonfinite(values %resolved);
@@ -538,7 +549,16 @@ sub resolve_accts
 			$resolved{$_} = $running{$_} if !exists $resolved{$_} || nonfinite($resolved{$_});
 		}
 
-		return %resolved if nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved;
+		if (nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved) {
+			if (cache_lock) {
+				unless (newest != $newest || fmtime('transaction_groups/.pres') > $newest) {
+					my $fh = flock_only("$config{Root}/transaction_groups/.pres");
+					write_and_close($fh, %pres);
+				}
+				cache_unlock;
+			}
+			return %resolved;
+		}
 	}
 
 	return;
@@ -4013,6 +4033,7 @@ sub clear_caches
 	# the approach here is to ensure in-process caches are consistent WITHOUT threads:
 	# we would need more locking for threading with shared caches...
 	undef %tgds;
+	undef %pres;
 	clear_cache_tg;
 	return;
 }
