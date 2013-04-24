@@ -287,7 +287,25 @@ sub read_tg2
 {
 	my ($tg_file) = @_;
 
-	return read_tg($tg_file) unless $tg_file =~ /.*\/E([^\/]+)$/ && -e "$config{Root}/events/$1";
+	unless ($tg_file =~ /.*\/E([^\/]+)$/ && -e "$config{Root}/events/$1") {
+		(my $tg = $tg_file) =~ s/.*\/([^\/]+)$/$1/;
+		my $mtime = fmtime('transaction_groups/$tg');
+		if (fmtime("transaction_groups/.$tg.json") > $mtime) {
+			(my $fh, my %tgd) = flock_and_read("$config{Root}/transaction_groups/.$tg.json");
+			close $fh;
+			return %tgd;
+		} else {
+			my %tgd = read_tg($tg_file);
+			if (cache_lock) {
+				if (fmtime('transaction_groups/$tg') == $mtime) {
+					my $fh = flock_only("$config{Root}/transaction_groups/.$tg.json");
+					write_and_close($fh, %tgd);
+				}
+				cache_unlock;
+			}
+			return %tgd;
+		}
+	}
 
 	return event_to_tg(%{{read_htsv("$config{Root}/events/$1", undef, [ 'Person', 'Notes' ])}});
 }
