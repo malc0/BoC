@@ -38,6 +38,7 @@ my %config;
 my $git;
 my %tgds;	# only ever used in generate phase, so never twice in one request
 my %pres;
+my %evs;
 
 sub update_global_config
 {
@@ -1486,7 +1487,7 @@ sub gen_manage_events
 
 	my @evlist;
 	foreach my $mid (date_sorted_htsvs('events')) {
-		my %evnt = read_htsv("$config{Root}/events/$mid", undef, [ 'Person', 'Notes' ]);
+		my %evnt = %{$evs{$mid}};
 		my $leader = (defined $evnt{Leader}) ? ((exists $ppl{$evnt{Leader}}) ? $ppl{$evnt{Leader}} : $evnt{Leader}) : '';
 		$evnt{EventType} //= 'none';
 		$evnt{Template} //= 'none';
@@ -1651,10 +1652,9 @@ sub mru_event_accts
 	my %accts;
 
 	foreach my $mid (reverse date_sorted_htsvs('events')) {
-		my %evnt = read_htsv("$config{Root}/events/$mid", undef, [ 'Person', 'Notes' ]);
-		last if defined clean_date($evnt{Date}) && clean_date($evnt{Date}) < $thresh;
+		last if defined clean_date($evs{$mid}->{Date}) && clean_date($evs{$mid}->{Date}) < $thresh;
 #		next unless !(defined $et) || (defined $evnt{EventType} && $et eq $evnt{EventType});
-		$accts{$_} = 1 foreach (@{$evnt{Person}});
+		$accts{$_} = 1 foreach (@{$evs{$mid}->{Person}});
 	}
 
 	return %accts;
@@ -2681,7 +2681,13 @@ sub date_sorted_htsvs
 	if ($flavour eq 'transaction_groups') {
 		$dates{$_} = $tgds{$_}{Date} foreach (keys %tgds);
 	} else {
-		%dates = grep_htsv_key("$config{Root}/$flavour/*", 'Date', 1);
+		unless (%evs) {
+			foreach (grep (-f, glob ("$config{Root}/events/*"))) {
+				(my $ev = $_) =~ s/^.*\///;
+				$evs{$ev} = \%{{read_htsv($_, undef, [ 'Person', 'Notes' ])}};
+			}
+		}
+		$dates{$_} = $evs{$_}{Date} foreach (keys %evs);
 	}
 
 	my %rds;
@@ -2713,9 +2719,20 @@ sub gen_ucp
 	my $user = $acct // $session->param('User');
 
 	my @events;
+	my $newest = newest;
+	if (fmtime('events/.evs') > $newest) {
+		(my $fh, %evs) = flock_and_read("$config{Root}/events/.evs");
+		close $fh;
+	}
 	foreach my $mid (date_sorted_htsvs('events')) {
-		my %evnt = read_htsv("$config{Root}/events/$mid", undef, [ 'Person', 'Notes' ]);
-		push (@events, { MID => $mid, NAME => $evnt{Name}, DATE => $evnt{Date}, LOCKED => (exists $evnt{Locked}) }) if ($evnt{Leader} // '') eq $user;
+		push (@events, { MID => $mid, NAME => $evs{$mid}->{Name}, DATE => $evs{$mid}->{Date}, LOCKED => (exists $evs{$mid}->{Locked}) }) if ($evs{$mid}->{Leader} // '') eq $user;
+	}
+	if (cache_lock) {
+		unless (newest != $newest || fmtime('events/.evs') > $newest) {
+			my $fh = flock_only("$config{Root}/events/.evs");
+			write_and_close($fh, %evs);
+		}
+		cache_unlock;
 	}
 
 	my %acct_names = get_acct_name_map;
@@ -4034,6 +4051,7 @@ sub clear_caches
 	# we would need more locking for threading with shared caches...
 	undef %tgds;
 	undef %pres;
+	undef %evs;
 	clear_cache_tg;
 	return;
 }
