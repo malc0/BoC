@@ -121,7 +121,7 @@ sub valid_ft
 	}
 
 	my $whinge = sub { goto whingefail };
-	validate_units(\%{{read_units_cfg("$root/config_units")}}, $whinge, 1);
+	validate_units(\%{{read_units_cfg("$root/config_units")}}, $whinge, 1, "$root/config_units");
 
 	my %cds = known_commod_descs;
 	my @attrs = get_attrs;

@@ -16,7 +16,7 @@ use base 'Exporter';
 our @EXPORT = qw(init_units_cfg read_units_cfg write_units_cfg known_currs known_units known_commod_descs validate_units date_sort_rates get_rates);
 
 my $cfg_file;
-my $units_valid;
+my %units_valid;
 my %rates;
 my %clean_dates;
 my %sorted_cfg;
@@ -112,10 +112,10 @@ sub known_commod_descs
 
 sub validate_units
 {
-	my ($uref, $whinge, $defs_only) = @_;
+	my ($uref, $whinge, $defs_only, $cache_id) = @_;
 	my %cfg = %$uref;
 
-	return 1 if $units_valid;
+	return 1 if $cache_id && $units_valid{$cache_id};
 
 	my $ncommods = 0;
 	foreach ('Anchor', 'Default', 'Commodities') {
@@ -196,7 +196,7 @@ sub validate_units
 		$whinge->("No valid rates found for $ex") unless $rate_found;
 	}
 
-	$units_valid = 1;
+	$units_valid{$cache_id} = 1 if $cache_id;
 
 	return 1;
 }
@@ -230,7 +230,7 @@ sub get_rates
 
 	unless (%sorted_cfg) {
 		%sorted_cfg = read_units_cfg($cfg_file);
-		validate_units(\%sorted_cfg, $die);
+		validate_units(\%sorted_cfg, $die, undef, $cfg_file);
 		%sorted_cfg = date_sort_rates(%sorted_cfg);
 	}
 	my %cfg = %sorted_cfg;

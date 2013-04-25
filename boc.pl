@@ -777,7 +777,7 @@ sub gen_tcp
 	my $tmpl = load_template('treasurer_cp.html');
 
 	my %units_cfg = read_units_cfg("$config{Root}/config_units");
-	validate_units(\%units_cfg, sub { $tmpl->param(WHINGE => 'Units config broken: fix it!') }, 1);
+	validate_units(\%units_cfg, sub { $tmpl->param(WHINGE => 'Units config broken: fix it!') }, 1, "$config{Root}/config_units");
 
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %cf = valid_fee_cfg;
@@ -2970,7 +2970,7 @@ sub gen_tg
 	if ($calced) {
 		my $whinge = sub { whinge("Can't display calculated values: $_[0]", gen_tg($edit_id, undef, $def_cred, $session, $etoken)) };
 		validate_tg($edit_id, \%tgdetails, $whinge);
-		validate_units(\%units_cfg, $whinge);
+		validate_units(\%units_cfg, $whinge, undef, "$config{Root}/config_units");
 		%dds = double_drainers;
 		$whinge->("Multiple drains of '$dds{$edit_id}'") if exists $dds{$edit_id};
 	}
