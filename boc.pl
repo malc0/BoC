@@ -6,7 +6,6 @@ use warnings;
 use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_SH LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
-use File::Find;
 use List::Util qw(first min sum);
 use Text::Wrap;
 use Time::HiRes qw(stat usleep);
@@ -370,7 +369,7 @@ sub try_commit_and_unlock
 #	say STDERR $@->output() if $@;
 	if ($commit_fail) {
 		eval { $git->reset({hard => 1}) };
-		eval { find({ wanted => sub { /^(.*\.new)$/ and unlink $1 }, untaint => 1}, $config{Root}) } unless $@;
+		eval { unlink untaint($_) foreach (glob ("$config{Root}/*.new $config{Root}/*/*.new")) } unless $@;
 		if ($@) {
 			# die hard, leaving locks, if we can't clean up
 			unless (-e "$config{Root}/RepoBroke") {
