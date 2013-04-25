@@ -49,9 +49,12 @@ sub unlink
 sub update_global_config
 {
 	my (%append_cfg) = @_;
+
 	@config{keys %append_cfg} = values %append_cfg;	# merge settings
 	$config{LongName} //= 'Set LongName in installation config!';
 	$config{ShortName} //= 'Set ShortName in installation config!';
+	$config{TimeoutURL} //= 'boc.pl?serve=timeout';
+
 	return;
 }
 
@@ -562,6 +565,7 @@ sub load_template
 	}
 	$tmpl->param(SN => $config{ShortName});
 	$tmpl->param(LN => $config{LongName});
+	$tmpl->param(JS => $config{TimeoutURL});
 	$tmpl->param(STYLE => $config{StyleURL});
 	$tmpl->param(ETOKEN => $etoken) if $etoken;
 	$tmpl->param(TCP => $session->param('IsAdmin')) if $session;

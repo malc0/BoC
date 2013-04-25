@@ -3,7 +3,7 @@
 	<head>
 		<title><TMPL_VAR NAME=SN> installation configuration</title>
 		<TMPL_IF NAME=STYLE><link href="<TMPL_VAR NAME=STYLE>" rel="stylesheet" type="text/css"/></TMPL_IF>
-		<script type="text/javascript" src="boc.pl?serve=timeout" defer="defer"></script>
+		<script type="text/javascript" src="<TMPL_VAR NAME=JS>" defer="defer"></script>
 	</head>
 	<body>
 		<form action="boc.pl" method="post">
@@ -18,6 +18,7 @@
 			<p><label>System short name: <input type="text" name="ShortName" value="<TMPL_VAR NAME=ShortName>"/></label></p>
 			<p><label>System long name: <input type="text" name="LongName" value="<TMPL_VAR NAME=LongName>"/></label></p>
 			<p><label>System style file location: <input type="text" name="StyleURL" value="<TMPL_VAR NAME=StyleURL>" style="width:50%"/></label></p>
+			<p><label>timeout.js URL (SLOW unless set): <input type="text" name="TimeoutURL" value="<TMPL_VAR NAME=TimeoutURL>" style="width:50%"/></label></p>
 			<p><label>Allow passwordless user logins?: <input type="checkbox" name="Passwordless" value="" <TMPL_IF NAME=Passwordless>checked="checked"</TMPL_IF>/></label></p>
 			<p><label>System email address: <input type="text" name="email" value="<TMPL_VAR NAME=email>"/></label></p>
 			<p><label>SMTP relay host (or &apos;sendmail&apos; for local): <input type="text" name="Relay" value="<TMPL_VAR NAME=Relay>"/></label></p>
