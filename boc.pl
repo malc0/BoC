@@ -17,6 +17,7 @@ use Crypt::PasswdMD5;
 use File::Slurp;
 use Git::Wrapper;
 use HTML::Template;
+use HTML::Template::Pro;
 use JSON::XS;
 use MIME::Lite;
 use Text::Password::Pronounceable;
@@ -556,12 +557,17 @@ sub resolve_accts
 
 sub load_template
 {
-	my ($file, $etoken, $session) = @_;
+	my ($file, $etoken, $session, $not_pro) = @_;
 
-	my $tmpl = HTML::Template->new(filename => $file, global_vars => 1, case_sensitive => 1) or die;
-	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
-	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
-	$tmpl->param(STYLE => $config{StyleURL}) if $tmpl->query(name => 'STYLE');
+	my $tmpl;
+	unless ($not_pro) {
+		$tmpl = HTML::Template::Pro->new(filename => $file, global_vars => 1, case_sensitive => 1) or die;
+	} else {
+		$tmpl = HTML::Template->new(filename => $file, global_vars => 1, case_sensitive => 1) or die;
+	}
+	$tmpl->param(SN => $config{ShortName});
+	$tmpl->param(LN => $config{LongName});
+	$tmpl->param(STYLE => $config{StyleURL});
 	$tmpl->param(ETOKEN => $etoken) if $etoken;
 	$tmpl->param(TCP => $session->param('IsAdmin')) if $session;
 	return $tmpl;
@@ -571,9 +577,9 @@ sub load_email_template
 {
 	my ($file, $url) = @_;
 
-	my $tmpl = HTML::Template->new(filename => $file, case_sensitive => 1) or die;
-	$tmpl->param(SN => $config{ShortName}) if $tmpl->query(name => 'SN');
-	$tmpl->param(LN => $config{LongName}) if $tmpl->query(name => 'LN');
+	my $tmpl = HTML::Template::Pro->new(filename => $file, case_sensitive => 1) or die;
+	$tmpl->param(SN => $config{ShortName});
+	$tmpl->param(LN => $config{LongName});
 	$tmpl->param(URL => $url, CONTACT => $config{email});
 	return $tmpl;
 }
@@ -954,7 +960,7 @@ sub gen_edit_addr_alts
 
 sub gen_edit_inst_cfg
 {
-	my $tmpl = load_template('edit_inst_cfg.html', $_[0]);
+	my $tmpl = load_template('edit_inst_cfg.html', $_[0], undef, 1);
 	my %inst_cfg = read_simp_cfg("$config{Root}/config", 1);
 
 	foreach my $param ($tmpl->param()) {
