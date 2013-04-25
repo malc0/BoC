@@ -36,7 +36,7 @@ use Units;
 
 my %config;
 my $git;
-my %tgds;
+my %tgds;	# only ever used in generate phase, so never twice in one request
 
 sub update_global_config
 {
@@ -3944,7 +3944,16 @@ sub despatch
 	return;
 }
 
-set_htsv_callbacks(\&read_htsv_encode, \&write_htsv_encode);
+sub clear_caches
+{
+	# the approach here is to ensure in-process caches are consistent WITHOUT threads:
+	# we would need more locking for threading with shared caches...
+	undef %tgds;
+	clear_cache_tg;
+	return;
+}
+
+set_htsv_callbacks(\&read_htsv_encode, \&write_htsv_encode, \&clear_caches);
 my $cgi = CGI->new;
 
 %config = read_simp_cfg('boc_config');

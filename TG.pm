@@ -15,7 +15,7 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(read_tg write_tg validate_tg tg_tp_amnt_per_share compute_tg);
+our @EXPORT = qw(read_tg write_tg validate_tg tg_tp_amnt_per_share compute_tg clear_cache_tg);
 
 my (%valid, %vavalid);
 
@@ -275,6 +275,13 @@ sub compute_tg
 	confess 'Couldn\'t balance TG' if abs ($neg_error - sum values %pennies) > .0001;
 
 	return %pennies;
+}
+
+sub clear_cache_tg
+{
+	undef %valid;
+	undef %vavalid;
+	return;
 }
 
 1;
