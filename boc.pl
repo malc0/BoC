@@ -6,7 +6,7 @@ use warnings;
 use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_SH LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
-use List::Util qw(first min sum);
+use List::Util qw(first max min sum);
 use Text::Wrap;
 use Time::HiRes qw(stat usleep);
 
@@ -408,11 +408,6 @@ sub nonfinite
 	return $infinite;
 }
 
-sub newest
-{
-	return (sort map (((stat)[9] // 0), grep (-f, glob ("$config{Root}/* $config{Root}/*/*"))))[-1];
-}
-
 sub compute_tg_c
 {
 	my ($tg, $omit, $neg_accts, $resolved, $rel_acc, $rel_accts, $die) = @_;
@@ -424,7 +419,7 @@ sub compute_tg_c
 	}
 
 	my %computed;
-	my $newest = newest;
+	my $newest = fmtime('newest');
 	if (-r "$config{Root}/transaction_groups/$tg" && -r "$config{Root}/transaction_groups/.$tg.precomp") {
 		%computed = %{flock_rc("$config{Root}/transaction_groups/.$tg.precomp")};
 
@@ -448,7 +443,7 @@ compute_me:
 	%computed = compute_tg($tg, $tgds{$tg}, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts, fmtime("transaction_groups/.$tg.precomp") > $newest);
 
 	unless ($rel_acc || nonfinite(values %computed) || !cache_lock) {
-		flock_wc("$config{Root}/transaction_groups/.$tg.precomp", \%computed) if newest == $newest;
+		flock_wc("$config{Root}/transaction_groups/.$tg.precomp", \%computed) if fmtime('newest') == $newest;
 		cache_unlock;
 	}
 
@@ -461,7 +456,7 @@ sub drained_accts
 	$exempt = '' unless $exempt;
 	my %drained;
 
-	my $newest = newest;
+	my $newest = fmtime('newest');
 	%tgds = %{flock_rc("$config{Root}/transaction_groups/.tgds")} if fmtime('transaction_groups/.tgds') > $newest;
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 		$tg = $1 if $tg =~ /([^\/]*)$/;
@@ -474,7 +469,7 @@ sub drained_accts
 		}
 	}
 	if (cache_lock) {
-		flock_wc("$config{Root}/transaction_groups/.tgds", \%tgds) unless (newest != $newest || fmtime('transaction_groups/.tgds') > $newest);
+		flock_wc("$config{Root}/transaction_groups/.tgds", \%tgds) unless (fmtime('newest') != $newest || fmtime('transaction_groups/.tgds') > $newest);
 		cache_unlock;
 	}
 
@@ -511,7 +506,7 @@ sub resolve_accts
 	my %resolved;
 	my $loops = 50;
 
-	my $newest = newest;
+	my $newest = fmtime('newest');
 	%pres = %{flock_rc("$config{Root}/transaction_groups/.pres")} if fmtime('transaction_groups/.pres') > $newest;
 	while ($loops--) {
 		my %running;
@@ -545,7 +540,7 @@ sub resolve_accts
 
 		if (nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved) {
 			if (cache_lock) {
-				flock_wc("$config{Root}/transaction_groups/.pres", \%pres) unless (newest != $newest || fmtime('transaction_groups/.pres') > $newest);
+				flock_wc("$config{Root}/transaction_groups/.pres", \%pres) unless (fmtime('newest') != $newest || fmtime('transaction_groups/.pres') > $newest);
 				cache_unlock;
 			}
 			return %resolved;
@@ -2700,13 +2695,13 @@ sub gen_ucp
 	my $user = $acct // $session->param('User');
 
 	my @events;
-	my $newest = newest;
+	my $newest = fmtime('newest');
 	%evs = %{flock_rc("$config{Root}/events/.evs")} if fmtime('events/.evs') > $newest;
 	foreach my $mid (date_sorted_htsvs('events')) {
 		push (@events, { MID => $mid, NAME => $evs{$mid}->{Name}, DATE => $evs{$mid}->{Date}, LOCKED => (exists $evs{$mid}->{Locked}) }) if ($evs{$mid}->{Leader} // '') eq $user;
 	}
 	if (cache_lock) {
-		flock_wc("$config{Root}/events/.evs", \%evs) unless (newest != $newest || fmtime('events/.evs') > $newest);
+		flock_wc("$config{Root}/events/.evs", \%evs) unless (fmtime('newest') != $newest || fmtime('events/.evs') > $newest);
 		cache_unlock;
 	}
 
@@ -4020,10 +4015,23 @@ sub despatch
 	return;
 }
 
+sub fix_newest
+{
+	my $ref = fmtime('newest');
+	my $max = untaint (max map (((stat)[9] // 0), grep (-f, glob ("$config{Root}/* $config{Root}/*/*"))));
+	if ($max > $ref) {
+		flock_wc("$config{Root}/newest", {});
+		utime ($max, $max, "$config{Root}/newest");
+	}
+
+	return;
+}
+
 sub clear_caches
 {
 	my ($filename) = @_;
 
+	flock_wc("$config{Root}/newest", {});	# effectively `touch'
 	# the approach here is to ensure in-process caches are consistent WITHOUT threads:
 	# we would need more locking for threading with shared caches...
 	undef %tgds;
@@ -4064,6 +4072,8 @@ create_datastore($cgi, 'No useable administrator account') unless scalar grep (d
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty || !(defined $cgi->param('tmpl')) || $cgi->param('tmpl') =~ m/^login(_nopw)?$/ || $session->param('Instance') ne $config{Root});
 refresh_session($session, $session->param('User'), $session->param('IsAuthed')) if fmtime('users/' . $session->param('User')) > $session->param('AcctMtime');
+
+fix_newest;
 
 despatch($session);
 
