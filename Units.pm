@@ -23,6 +23,10 @@ my %sorted_cfg;
 
 sub init_units_cfg
 {
+	if ($cfg_file && $_[0] ne $cfg_file) {
+		undef %rates;
+		undef %sorted_cfg;
+	}
 	$cfg_file = $_[0];
 	return;
 }
@@ -84,6 +88,12 @@ sub write_units_cfg
 	unless (exists $cfg->{Anchor} or exists $cfg->{Commodities}) {
 		delete $cfg->{$_} foreach (grep (ref $cfg->{$_}, keys %$cfg));
 	}
+
+	if ($file eq $cfg_file) {
+		undef %rates;
+		undef %sorted_cfg;
+	}
+	delete $units_valid{$file};
 
 	return write_htsv($file, $cfg, 12);
 }
