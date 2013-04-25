@@ -595,7 +595,7 @@ sub emit_with_status
 sub whinge
 {
 	my ($whinge, $tmpl) = @_;
-	$tmpl->query(name => 'WHINGE') ? $tmpl->param(WHINGE => encode_for_html($whinge)) : $tmpl->param(STATUS => encode_for_html($whinge));
+	$tmpl->param(WHINGE => encode_for_html($whinge));
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
