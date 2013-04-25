@@ -8,14 +8,13 @@ our $VERSION = '1.00';
 
 use base 'Exporter';
 
-our @EXPORT = qw(set_htsv_encoders read_htsv write_htsv grep_htsv_key);
+our @EXPORT = qw(set_htsv_callbacks read_htsv write_htsv grep_htsv_key);
 
-my $read_encoder;
-my $write_encoder;
+my ($read_encoder, $write_encoder, $write_complete);
 
-sub set_htsv_encoders
+sub set_htsv_callbacks
 {
-	($read_encoder, $write_encoder) = @_;
+	($read_encoder, $write_encoder, $write_complete) = @_;
 	return;
 }
 
@@ -129,6 +128,8 @@ sub write_htsv
 	close $fh or die;
 
 	rename ("$file.new", $file) or confess "$file: $!";
+
+	$write_complete->($file) if $write_complete;
 
 	return;
 }

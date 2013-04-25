@@ -3944,7 +3944,7 @@ sub despatch
 	return;
 }
 
-set_htsv_encoders(\&read_htsv_encode, \&write_htsv_encode);
+set_htsv_callbacks(\&read_htsv_encode, \&write_htsv_encode);
 my $cgi = CGI->new;
 
 %config = read_simp_cfg('boc_config');
