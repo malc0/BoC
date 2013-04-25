@@ -4039,9 +4039,9 @@ die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $co
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} and -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
 
-emit(load_template($cgi->param('serve') . '.html')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".html";
-emit(load_template($cgi->param('serve') . '.js')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".js";
-emit(load_template($cgi->param('serve') . '.css')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".css";
+emit(load_template(untaint($cgi->param('serve')) . '.html')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".html";
+emit(load_template(untaint($cgi->param('serve')) . '.js')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".js";
+emit(load_template(untaint($cgi->param('serve')) . '.css')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".css";
 
 $ENV{PATH} = '/bin:/usr/bin';
 $git = Git::Wrapper->new($config{Root});
