@@ -14,7 +14,7 @@ use base 'Exporter';
 our @EXPORT = qw(set_accts_config_root grep_acct_key get_acct_name_map clear_cache_accts);
 
 my $root;
-my %accts;
+my (%accts, %cached);
 
 sub set_accts_config_root
 {
@@ -27,12 +27,16 @@ sub grep_acct_key
 	my ($flavour, $key, $ret_key) = @_;
 
 	$ret_key //= $key;
+	return %{$cached{"$flavour $key $ret_key"}} if exists $cached{"$flavour $key $ret_key"};
+
 	my %response;
 	foreach (grep (-f, glob ("$root/$flavour/*"))) {
 		(my $acct = $_) =~ s/^.*\///;
 		$accts{$acct} = \%{{read_htsv($_)}} unless exists $accts{$acct};
 		$response{$acct} = $accts{$acct}->{$ret_key} if clean_username($acct) && exists $accts{$acct}->{$key};
 	}
+	$cached{"$flavour $key $ret_key"} = \%response;
+
 	return %response;
 }
 
@@ -46,6 +50,7 @@ sub get_acct_name_map
 sub clear_cache_accts
 {
 	undef %accts;
+	undef %cached;
 	return;
 }
 
