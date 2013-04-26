@@ -6,6 +6,7 @@ use warnings;
 use Fcntl qw(O_RDWR O_WRONLY O_EXCL O_CREAT LOCK_EX LOCK_SH LOCK_NB SEEK_SET);
 use CGI qw(param);
 use CGI::Carp qw(fatalsToBrowser);
+use Digest::SHA qw(sha1_hex);
 use List::Util qw(first max min sum);
 use Text::Wrap;
 use Time::HiRes qw(stat usleep);
@@ -4073,6 +4074,7 @@ set_event_config_root($config{Root});
 create_datastore($cgi, "$config{Root} does not appear to be a BoC data store") unless (-d "$config{Root}/users");
 create_datastore($cgi, 'No useable administrator account') unless scalar grep (defined, grep_acct_key('users', 'IsAdmin', 'Password'));
 
+CGI::Session->name(sha1_hex($config{Root}));
 my $session = CGI::Session->load($cgi) or die CGI::Session->errstr;
 $session = get_new_session($session, $cgi) if ($session->is_empty || !(defined $cgi->param('tmpl')) || $cgi->param('tmpl') =~ m/^login(_nopw)?$/ || $session->param('Instance') ne $config{Root});
 refresh_session($session, $session->param('User'), $session->param('IsAuthed')) if fmtime('users/' . $session->param('User')) > $session->param('AcctMtime');
