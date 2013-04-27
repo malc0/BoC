@@ -94,7 +94,7 @@ sub flock_wc
 {
 	my ($filename, $hr) = @_;
 
-	sysopen (my $fh, $filename, O_RDWR|O_CREAT) or die;
+	sysopen (my $fh, $filename, O_RDWR|O_CREAT) or die "Couldn't open $filename";
 	flock ($fh, LOCK_EX) or die;
 
 	return write_and_close($fh, $hr);
@@ -472,7 +472,7 @@ sub drained_accts
 			push (@{$drained{$tgdetails{Creditor}[$_]}}, $tg) if (defined $tgdetails{Creditor}[$_] && $tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgdetails{Creditor}[$_] =~ /^TrnsfrPot\d$/)) && $tg ne $exempt && !($to_zero_only && $tgdetails{$tgdetails{Creditor}[$_]}[$_]);
 		}
 	}
-	if (cache_lock) {
+	if (%tgds && cache_lock) {
 		flock_wc("$config{Root}/transaction_groups/.tgds", \%tgds) unless (fmtime('newest') != $newest || fmtime('transaction_groups/.tgds') > $newest);
 		cache_unlock;
 	}
@@ -543,7 +543,7 @@ sub resolve_accts
 		}
 
 		if (nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved) {
-			if (cache_lock) {
+			if (%pres && cache_lock) {
 				flock_wc("$config{Root}/transaction_groups/.pres", \%pres) unless (fmtime('newest') != $newest || fmtime('transaction_groups/.pres') > $newest);
 				cache_unlock;
 			}
@@ -2705,7 +2705,7 @@ sub gen_ucp
 	foreach my $mid (date_sorted_htsvs('events')) {
 		push (@events, { MID => $mid, NAME => $evs{$mid}->{Name}, DATE => $evs{$mid}->{Date}, LOCKED => (exists $evs{$mid}->{Locked}) }) if ($evs{$mid}->{Leader} // '') eq $user;
 	}
-	if (cache_lock) {
+	if (%evs && cache_lock) {
 		flock_wc("$config{Root}/events/.evs", \%evs) unless (fmtime('newest') != $newest || fmtime('events/.evs') > $newest);
 		cache_unlock;
 	}
