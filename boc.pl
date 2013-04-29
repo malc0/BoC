@@ -993,7 +993,7 @@ sub gen_manage_event_types
 
 	my @list;
 	foreach my $et_f (map { /.*\/([^\/]*)/; $1 } glob ("$config{Root}/event_types/*")) {
-		my %et = read_htsv("$config{Root}/event_types/$et_f", undef, [ 'Unit' ]);
+		my %et = read_htsv("$config{Root}/event_types/$et_f", undef, [ 'Unit', 'DispText' ]);
 		my $link_acct = (exists $et{LinkedAcct}) ? $et{LinkedAcct} : $cf{DefaultAccount};
 		my $valid_link = ($link_acct && exists $vaccts{$link_acct});
 		my ($fees, $exps) = get_event_types(\%et, \%drain_descs);
@@ -1011,7 +1011,7 @@ sub gen_edit_et
 	my $tmpl = load_template('edit_event_type.html', $etoken);
 
 	my %et;
-	%et = read_htsv("$config{Root}/event_types/$edit_id", undef, [ 'Unit' ]) if $edit_id;
+	%et = read_htsv("$config{Root}/event_types/$edit_id", undef, [ 'Unit', 'DispText' ]) if $edit_id;
 
 	$tmpl->param(NAME => transcode_uri_for_html($edit_id));
 
@@ -1042,12 +1042,12 @@ sub gen_edit_et
 		my $row = @$fee_rows[$ord];
 		my $dr_row = (grep (@{$cf{Fee}}[$_] eq $et{Unit}[$row], 0 .. $#{$cf{Fee}}))[0] if exists $drains{$et{Unit}[$row]};
 		my $unit_cl = ($et{Unit}[$row] =~ /[A-Z]/ && grep ($_ eq $et{Unit}[$row], @{$cf{Fee}})) || (exists $drains{$et{Unit}[$row]}) ? '' : 'broken';
-		push (@fees, { CODE => $et{Unit}[$row], UNIT => (exists $drains{$et{Unit}[$row]}) ? @{$cf{Description}}[$dr_row] : $cds{$et{Unit}[$row]} // $et{Unit}[$row], N => $row, C_CL => $unit_cl, COL => (defined $et{Column}[$row] && $et{Column}[$row] == 99999999) ? -1 : $ord * 10 + 10, EX => true($et{Unusual}[$row]) });
+		push (@fees, { CODE => $et{Unit}[$row], UNIT => (exists $drains{$et{Unit}[$row]}) ? @{$cf{Description}}[$dr_row] : $cds{$et{Unit}[$row]} // $et{Unit}[$row], N => $row, C_CL => $unit_cl, COL => (defined $et{Column}[$row] && $et{Column}[$row] == 99999999) ? -1 : $ord * 10 + 10, EX => true($et{Unusual}[$row]), DISP => $et{DispText}[$row] });
 	}
 	foreach my $ord (0 .. $#$exp_rows) {
 		my $row = @$exp_rows[$ord];
 		my $exp_row = (grep (@{$cf{Fee}}[$_] eq $et{Unit}[$row], grep (!exists $drains{$et{Unit}[$row]}, 0 .. $#{$cf{Fee}})))[0];
-		push (@exps, { CODE => $et{Unit}[$row], UNIT => (defined $exp_row) ? @{$cf{Description}}[$exp_row] : $et{Unit}[$row], N => $row, C_CL => $exp_row ? '' : 'broken', COL => (defined $et{Column}[$row] && $et{Column}[$row] == 99999999) ? -1 : $ord * 10 + 10, EX => true($et{Unusual}[$row]) });
+		push (@exps, { CODE => $et{Unit}[$row], UNIT => (defined $exp_row) ? @{$cf{Description}}[$exp_row] : $et{Unit}[$row], N => $row, C_CL => $exp_row ? '' : 'broken', COL => (defined $et{Column}[$row] && $et{Column}[$row] == 99999999) ? -1 : $ord * 10 + 10, EX => true($et{Unusual}[$row]), DISP => $et{DispText}[$row] });
 	}
 
 	$tmpl->param(FEES => \@fees, EXPS => \@exps);
@@ -1558,12 +1558,13 @@ sub gen_edit_event
 	my %drains = get_cf_drains(%cf);
 
 	my (@ccs, @exps);
-	my %unusual;
+	my (%unusual, %dispt);
 	if (%et) {
 		my ($fee_rows, $exp_rows) = get_event_types(\%et, \%drains, 1);
 		@ccs = map { my $fee = $_; (grep ($fee eq $cf{Fee}[$_], 0 .. $#{$cf{Fee}}))[0] } (map ($et{Unit}[$_], @$fee_rows));
 		@exps = map { my $fee = $_; (grep ($fee eq $cf{Fee}[$_], 0 .. $#{$cf{Fee}}))[0] } (map ($et{Unit}[$_], @$exp_rows));
 		$unusual{$et{Unit}[$_]} = 1 foreach (grep (true($et{Unusual}[$_]), (@$fee_rows, @$exp_rows)));
+		$dispt{$et{Unit}[$_]} = $et{DispText}[$_] foreach (grep ($et{DispText}[$_] && length $et{DispText}[$_], (@$fee_rows, @$exp_rows)));
 	} else {
 		@ccs = grep (exists $cds{$cf{Fee}[$_]}, 0 .. $#{$cf{Fee}});
 		push (@ccs, grep (!(exists $cds{$cf{Fee}[$_]}) && true($cf{IsDrain}[$_]), 0 .. $#{$cf{Fee}}));
@@ -1598,8 +1599,8 @@ sub gen_edit_event
 	}
 
 	my @feesh = ({ FEE => 'Custom Fee', LINKA => %et ? $et{LinkedAcct} : $cf{DefaultAccount} });
-	push (@feesh, map ({ CDESC => (exists $rates{$cf{Fee}[$_]}) ? "$rates{$cf{Fee}[$_]} $units[0]" : '', FEE => (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @ccs));
-	my @expsh = map ({ EXP => $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @exps);
+	push (@feesh, map ({ CDESC => (exists $rates{$cf{Fee}[$_]}) ? "$rates{$cf{Fee}[$_]} $units[0]" : '', FEE => (exists $dispt{$cf{Fee}[$_]}) ? $dispt{$cf{Fee}[$_]} : (exists $cds{$cf{Fee}[$_]}) ? ($cds{$cf{Fee}[$_]} // $cf{Fee}[$_]) : $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @ccs));
+	my @expsh = map ({ EXP => (exists $dispt{$cf{Fee}[$_]}) ? $dispt{$cf{Fee}[$_]} : $cf{Description}[$_], LINKA => $cf{Account}[$_] }, @exps);
 	my @unksh = map ({ UNK => $_ }, @unks);
 	my @splitsh = map ({ SPLIT => $_ }, sort keys %splits);
 	$tmpl->param(NFEES => scalar @feesh, FEESH => \@feesh, NEXPS => scalar @expsh, EXPSH => \@expsh, NUNKS => scalar @unksh, UNKSH => \@unksh, NSPLITS => 2 * scalar @splitsh, SPLITSH => \@splitsh);
@@ -2175,9 +2176,10 @@ sub despatch_admin
 				push (@{$et{Unit}}, $cur);
 				push (@{$et{Column}}, $col);
 				push (@{$et{Unusual}}, (defined $cgi->param("Ex_$row")));
+				push (@{$et{DispText}}, $cgi->param("Disp_$row"));
 			}
 
-			@{$et{Headings}} = ( 'Unit', 'Column', 'Unusual' ) if exists $et{Unit};
+			@{$et{Headings}} = ( 'Unit', 'Column', 'Unusual', 'DispText' ) if exists $et{Unit};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if ($rename) {

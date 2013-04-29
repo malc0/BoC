@@ -41,7 +41,7 @@ sub valid_event_type
 	my %cf_fees;
 	$cf_fees{$_} = 1 foreach (@{$cf->{Fee}});
 
-	my %et = read_htsv($et_f, undef, [ 'Unit' ]);
+	my %et = read_htsv($et_f, undef, [ 'Unit', 'DispText' ]);
 	return ( Empty => 1 ) unless exists $et{Headings};
 	return if scalar grep (!(exists $cf_fees{$_}), @{$et{Unit}});
 
@@ -51,6 +51,7 @@ sub valid_event_type
 
 	@{$et{Column}} = () unless exists $et{Column};
 	@{$et{Unusual}} = () unless exists $et{Unusual};
+	@{$et{DispText}} = () unless exists $et{DispText};
 	return %et;
 }
 

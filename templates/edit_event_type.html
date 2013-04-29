@@ -29,15 +29,15 @@
                         </select></label></h3>
 
 			<table border=1>
-				<tr><th>Fee/Drain</th><th>Column order<br>(&lt; 0 to disable)</th><th>Query modification?</th></tr>
+				<tr><th>Fee/Drain</th><th>Column order<br>(&lt; 0 to disable)</th><th>Query modification?</th><th>Display text (optional)</th></tr>
 				<TMPL_LOOP NAME=FEES>
-				<tr><input type="hidden" value="<TMPL_VAR NAME=CODE>" name="Unit_<TMPL_VAR NAME=N>"><td class="<TMPL_VAR NAME=C_CL>"><TMPL_VAR NAME=UNIT> (<TMPL_VAR NAME=CODE>)</td><td align="center"><input type="text" value="<TMPL_VAR NAME=COL>" name="Col_<TMPL_VAR NAME=N>" size=5 onclick="this.select()"/></td><td align="center"><input type="checkbox" name="Ex_<TMPL_VAR NAME=N>" value="1" <TMPL_IF NAME=EX>checked="checked"</TMPL_IF>/></td></tr>
+				<tr><input type="hidden" value="<TMPL_VAR NAME=CODE>" name="Unit_<TMPL_VAR NAME=N>"><td class="<TMPL_VAR NAME=C_CL>"><TMPL_VAR NAME=UNIT> (<TMPL_VAR NAME=CODE>)</td><td align="center"><input type="text" value="<TMPL_VAR NAME=COL>" name="Col_<TMPL_VAR NAME=N>" size=5 onclick="this.select()"/></td><td align="center"><input type="checkbox" name="Ex_<TMPL_VAR NAME=N>" value="1" <TMPL_IF NAME=EX>checked="checked"</TMPL_IF>/></td><td align="center"><input type="text" value="<TMPL_VAR NAME=DISP>" name="Disp_<TMPL_VAR NAME=N>"/></td></tr>
 				</TMPL_LOOP>
 				<tr><td style="border-left:none; border-right:none">&nbsp;</td></tr>
 
-				<tr><th>Expense</th><th>Column order<br>(&lt; 0 to disable)</th><th>Query modification?</th></tr>
+				<tr><th>Expense</th><th>Column order<br>(&lt; 0 to disable)</th><th>Query modification?</th><th>Display text (optional)</th></tr>
 				<TMPL_LOOP NAME=EXPS>
-				<tr><input type="hidden" value="<TMPL_VAR NAME=CODE>" name="Unit_<TMPL_VAR NAME=N>"><td class="<TMPL_VAR NAME=C_CL>"><TMPL_VAR NAME=UNIT> (<TMPL_VAR NAME=CODE>)</td><td align="center"><input type="text" value="<TMPL_VAR NAME=COL>" name="Col_<TMPL_VAR NAME=N>" size=5 onclick="this.select()"/></td><td align="center"><input type="checkbox" name="Ex_<TMPL_VAR NAME=N>" value="1" <TMPL_IF NAME=EX>checked="checked"</TMPL_IF>/></td></tr>
+				<tr><input type="hidden" value="<TMPL_VAR NAME=CODE>" name="Unit_<TMPL_VAR NAME=N>"><td class="<TMPL_VAR NAME=C_CL>"><TMPL_VAR NAME=UNIT> (<TMPL_VAR NAME=CODE>)</td><td align="center"><input type="text" value="<TMPL_VAR NAME=COL>" name="Col_<TMPL_VAR NAME=N>" size=5 onclick="this.select()"/></td><td align="center"><input type="checkbox" name="Ex_<TMPL_VAR NAME=N>" value="1" <TMPL_IF NAME=EX>checked="checked"</TMPL_IF>/></td><td align="center"><input type="text" value="<TMPL_VAR NAME=DISP>" name="Disp_<TMPL_VAR NAME=N>"/></td></tr>
 				</TMPL_LOOP>
 
 			</table>
