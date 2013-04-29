@@ -798,7 +798,7 @@ sub valid_fee_cfg
 
 	return %cf unless exists $cf{Headings};
 
-	foreach my $hd ('Fee', 'IsBool', 'IsDrain', 'Account', 'Description') {
+	foreach my $hd ('Fee', 'IsBool', 'IsDrain', 'Expensable', 'Account', 'Description') {
 		return unless grep ($_ eq $hd, @{$cf{Headings}});
 		return unless exists $cf{$hd};
 	}
@@ -817,9 +817,10 @@ sub valid_fee_cfg
 
 		if ($cf{Fee}[$row] =~ /[A-Z]/) {
 			return unless exists $cds{$cf{Fee}[$row]};
-			return if true($cf{IsDrain}[$row]);
+			return if true($cf{IsDrain}[$row]) || true($cf{Expensable}[$row]);
 		} else {
 			return if true($cf{IsBool}[$row]) && !true($cf{IsDrain}[$row]);
+			return if true($cf{IsBool}[$row]) && true($cf{Expensable}[$row]);
 			return unless defined $cf{Description}[$row] && length $cf{Description}[$row];
 		}
 	}
@@ -1201,7 +1202,9 @@ sub gen_edit_fee_cfg
 		my $broken_fee = (defined $seen{$fees[$row]} && $seen{$fees[$row]} > 1) || !(defined $fees[$row]) || clean_int($fees[$row]) || (!$commod && $fees[$row] =~ /[A-Z]/);
 		my $broken_bd = !$commod && true($cfg{IsBool}[$cf_row]) && !true($cfg{IsDrain}[$cf_row]);
 		my $broken_d = $commod && true($cfg{IsDrain}[$cf_row]);
-		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), UNKACCTS => \@unkaccts, PPLACCTS => \@pplaccts, VACCTS => \@vacctaccts, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(defined $cfg{Description}[$cf_row] && length $cfg{Description}[$cf_row])) ? 'broken' : '', B_CL => $broken_bd ? 'broken' : '', D_CL => ($broken_bd || $broken_d) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
+		my $broken_be = !$commod && true($cfg{IsBool}[$cf_row]) && true($cfg{Expensable}[$cf_row]);
+		my $broken_e = $commod && true($cfg{Expensable}[$cf_row]);
+		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), EXP => (defined $cf_row && true($cfg{Expensable}[$cf_row])), UNKACCTS => \@unkaccts, PPLACCTS => \@pplaccts, VACCTS => \@vacctaccts, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(defined $cfg{Description}[$cf_row] && length $cfg{Description}[$cf_row])) ? 'broken' : '', B_CL => ($broken_bd || $broken_be) ? 'broken' : '', D_CL => ($broken_bd || $broken_d) ? 'broken' : '', E_CL => ($broken_be || $broken_e) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
 	}
 	my @vacctaccts = map ({ O => $vaccts{$_}, V => $_ }, @sorted_vaccts);
 	my @pplaccts = map ({ O => $ppl{$_}, V => $_ }, sort_AoH(\%ppl));
@@ -2365,6 +2368,7 @@ sub despatch_admin
 					push (@{$cfg{Fee}}, $oldcode);
 					push (@{$cfg{Account}}, validate_acct(scalar $cgi->param("Acct_$row"), \%acct_names, $whinge));
 					push (@{$cfg{IsDrain}}, '');
+					push (@{$cfg{Expensable}}, '');
 				} else {
 					my $id = clean_word($cgi->param("FeeID_$row"));
 					$whinge->("ID cannot be a number ($id)") if defined $id && !($id =~ /^\s*$/) && defined clean_int($id);
@@ -2377,15 +2381,17 @@ sub despatch_admin
 					$whinge->("Missing display text for \"$id\"") unless defined $desc;
 					$whinge->("Missing linked account for \"$desc\"") unless defined $acct && length $acct;
 					$whinge->("Expense (\"$id\") cannot be Boolean (not a drain)") if defined $cgi->param("Bool_$row") && !(defined $cgi->param("Drain_$row"));
+					$whinge->("Expense (\"$id\") cannot be Boolean and Expensable") if defined $cgi->param("Bool_$row") && defined $cgi->param("Expensable_$row");
 					push (@{$cfg{Fee}}, $id);
 					push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
 					push (@{$cfg{IsDrain}}, (defined $cgi->param("Drain_$row")));
+					push (@{$cfg{Expensable}}, (defined $cgi->param("Exp_$row")));
 				}
 				push (@{$cfg{IsBool}}, (defined $cgi->param("Bool_$row")));
 				push (@{$cfg{Description}}, $desc);
 			}
 
-			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'IsDrain', 'Account', 'Description' ) if exists $cfg{Fee};
+			@{$cfg{Headings}} = ( 'Fee', 'IsBool', 'IsDrain', 'Expensable', 'Account', 'Description' ) if exists $cfg{Fee};
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			if (keys %recode) {
@@ -2777,7 +2783,7 @@ sub gen_ucp
 	}
 	my %cf = read_htsv("$config{Root}/config_fees", 1);
 	my %id_count;
-	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (defined $cf{Fee}[$_] && length $cf{Fee}[$_] && !($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_]) || true($cf{IsDrain}[$_])) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]} && defined $cf{Description}[$_] && length $cf{Description}[$_], 0 .. $#{$cf{Description}}));
+	my @simptransidcounts = map ($id_count{$cf{Fee}[$_]}++, grep (defined $cf{Fee}[$_] && length $cf{Fee}[$_] && !($cf{Fee}[$_] =~ /[A-Z]/ || true($cf{IsBool}[$_])) && true($cf{Expensable}[$_]) && defined $cf{Account}[$_] && exists $acct_names{$cf{Account}[$_]} && defined $cf{Description}[$_] && length $cf{Description}[$_], 0 .. $#{$cf{Description}}));
 	$tmpl->param(SIMPTRANS => scalar @simptransidcounts && !grep ($_ > 0, @simptransidcounts));
 	$tmpl->param(ACCT => (exists $acct_names{$acct}) ? $acct_names{$acct} : $acct) if defined $acct && $acct ne $session->param('User');
 	$tmpl->param(MYEVENTS => \@events);
@@ -2909,7 +2915,7 @@ sub gen_add_swap
 	} else {
 		my %cfg = read_htsv("$config{Root}/config_fees");
 		my %acct_names = get_acct_name_map;
-		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (defined $cfg{Fee}[$_] && length $cfg{Fee}[$_] && !($cfg{Fee}[$_] =~ /[A-Z]/ || true($cfg{IsBool}[$_]) || true($cfg{IsDrain}[$_])) && defined $cfg{Account}[$_] && exists $acct_names{$cfg{Account}[$_]} && defined $cfg{Description}[$_] && length $cfg{Description}[$_], 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
+		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (defined $cfg{Fee}[$_] && length $cfg{Fee}[$_] && !($cfg{Fee}[$_] =~ /[A-Z]/ || true($cfg{IsBool}[$_])) && true($cfg{Expensable}[$_]) && defined $cfg{Account}[$_] && exists $acct_names{$cfg{Account}[$_]} && defined $cfg{Description}[$_] && length $cfg{Description}[$_], 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
 		@debtaccts = map ({ O => $cfg{Description}[$_], V => "$cfg{Fee}[$_]" }, @sorteddescs);
 	}
 
@@ -2940,7 +2946,7 @@ sub gen_add_split
 	if ($vacct) {
 		my %cfg = read_htsv("$config{Root}/config_fees");
 		my %acct_names = get_acct_name_map;
-		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (defined $cfg{Fee}[$_] && length $cfg{Fee}[$_] && !($cfg{Fee}[$_] =~ /[A-Z]/ || true($cfg{IsBool}[$_]) || true($cfg{IsDrain}[$_])) && defined $cfg{Account}[$_] && exists $acct_names{$cfg{Account}[$_]} && defined $cfg{Description}[$_] && length $cfg{Description}[$_], 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
+		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (defined $cfg{Fee}[$_] && length $cfg{Fee}[$_] && !($cfg{Fee}[$_] =~ /[A-Z]/ || true($cfg{IsBool}[$_])) && true($cfg{Expensable}[$_]) && defined $cfg{Account}[$_] && exists $acct_names{$cfg{Account}[$_]} && defined $cfg{Description}[$_] && length $cfg{Description}[$_], 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
 		@vaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{Fee}[$_]" }, @sorteddescs);
 	} else {
 		@vaccts = map ({ NAME => $vaccts{$_}, A => $_ }, sort_AoH(\%vaccts));
@@ -3311,7 +3317,7 @@ sub despatch
 				$whinge->('Broken expense type') unless defined $fee && !($fee =~ /[A-Z]/);
 				my $row = first { defined $cf{Fee}[$_] && $cf{Fee}[$_] eq $fee } 0 .. $#{$cf{Fee}};
 				$whinge->('Unknown expense type') unless defined $row;
-				$whinge->('Broken expense type') if true($cf{IsBool}[$row]) || true($cf{IsDrain}[$row]);
+				$whinge->('Broken expense type') if true($cf{IsBool}[$row]) || !true($cf{Expensable}[$row]);
 				$debtor = validate_acct($cf{Account}[$row], \%{{get_acct_name_map}}, $whinge);
 				$tg{Name} = "Expense: $cf{Description}[$row]";
 				$tg{Name} .= lc " ($tg{Description}[0])" if length $tg{Description}[0];
@@ -3399,7 +3405,7 @@ sub despatch
 					$whinge->('Broken expense type') unless defined $fee && !($fee =~ /[A-Z]/);
 					my $row = first { defined $cf{Fee}[$_] && $cf{Fee}[$_] eq $fee } 0 .. $#{$cf{Fee}};
 					$whinge->('Unknown expense type') unless defined $row;
-					$whinge->('Broken expense type') if true($cf{IsBool}[$row]) || true($cf{IsDrain}[$row]);
+					$whinge->('Broken expense type') if true($cf{IsBool}[$row]) || !true($cf{Expensable}[$row]);
 					$acct = validate_acct($cf{Account}[$row], \%acct_names, $whinge);
 					$type = $cf{Description}[$row];
 				}
