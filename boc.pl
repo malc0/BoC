@@ -734,6 +734,7 @@ sub refresh_session
 
 	my %userdetails = read_simp_cfg("$config{Root}/users/$username");
 	$userdetails{User} = $username;
+	delete $userdetails{IsAdmin} unless $authed;
 
 	my %attr_syns = get_attr_synonyms;
 	my @sys_attrs = get_sys_attrs;
