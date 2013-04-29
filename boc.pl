@@ -817,8 +817,9 @@ sub valid_fee_cfg
 
 		if ($cf{Fee}[$row] =~ /[A-Z]/) {
 			return unless exists $cds{$cf{Fee}[$row]};
+			return if true($cf{IsDrain}[$row]);
 		} else {
-			return if true($cf{IsBool}) && !true($cf{IsDrain});
+			return if true($cf{IsBool}[$row]) && !true($cf{IsDrain}[$row]);
 			return unless defined $cf{Description}[$row] && length $cf{Description}[$row];
 		}
 	}
@@ -1198,7 +1199,9 @@ sub gen_edit_fee_cfg
 		my @vacctaccts = map ({ O => $vaccts{$_}, V => $_, S => (defined $cf_row && defined $cfg{Account}[$cf_row] && $cfg{Account}[$cf_row] eq $_) }, @sorted_vaccts);
 		my @pplaccts = map ({ O => $ppl{$_}, V => $_, S => (defined $cf_row && defined $cfg{Account}[$cf_row] && $cfg{Account}[$cf_row] eq $_) }, sort_AoH(\%ppl));
 		my $broken_fee = (defined $seen{$fees[$row]} && $seen{$fees[$row]} > 1) || !(defined $fees[$row]) || clean_int($fees[$row]) || (!$commod && $fees[$row] =~ /[A-Z]/);
-		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), UNKACCTS => \@unkaccts, PPLACCTS => \@pplaccts, VACCTS => \@vacctaccts, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(defined $cfg{Description}[$cf_row] && length $cfg{Description}[$cf_row])) ? 'broken' : '', BD_CL => (!$commod && true($cfg{IsBool}[$cf_row]) && !true($cfg{IsDrain}[$cf_row])) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
+		my $broken_bd = !$commod && true($cfg{IsBool}[$cf_row]) && !true($cfg{IsDrain}[$cf_row]);
+		my $broken_d = $commod && true($cfg{IsDrain}[$cf_row]);
+		push (@feerows, { COMMOD => $commod, R => $row, FEEID => $fees[$row], FEED => $commod ? $cds{$fees[$row]} : $cfg{Description}[$cf_row], BOOL => (defined $cf_row && true($cfg{IsBool}[$cf_row])), DRAIN => (defined $cf_row && true($cfg{IsDrain}[$cf_row])), UNKACCTS => \@unkaccts, PPLACCTS => \@pplaccts, VACCTS => \@vacctaccts, ID_CL => $broken_fee ? 'broken' : '', DESC_CL => (!$commod && !(defined $cfg{Description}[$cf_row] && length $cfg{Description}[$cf_row])) ? 'broken' : '', B_CL => $broken_bd ? 'broken' : '', D_CL => ($broken_bd || $broken_d) ? 'broken' : '', ACCT_CL => $broken_acct ? 'broken' : '' });
 	}
 	my @vacctaccts = map ({ O => $vaccts{$_}, V => $_ }, @sorted_vaccts);
 	my @pplaccts = map ({ O => $ppl{$_}, V => $_ }, sort_AoH(\%ppl));
@@ -2373,7 +2376,7 @@ sub despatch_admin
 					$recode{$oldcode} = $id if defined $oldcode && !($oldcode =~ /[A-Z]/) && grep ($_ eq $oldcode, grep (defined, @{$oldcf{Fee}})) && $oldcode ne $id;
 					$whinge->("Missing display text for \"$id\"") unless defined $desc;
 					$whinge->("Missing linked account for \"$desc\"") unless defined $acct && length $acct;
-					$whinge->("Expense (\"$id\") cannot be Boolean") if defined $cgi->param("Bool_$row") && !(defined $cgi->param("Drain_$row"));
+					$whinge->("Expense (\"$id\") cannot be Boolean (not a drain)") if defined $cgi->param("Bool_$row") && !(defined $cgi->param("Drain_$row"));
 					push (@{$cfg{Fee}}, $id);
 					push (@{$cfg{Account}}, validate_acct(scalar $acct, \%acct_names, $whinge));
 					push (@{$cfg{IsDrain}}, (defined $cgi->param("Drain_$row")));
