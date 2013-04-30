@@ -419,7 +419,7 @@ sub compute_tg_c
 	return if $omit && exists $tgds{$tg}->{Omit};
 
 	if (-r "$config{Root}/transaction_groups/$tg" && exists $pres{$tg}) {
-		return %{$pres{$tg}} unless $rel_acc && exists $pres{$tg}->{$rel_acc};
+		return %{$pres{$tg}} unless $rel_acc && exists $pres{$tg}->{$rel_acc} || exists $tgds{$tg}->{Omit};
 	}
 
 	my %computed;
