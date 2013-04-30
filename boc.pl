@@ -510,6 +510,7 @@ sub resolve_accts
 	my $loops = 50;
 
 	my $newest = fmtime('newest');
+	return %{flock_rc("$config{Root}/transaction_groups/.res")} if fmtime('transaction_groups/.res') > $newest;
 	%pres = %{flock_rc("$config{Root}/transaction_groups/.pres")} if fmtime('transaction_groups/.pres') > $newest;
 	while ($loops--) {
 		my %running;
@@ -542,8 +543,11 @@ sub resolve_accts
 		}
 
 		if (nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved) {
-			if (%pres && cache_lock) {
-				flock_wc("$config{Root}/transaction_groups/.pres", \%pres) unless (fmtime('newest') != $newest || fmtime('transaction_groups/.pres') > $newest);
+			if (cache_lock) {
+				if (fmtime('newest') == $newest) {
+					flock_wc("$config{Root}/transaction_groups/.pres", \%pres) unless !%pres || fmtime('transaction_groups/.pres') > $newest;
+					flock_wc("$config{Root}/transaction_groups/.res", \%resolved) unless !%resolved || nonfinite(values %resolved) || fmtime('transaction_groups/.res') > $newest;
+				}
 				cache_unlock;
 			}
 			return %resolved;
