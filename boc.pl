@@ -432,19 +432,18 @@ sub compute_tg_c
 		return %computed if fmtime("transaction_groups/.$tg.precomp") > $newest;
 
 		goto compute_me if $tg =~ /^[A-Z]/ || exists $tgds{$tg}->{Omit};
-		goto compute_me if (-M "$config{Root}/transaction_groups/.$tg.precomp" > -M "$config{Root}/transaction_groups/$tg") || (-M "$config{Root}/transaction_groups/.$tg.precomp" > -M "$config{Root}/config_units");
 
-		# check for drains directly; this means resolution can be done without account validation,
-		# and account validation can be done separately from resolution
-		foreach (0 .. $#{$tgds{$tg}->{Creditor}}) {
-			goto compute_me if $tgds{$tg}->{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgds{$tg}->{Creditor}[$_] =~ /^TrnsfrPot\d$/);
-		}
-
-		return %computed;
+		return %computed unless (-M "$config{Root}/transaction_groups/.$tg.precomp" > -M "$config{Root}/transaction_groups/$tg") || (-M "$config{Root}/transaction_groups/.$tg.precomp" > -M "$config{Root}/config_units");
 	}
 
 compute_me:
 	%computed = compute_tg($tg, $tgds{$tg}, undef, $neg_accts, $resolved, $die, $rel_acc, $rel_accts, fmtime("transaction_groups/.$tg.precomp") > $newest);
+
+	# check for drains directly; this means resolution can be done without account validation,
+	# and account validation can be done separately from resolution
+	foreach (0 .. $#{$tgds{$tg}->{Creditor}}) {
+		return %computed if $tgds{$tg}->{Amount}[$_] =~ /^\s*[*]\s*$/ && !($tgds{$tg}->{Creditor}[$_] =~ /^TrnsfrPot\d$/);
+	}
 
 	unless ($rel_acc || nonfinite(values %computed) || !cache_lock) {
 		flock_wc("$config{Root}/transaction_groups/.$tg.precomp", \%computed) if fmtime('newest') == $newest;
@@ -524,7 +523,7 @@ sub resolve_accts
 				$running{$_} = 0 unless exists $running{$_};
 				$running{$_} += $computed{$_};
 			}
-			$pres{$tg} = \%computed unless $pres{$tg} || nonfinite(values %computed);
+			$pres{$tg} = \%computed unless $pres{$tg} || nonfinite(values %computed) || !(-r "$config{Root}/transaction_groups/.$tg.precomp");
 		}
 
 		my $unresolved = nonfinite(values %resolved);
