@@ -306,13 +306,13 @@ sub read_tg2
 
 	unless ($tg_file =~ /.*\/E([^\/]+)$/ && -e "$config{Root}/events/$1") {
 		(my $tg = $tg_file) =~ s/.*\/([^\/]+)$/$1/;
-		my $mtime = fmtime('transaction_groups/$tg');
+		my $mtime = fmtime("transaction_groups/$tg");
 		if (fmtime("transaction_groups/.$tg.json") > $mtime) {
 			return %{flock_rc("$config{Root}/transaction_groups/.$tg.json")};
 		} else {
 			my %tgd = read_tg($tg_file);
 			if (cache_lock) {
-				flock_wc("$config{Root}/transaction_groups/.$tg.json", \%tgd) if fmtime('transaction_groups/$tg') == $mtime;
+				flock_wc("$config{Root}/transaction_groups/.$tg.json", \%tgd) if fmtime("transaction_groups/$tg") == $mtime;
 				cache_unlock;
 			}
 			return %tgd;
