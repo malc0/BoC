@@ -514,6 +514,7 @@ sub resolve_accts
 	%pres = %{flock_rc("$config{Root}/transaction_groups/.pres")} if fmtime('transaction_groups/.pres') > $newest;
 	while ($loops--) {
 		my %running;
+		$running{$_} = 0 foreach (keys %das);
 
 		foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 			$tg = $1 if $tg =~ /([^\/]*)$/;
