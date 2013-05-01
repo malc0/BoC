@@ -269,6 +269,8 @@ sub compute_tg
 		}
 	}
 
+	return unless %relevant_accts;
+
 	my $imbalance = $neg_error - sum values %relevant_accts;
 
 	return %relevant_accts if abs $imbalance == 0+'inf';
