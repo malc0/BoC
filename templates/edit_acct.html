@@ -31,7 +31,7 @@
 			<p><label>Account (short) name: <input type="text" name="account" value="<TMPL_VAR NAME=ACCT>"/></label></p>
 			<p><label>Full name: <input type="text" name="fullname" value="<TMPL_VAR NAME=NAME>"/></label></p>
 			<TMPL_IF NAME=USER_ACCT>
-			<p><label>e-mail: <input type="text" name="email" value="<TMPL_VAR NAME=EMAIL>"/></label></p>
+			<p><label>e-mail: <input type="email" name="email" value="<TMPL_VAR NAME=EMAIL>"/></label></p>
 			<div><TMPL_IF NAME=ADDR_ALTS><p>Supply at least one of the following:</p>
 				<p style="margin:0px 20px">
 					<label style="margin:10px"><span style="vertical-align:top">Real-world address/contact details:</span> <textarea name="address" cols=40 rows=3><TMPL_VAR NAME=ADDRESS></textarea></label><br><TMPL_ELSE>
