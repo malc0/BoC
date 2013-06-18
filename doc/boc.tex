@@ -1,0 +1,319 @@
+\documentclass{report}
+
+\usepackage[sc]{mathpazo}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{hyperref}
+
+\setlength{\parskip}{2.0ex}
+\setlength{\parindent}{0pt}
+\setstretch{1.36}       % 1.3 * 1.05 for palatino
+
+\begin{document}
+\pagenumbering{roman}
+\pdfbookmark{Title Page}{bm:title}
+
+\title{Bank of CUCC (.pl)}
+\author{Stuart Bennett\\\normalsize{sb$476$@cam.ac.uk}}
+\maketitle
+
+\clearpage
+\null\vspace{4cm}
+
+
+Copyright \copyright{} 2013 Stuart Bennett
+\vspace{5cm}\\
+Typeset using the \LaTeX{} document presentation system in the Palatino and Computer Modern fonts.
+
+\cleardoublepage
+\pdfbookmark{Table of Contents}{bm:toc}
+\tableofcontents
+
+\chapter{Introduction}
+\pagenumbering{arabic}
+
+The Bank of CUCC (henceforth, `boc') is a software package designed to ease the life of an unfortunate charged with keeping track of expenses and distributing costs for and between a number of people.  An example of same might be the treasurer of a club or society, but equally might be someone keeping track of expenditure for a group of people on holiday.
+
+boc is designed to permit data to be entered relatively easily, to allow the current state of individuals' tabs to be accessible and to have all day-to-day operations conducted through a web interface (with concurrency of users).  Secondary, but important, features are fairly strong security, sufficient abstraction to be flexible in application, version controlled data-store, and ease of auditing.
+
+A few warnings to make your boc experience less irritating:
+\begin{itemize}
+\item boc validates input as strongly as it can, and will complain if it doesn't like something.  Unfortunately it won't refill forms for you.  Hitting your browser's back button will probably allow you to recycle your previously input values, if you wish.
+\item boc doesn't mind tabbed use per-se, but it does take exclusive locks out on files being edited.  Thus attempting several tabs editing one thing will not work.  Closing a tab which is editing a file will result in that file being uneditable until the lock expires.
+\end{itemize}
+
+\chapter{Installation and Setup}
+
+\section{Installation}
+
+Installation is minimal, and straightforward for anyone with some experience of installing CGI applications.
+
+\begin{enumerate}
+\item Put the code (boc.pl, *.pm) in a directory where the web-server will accept boc.pl a CGI executable programme.
+\item Place the contents of the `templates' directory somewhere.  It is simplest for this to be a subdirectory `templates' of the directory containing boc.pl.
+\item Create a data-store directory, with read/write permission by the web-server.  This directory need not (and indeed, probably shouldn't) be in a web-visible path.
+\item Place the top-level configuration file in the same directory: an example is included with the software, but the style is one key/value pair per line, separated by a tab.
+\item Set the value of the `Root' key in the configuration file to the absolute path of the data-store directory.
+\item Set the value of the `TemplateDir' key in the configuration file to the path of the templates directory.  If the suggestion configuration is used, this will be `templates'.
+\item Install necessary Perl modules.  A list is given below, all are available from CPAN:
+	\begin{itemize}
+	\item CGI::Session
+	\item Crypt::Cracklib
+	\item Crypt::PasswdMD5
+	\item File::Slurp
+	\item Git::Wrapper
+	\item HTML::Entities
+	\item HTML::Template
+	\item HTML::Template::Pro
+	\item JSON::XS
+	\item MIME::Lite
+	\item Text::Password::Pronounceable
+	\item Time::ParseDate
+	\item URI::Escape
+	\item UUID::Tiny
+	\end{itemize}
+\item Browse to the appropriate URL to execute boc.pl.  Errors will be displayed for any missing Perl modules; a screen inviting the creation of administrator account otherwise.
+\end{enumerate}
+
+\section{Setup}
+
+Due to the flexible nature of the software a prescriptive guide to setup is not appropriate.  The below will describe a minimal use-case.  All setup is conducted through the web interface.
+
+\begin{enumerate}
+\item Supply a username and password for the (first) administrator account.  You now have a minimally functional boc installation...
+\item Log in, using the just-supplied account details.
+\item Go to `Admin control panel', then `Edit installation configuration'.
+\item See description of this configuration page in \autoref{inst_cfg}.  Make changes as appropriate, and save.  Setting the system names and style file URL are \emph{highly} recommended.
+\item Create some users via `Manage people' (\autoref{manage_ppl}) and/or non-personal accounts via `Manage virtual accounts' (\autoref{manage_vaccts}).\footnote{You may like to set up address alternatives and the attributes system first (\autoref{addr_alts} and \autoref{edit_attrs}), but this is not always necessary}
+\item (Optional) setup a default and presentation currency, via `Edit units', described in \autoref{edit_units}.
+\end{enumerate}
+
+\chapter{The Admin Control Panel}
+
+\section{Account management}
+
+\subsection{User accounts}\label{manage_ppl}
+
+The account management page lists all known users accounts, gives a brief overview of their properties and permits their addition, modification, deletion and the setting/clearing of passwords.
+
+When adding or editing a user account a short reference name (lowercase, 3-10 letters) is required, as well as a proper display name, email address, real-world address (or address alternative, \autoref{addr_alts}).  Individual attributes can also be set on an account (see \autoref{edit_attrs} and \autoref{attr_groups}).
+
+In order to set an account password the system email configuration must be completed and correct (\autoref{inst_cfg}), as passwords are auto-generated and sent to the email address associated with the account.
+
+\subsection{Virtual accounts}\label{manage_vaccts}
+
+Virtual accounts are accounts not associated with a user -- nominal ring-fenced funds, or real accounts (such as a bank account).
+
+The account management page lists all known virtual accounts, gives a brief overview of their properties and permits their addition, modification and deletion.
+
+When adding or editing a virtual account a short reference name (lowercase, 3-10 letters) is required, as well as a proper display name.
+
+A virtual account can be a `negated' account: a prime example being a bank account.  Transactions between regular and `negated' accounts suffer a sign inversion on the negated account: whereas a swap of 5 between regular accounts a and b would result in a diminishing by 5 and b increasing by 5, a withdrawal of 5 from regular account a `to' negated account n results in \emph{both} a and n diminishing by 5.  The use of this becomes clear when a is a user account and n is the bank account: if 5 pounds are given in reality to user a, both the credit on their tab and the bank account balance must decrease.
+
+\subsection{Address alternatives configuration}\label{addr_alts}
+
+When adding/editing a user account it is a requirement that some \textit{address} information is specified.  The address alternatives system permits the creation of drop-down menus whose options can be used instead of typing an address.
+
+\subsection{Personal attribute configuration}\label{edit_attrs}
+
+The personal attribute configuration page allows user-defined attributes to be created, which can then subsequently be associated with appropriate user accounts.  Such attributes are `Has' or `Is' prefixed.  For example, to permit recording of whether a user has a car we could have a `Has' attribute called `ACar', or for whether someone can drive an `Is' attribute called 'Driver'.
+
+\subsection{Attribute group configuration}\label{attr_groups}
+
+Attributes can either be user-defined (\autoref{edit_attrs}) or system-defined.
+
+The system attributes are as follows:
+
+\begin{description}
+\item[IsAdmin] any user with this has full administrative privileges within the boc web application
+\item[IsAuthed] any user with this has logged in with a password
+\item[IsPleb] all users have this attribute
+\item[MayAddEditTGs] any user with this may change Transactions Groups arbitrarily
+\item[MayEditOwnEvents] any user with this may change Events for which they are the recorded organizer
+\item[MayStewardEvents] any user with this may add, delete or edit the basic details of any Events
+\end{description}
+
+Attributes can be combined logically to create a powerful and expressive capability system, both permitting one attribute to imply several others, and also the combination of several attributes to imply a different attribute.
+
+\section{Events}
+
+\subsection{Events}
+
+Events are essentially a system for creating templated forms for a non-trivial set of related transactions.  By creating such forms, not only does it make it easier for the boc overseer to use, but it allows the possibility of those organizing the events inputting the data directly (and having half a chance of doing it correctly).
+
+Since events can be delegated in this way, a mechanism to prevent further changes after auditing is provided: by using an event's lock button changes may only be made by an administrator; unlocking is the inverse of locking.
+
+Apart from adding a new event, events are edited from the detailed event view (obtained clicking an event's name).
+
+\subsubsection{Event headings (basic details)}
+
+\emph{Accessible by users with MayStewardEvents}.
+
+Creating an event requires the provision of some basic details: an event name, a date on which the event starts, the event's duration, a nominated organizer (selected from those with user accounts on the boc system), and optionally an Event Type/Fee Template.
+
+The choice of Event Type/Fee Template is quite important for the system to work satisfactorily.  The choice of Event Type determines the columns presented in the Event form (a choice of `none' means all configured fees/expenses are presented).  The choice of Fee Template determines the default charges that will be applied to event participants, see \autoref{fts} for more details of this capability.
+
+\subsubsection{Event participants}
+
+\emph{Accessible by organizers with MayEditOwnEvents}.
+
+Accounts may be associated with/disassociated from an Event using check-boxes.  More recently active user accounts are listed first (according to the threshold in \autoref{inst_cfg}).  A button permits creation of new accounts, should they not already exist.
+
+Values for a newly added participant will be automatically filled according to any fee template associated with the Event.
+
+\subsubsection{Event values}
+
+\emph{Accessible by organizers with MayEditOwnEvents}.
+
+Values may be filled in as appropriate.  The `Custom Fee' column permits arbitrary charging to the Event's default account, should it be desired.
+
+`Splits' allow direct currency swaps between Event participants, for instance if one has incurred an expense on behalf of another.  The expense is entered in the appropriate column, and shares allocated to those owing.  Any positive (non-zero) value will work for a simple swap.  Descriptions of each split/swap should be entered below, to avoid confusion.
+
+\subsection{Fee templates}\label{fts}
+Fee templates are only available when some commodity units are defined (\autoref{edit_units}).
+
+Fee templates (FTs) allow default charges to be applied to event participants as they are added to an Event.  The charges applied may depend on what attributes are set on the event participant's account.
+
+FTs can be specific to one Event Type, or general.  This is selected at the time of FT creation from the drop-down box.
+
+FTs must have a name.  This will be prefixed with the Event Type, if set.
+
+\subsection{Event types}
+
+Event types are only available when some expense categories are defined (\autoref{fee_conf}).
+
+Event types (ETs) allow the display of an event to be customized, showing only the desired expense columns in the desired order.
+
+An alternative default linked account may be set, overriding that set in the general expense configuration (\autoref{fee_conf}).
+
+For each known fee/expense the order in which to display the column (or disable it) is configurable, as is whether modifications to the column's values require confirmation, and optionally what descriptive text should be presented at the column heading (again, overriding that from the general expense configuration).
+
+\section{Charges and expenses}
+
+\subsection{Charge/credit/expense configuration}
+
+This configuration is heavily involved in the templating of expenses: if this configuration is missing or invalid the Events system and quick-expenses forms will not be accessible.
+
+\subsubsection{Default event account}
+
+This is the account against which event proceeds and expenses credit/debit, if no other account takes precedence.
+
+\subsubsection{Charges, credits and expenses}\label{fee_conf}
+
+Here one can define expense categories for use in Events and in the quick-expense forms.  Expenses can either be pre-existing commodity units, or user-defined categories.  The word `expense' is used generally in this description, but obviously a negative expense is a credit.
+
+All expenses have a 2-4 letter code and a descriptive name (these are pre-filled for commodity units), a Boolean flag and a linked account.
+
+\begin{description}
+\item[Is Boolean?] makes it a yes/no expense, rather than being able to take a wider range of quantities.
+\item[Linked account] is the account to/from which the expense will be credited/debited.  This must be set in order for the expense to be valid.
+\end{description}
+
+User-defined (non-commodity) expenses have two additional flags:
+
+\begin{description}
+\item[Drain linked account?] specifies that the amount of the expense will be the value of the linked account shared across the event participants in proportion to the quantities entered
+\item[Expensable?] makes the expense available for use in the quick-expense forms.  It cannot be used in combination with the Boolean or drain flags.
+\end{description}
+
+\subsection{Currency configuration}\label{edit_units}
+
+\subsubsection{Unit definition}
+This page permits the definition of the units used by boc.  These can be both real currencies (Pounds Sterling, Euros, etc.), and commodities -- a day's equipment hire for instance; any thing to which a per-unit value can be attached (even a negative value, in the case of a discount).
+
+Only so many units may be defined at a time -- more slots will become available after saving should you wish to add more than you have available rows for at one time.
+
+A unit definition requires a description (`Pounds Sterling', `Lamp hire/days'), a 2-4 letter code (`GBP', `LAMP'), and determination of whether the unit is a currency or a commodity.
+
+One currency (a non-commodity) should be set as the `Anchor currency': this is the currency to which other currencies are referred.  Changing this will require all exchange rates to be re-entered appropriately.
+
+One unit should be set as the `Presentation default': this is the unit all values are converted to and displayed in.  Can be changed arbitrarily.
+
+To save the unit definitions, click `Proceed to set exchange rates'.
+
+\subsubsection{Exchange rate configuration}
+Each defined unit requires a rate to relate it to the others.  Commodities can be defined in terms of any currency -- the drop-down defines which.
+
+Each rate needs a date which defines the date from which the rate is effective (inclusive of the given date).  Any transaction using a currency on a date before a rate for that currency was defined will use the first available date/rate for that unit.
+
+Note that commodity rates are \emph{Currency Per Unit}, whereas currencies are \emph{Currency Per Anchor Currency}.
+
+\section{General configuration}
+\subsection{Installation configuration}\label{inst_cfg}
+
+\begin{description}
+\item[System short name]: an abbreviated, preferably single word name for the installation (e.g. `boc')
+
+\item[System long name]: a full name for the system (e.g. `Bank of CUCC')
+
+\item[System style file location]: URL for the style file loaded by all boc pages
+
+\item[timeout.js URL]: URL to the file timeout.js.  boc will use the copy distributed in the templates directory if the URL is not supplied, but this will cause \emph{two} boc.pl invocations for every page load, and hence is disagreeably slow.
+
+\item[Allow passwordless user logins?]: whether users can log-in to their accounts when they don't have a password set
+
+\item[System email address]: the email address from which mail sent by the system should appear to have come
+
+\item[SMTP relay host]: hostname of a functional SMTP relay.  Or use `sendmail' if the web-server is also running a mail server.
+
+\item[Boundary for 'recent' people in event participation]: the threshold number of days for people to be counted as having recently attended an Event
+\end{description}
+
+\chapter{User-visible interfaces}
+
+\section{The user account view}
+
+The user account view is the first page any user sees after logging in, and a very similar page is displayed when looking at another account (by clicking on the account's name).  It displays details of all transactions known to be associated with that account, itemized by Transaction Group, and links to any Events for which the user is responsible.
+
+A number of buttons are available, the exact number varying depending on the user's permissions.  In the minimal case, apart from the pervading `Logout' button, the Accounts summary and lists of all Transaction Groups and Events (if configured) are available.
+
+\section{Quick expenses forms}
+
+\emph{Accessible by users with MayAddEditTGs}.
+
+From the user account view, a number of convenient forms to enter swaps, splits and expenses may be available.
+
+If some expenses with the \textit{Expensable} flag are defined in the fee configuration (\autoref{fee_conf}), one may `Add simple communal expense' or `Add multi-creditor/category communal expense'.  As the names imply, the former is for the case of one creditor and one expense type, the later for the more involved case.
+
+Likewise, the same simple/harder divide applies to the `Add person-to-person swap' and `Add a set of expenses split across a number of people' forms.
+
+`Add credit/debit to real-world account' is \emph{only available to administrators}, primarily as a quick way of entering bank transactions.
+
+\section{Transaction Groups (TGs)}
+
+Transaction Groups underpin the whole boc accounting system -- all other forms reduce to a TG.  From an account view, or from the list of all TGs, a TG may be inspected.  \emph{For users with MayAddEditTGs it may also be edited; this capability also permits the creation of new TGs (from the list of all TGs).}
+
+A transaction group (TG) is a record of a logically related financial event where funds move from m accounts to n accounts. It is generally quite flexible in what it can represent, but for clarity this should not be abused into commingling transactions distinct in time, place or nature.
+
+\subsection{Header fields}
+
+\begin{description}
+\item [Name] a representative and descriptive name for the transactions, this is what the TG's purpose will be summarized by in other displays
+\item [Date] when the transaction(s) happened. Preferably in DD.MM.YYYY, but more imaginative forms may be correctly parsed. It is important to get this right so that correct currency conversions may be applied. Also, TGs tend to be sorted by date.
+\item [Omitted] set if the TG's effects should not be included in the overall account balances
+\end{description}
+
+\subsection{Tabulated fields}
+
+Typically each row describes one transaction, with the following fields:
+
+\begin{description}
+\item [Creditor] to whom (/what \autoref{tps}) the Amount column applies
+\item [Amount] the amount to credit to (or, for a negative value, debit from) the Creditor. '*' uses the negated balance of the Creditor account, thereby draining it.
+\item [Currency] the currency in which the Amount is expressed
+\item [Debt shares] the proportions to allocate to each of the accounts to finance the Amount. Must be positive. Shares are calculated by taking the ratio of an account's share to the sum of all shares. This allows true monetary values to be used if so desired, assuming they sum to the Amount. Accounts with italicized headings are Negated accounts, where the account change happens in the same sense (credit/debit) as that of the Creditor.
+\item [Transfer pot] see below
+\item [Description] a particular description for the transaction row, be it describing the Creditor, Amount, or Debt share
+\end{description}
+
+Any field appearing with a red background is one whose saved contents do not now validate for some reason. Such fields must be amended to permit saving of the TG.
+
+\subsection{Transfer Pots}\label{tps}
+
+Transfer pots (TPs) are a powerful way to link several rows to make a transaction with multiple Creditors. A TG may have up to nine TPs, 1-9.
+
+Any rows which have the same number (1-9) in the Transfer Pot field have their debt-shares combined. The Amount to be split across the shares is the nett Amount following summation of the combined rows' Amounts.
+
+A numbered Transfer Pot may also be set as a Creditor. In this circumstance the Amount must be empty or '*', as this simply specifies that all of the row's debt-shares are to be added to those already in the appropriate pot.
+
+\end{document}
