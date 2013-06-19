@@ -38,7 +38,7 @@
 
 			<h3>Charges, credits and expenses</h3>
 			<table border=1>
-				<tr><th>Charge/credit/expense code (one word)</th><th>Display text</th><th>Is boolean?</th><th>Drain linked account?</th><th>Expensable?</th><th>Linked (credit/debit) account</th></tr>
+				<tr><th>Charge/credit/expense code (one word)</th><th>Display text</th><th>Is Boolean?</th><th>Drain linked account?</th><th>Expensable?</th><th>Linked (credit/debit) account</th></tr>
 				<TMPL_LOOP NAME=FEEROWS><tr><input type="hidden" value="<TMPL_VAR NAME=FEEID>" name="OldID_<TMPL_VAR NAME=R>"><td class="<TMPL_VAR NAME=ID_CL>"><TMPL_IF NAME=COMMOD><TMPL_VAR NAME=FEEID></td><td class="<TMPL_VAR NAME=DESC_CL>"><TMPL_VAR NAME=FEED><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=FEEID>" name="FeeID_<TMPL_VAR NAME=R>" style="width:9ex"/></td><td class="<TMPL_VAR NAME=DESC_CL>"><input type="text" value="<TMPL_VAR NAME=FEED>" name="FeeDesc_<TMPL_VAR NAME=R>"/></TMPL_IF></td><td class="<TMPL_VAR NAME=B_CL>"><input type="checkbox" name="Bool_<TMPL_VAR NAME=R>" value="" <TMPL_IF NAME=BOOL>checked="checked"</TMPL_IF>/></td><td class="<TMPL_VAR NAME=D_CL>"><TMPL_UNLESS NAME=COMMOD><input type="checkbox" name="Drain_<TMPL_VAR NAME=R>" value="" <TMPL_IF NAME=DRAIN>checked="checked"</TMPL_IF>/></TMPL_UNLESS></td><td class="<TMPL_VAR NAME=E_CL>"><TMPL_UNLESS NAME=COMMOD><input type="checkbox" name="Exp_<TMPL_VAR NAME=R>" value="" <TMPL_IF NAME=EXP>checked="checked"</TMPL_IF>/></TMPL_UNLESS></td>
 					<td class="<TMPL_VAR NAME=ACCT_CL>"><select name="Acct_<TMPL_VAR NAME=R>">
 						<option value="">None (disabled)</option>
