@@ -2820,13 +2820,14 @@ sub gen_accts_disp
 	my %dds = double_drainers;
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts);
-	if ($@ || !%resolved || nonfinite(values %resolved)) {
+	my @tgs = glob ("$config{Root}/transaction_groups/*");
+	if ($@ || (!%resolved && @tgs) || nonfinite(values %resolved)) {
 		$tmpl->param(BROKEN => 1);
 		return $tmpl;
 	}
 
 	my %running;
-	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
+	foreach my $tg (@tgs) {
 		$tg = $1 if $tg =~ /([^\/]*)$/;
 		if (exists $dds{$tg}) {
 			$tmpl->param(BROKEN => 1);
