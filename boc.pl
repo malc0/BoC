@@ -2806,7 +2806,7 @@ sub gen_ucp
 	$tmpl->param(DEBITS => \@debtlist);
 	$tmpl->param(LOGIN => $session->param('User'));
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
-	$tmpl->param(BANK => $session->param('IsAdmin'));
+	$tmpl->param(BANK => $session->param('IsAdmin') && scalar %neg_accts);
 	$tmpl->param(EVENTS => !!valid_fee_cfg);
 
 	return $tmpl;
