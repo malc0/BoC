@@ -30,12 +30,12 @@
 			</select>
 
 			<h2>Step 2: how much is it?</h2>
-			<p><input type="text" value=0 name="Amount" onclick="this.select()"/>
+			<p><div style="float:left"><input type="text" value=0 name="Amount" onclick="this.select()"/>
 			   <TMPL_IF NAME=CUR><select name="Currency">
 				<TMPL_LOOP NAME=CURS><option value="<TMPL_VAR NAME=C>" <TMPL_IF NAME=S>selected="selected"</TMPL_IF>><TMPL_VAR NAME=D> (<TMPL_VAR NAME=C>)</option>
 				</TMPL_LOOP>
-			   </select></TMPL_IF>
-			   <i>negative values transfer funds </i>from<i> your account</i></p>
+			   </select></TMPL_IF></div>
+			   <div style="overflow:hidden; padding-left:1ex"><i>negative values transfer funds </i>from<i> the account in Step 1<TMPL_IF NAME=SWAP><br><small>(this is also the account to which a drain applies)</small></TMPL_IF></i></div></p>
 
 			<h2>Step 3: when was it incurred (enter as dd/mm/yy or 'today', 'last Friday', etc.)?</h2>
 			<p><input type="text" name="tg_date"/></p>
