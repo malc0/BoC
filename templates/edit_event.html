@@ -49,25 +49,35 @@
 				</TMPL_LOOP>
 			</select></TMPL_IF></span></p></TMPL_IF>
 			<table border=1 class="widetable">
-				<tr><th rowspan=2>Name</th><th colspan=<TMPL_VAR NAME=NFEES>>Charges/Credits</th><TMPL_IF NAME=NEXPS><th colspan=<TMPL_VAR NAME=NEXPS>>Expenses</th></TMPL_IF><TMPL_IF NAME=NUNKS><th colspan=<TMPL_VAR NAME=NUNKS> class="unknown">Unknowns</th></TMPL_IF><TMPL_IF NAME=NSPLITS><th colspan=<TMPL_VAR NAME=NSPLITS>>Splits <i>(only for swaps between people)</i></th></TMPL_IF><th rowspan=2>Notes (explain unusual values, payment status, etc.)</th></tr>
-				<tr><TMPL_LOOP NAME=FEESH><th title="<TMPL_VAR NAME=CDESC>"><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=LINKA>"><TMPL_VAR NAME=FEE></a><TMPL_ELSE><TMPL_VAR NAME=FEE></TMPL_IF></th></TMPL_LOOP><TMPL_LOOP NAME=EXPSH><th><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=LINKA>"><TMPL_VAR NAME=EXP></a><TMPL_ELSE><TMPL_VAR NAME=EXP></TMPL_IF></th></TMPL_LOOP><TMPL_LOOP NAME=UNKSH><th class="unknown"><TMPL_VAR NAME=UNK></th></TMPL_LOOP><TMPL_LOOP NAME=SPLITSH><th>Expenses (<TMPL_VAR NAME=SPLIT>)</th><th>Debt shares (<TMPL_VAR NAME=SPLIT>)</th></TMPL_LOOP></tr>
+				<tr><th rowspan=2>Name</th><th colspan=<TMPL_VAR NAME=NFEES>>Charges/Credits</th><TMPL_IF NAME=NEXPS><th colspan=<TMPL_VAR NAME=NEXPS>>Expenses</th></TMPL_IF><TMPL_IF NAME=NUNKS><th colspan=<TMPL_VAR NAME=NUNKS> class="unknown">Unknowns</th></TMPL_IF><TMPL_IF NAME=NSPLITS><th class="splitcell" colspan=<TMPL_VAR NAME=NSPLITS>>Splits <i>(only for swaps between people)</i></th></TMPL_IF><th rowspan=2>Notes (explain unusual values, payment status, etc.)</th></tr>
+				<tr><TMPL_LOOP NAME=FEESH><th title="<TMPL_VAR NAME=CDESC>"><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=LINKA>"><TMPL_VAR NAME=FEE></a><TMPL_ELSE><TMPL_VAR NAME=FEE></TMPL_IF></th></TMPL_LOOP><TMPL_LOOP NAME=EXPSH><th><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=LINKA>"><TMPL_VAR NAME=EXP></a><TMPL_ELSE><TMPL_VAR NAME=EXP></TMPL_IF></th></TMPL_LOOP><TMPL_LOOP NAME=UNKSH><th class="unknown"><TMPL_VAR NAME=UNK></th></TMPL_LOOP><TMPL_LOOP NAME=SPLITSH><th class="splitcell">Expenses (<TMPL_VAR NAME=SPLIT>)</th><th class="splitcell">Debt shares (<TMPL_VAR NAME=SPLIT>)</th></TMPL_LOOP></tr>
 				<TMPL_LOOP NAME=PPL><tr class="<TMPL_VAR NAME=PER_CL>">
 					<td style="white-space:nowrap"><TMPL_IF NAME=RO><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=A>"><TMPL_VAR NAME=NAME></a><TMPL_ELSE><TMPL_VAR NAME=NAME></TMPL_IF></td>
 					<TMPL_LOOP NAME=FEES>
 					<td align="center" class="<TMPL_VAR NAME=D_CL>"><TMPL_IF NAME=BOOL><TMPL_IF NAME=RO><TMPL_IF NAME=V>X</TMPL_IF><TMPL_ELSE><input type="checkbox" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" value="1" <TMPL_IF NAME=V>checked="checked"</TMPL_IF> <TMPL_IF NAME=EXCPT>data-exceptional="<TMPL_VAR NAME=F>"</TMPL_IF>/></TMPL_IF><TMPL_ELSE><TMPL_IF NAME=RO><TMPL_VAR NAME=V><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=V>" name="<TMPL_VAR NAME=A>_<TMPL_VAR NAME=F>" size=5 onclick="this.select()" <TMPL_IF NAME=EXCPT>data-exceptional="<TMPL_VAR NAME=F>"</TMPL_IF>/></TMPL_IF></TMPL_IF></td></TMPL_LOOP>
 					<TMPL_LOOP NAME=SPLITS>
-					<td align="center" class="<TMPL_VAR NAME=ED_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=EV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=EV>" name="<TMPL_VAR NAME=A>_Split<TMPL_VAR NAME=F>E" size=5 onclick="this.select()"/></TMPL_IF></td><td align="center" class="<TMPL_VAR NAME=SD_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=SV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=SV>" name="<TMPL_VAR NAME=A>_Split<TMPL_VAR NAME=F>S" size=5 onclick="this.select()"/></TMPL_IF></td></TMPL_LOOP>
+					<td align="center" class="splitcell <TMPL_VAR NAME=ED_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=EV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=EV>" name="<TMPL_VAR NAME=A>_Split<TMPL_VAR NAME=F>E" size=5 onclick="this.select()"/></TMPL_IF></td><td align="center" class="splitcell <TMPL_VAR NAME=SD_CL>"><TMPL_IF NAME=RO><TMPL_VAR NAME=SV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=SV>" name="<TMPL_VAR NAME=A>_Split<TMPL_VAR NAME=F>S" size=5 onclick="this.select()"/></TMPL_IF></td></TMPL_LOOP>
 					<td><TMPL_IF NAME=RO><TMPL_VAR NAME=NOTEV><TMPL_ELSE><input type="text" value="<TMPL_VAR NAME=NOTEV>" name="<TMPL_VAR NAME=A>_Notes" size=60/></TMPL_IF></td>
 				</tr>
 				</TMPL_LOOP>
 			</table>
 
 			<TMPL_IF NAME=NSPLITS>
+			<div id="splitdesc">
 			<h3>Split descriptions</h3>
 			<TMPL_LOOP NAME=SPLITDS><p class="<TMPL_VAR NAME=DD_CL>"><label>Split <TMPL_VAR NAME=SPLIT><TMPL_IF NAME=RO>: <TMPL_VAR NAME=SPLITD><TMPL_ELSE> description: <input type="text" value="<TMPL_VAR NAME=SPLITD>" name="Split<TMPL_VAR NAME=SPLIT>D" size=50/></TMPL_IF></label></p>
 			</TMPL_LOOP>
+			</div>
+			<TMPL_UNLESS NAME=FILLEDSPLITS><p id="splitvis" style="display:none"><input type="button" value="Add splits/swaps to event" onclick="for (i = 0; i < splitcells.length; i++) splitcells[i].style.display = 'table-cell'; document.getElementById('splitdesc').style.display = 'block'; document.getElementById('splitvis').style.display = 'none';"/></p></TMPL_UNLESS>
 			</TMPL_IF>
 
+			<TMPL_UNLESS NAME=FILLEDSPLITS><script>
+				var splitcells = document.getElementsByClassName('splitcell');
+				for (i = 0; i < splitcells.length; i++)
+					splitcells[i].style.display = 'none';
+				document.getElementById('splitdesc').style.display = 'none';
+				document.getElementById('splitvis').style.display = 'block';
+			</script></TMPL_UNLESS>
 			<TMPL_UNLESS NAME=RO><TMPL_IF NAME=NUNKS><p><strong style="color:red">Contents of unknown columns will be lost on saving!</strong></p></TMPL_IF></TMPL_UNLESS>
 
 			<p><TMPL_IF NAME=EDITOK><TMPL_IF NAME=RO><input type="submit" name="edit_ppl" value="Add/Edit participants"/><TMPL_IF NAME=PPL><input type="submit" name="edit" value="Edit values"/></TMPL_IF><TMPL_ELSE>

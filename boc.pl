@@ -1630,6 +1630,7 @@ sub gen_edit_event
 	my @splitds = map ({ SPLIT => $_, SPLITD => $evnt{"Split${_}Desc"}, DD_CL => (!$split_exp_sum{$_} || $evnt{"Split${_}Desc"}) ? '' : 'broken' }, sort keys %splits);
 	$tmpl->param(PPL => \@ppl);
 	$tmpl->param(SPLITDS => \@splitds);
+	$tmpl->param(FILLEDSPLITS => scalar @splitsh - $added_splts);
 	$tmpl->param(EDITOK => event_edit_ok(\%evnt, $session));
 	$tmpl->param(EDITHDRS => event_edit_ok(\%evnt, $session, 1));
 	$tmpl->param(VALID => event_valid(\%evnt, $cfr));
