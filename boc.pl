@@ -2999,7 +2999,7 @@ sub gen_manage_tgs
 				next if $acct =~ /^TrnsfrPot\d$/;
 				next if exists $summary{$acct};
 				$summary{$acct} = 0;
-				foreach my $_ ($i .. $#{$tgdetails{Creditor}}) {
+				foreach ($i .. $#{$tgdetails{Creditor}}) {
 					next if $tgdetails{Creditor}[$_] ne $acct;
 					if ($tgdetails{Amount}[$_] =~ /^\s*[*]\s*$/) {
 						$drained = 1;
