@@ -602,10 +602,19 @@ sub emit_with_status
 	exit;
 }
 
+sub pre_whinge
+{
+	my ($whinge, $tmpl) = @_;
+	my $old_param = $tmpl->param('WHINGE') ? $tmpl->param('WHINGE') . ' ' : '';
+	$tmpl->param(WHINGE => $old_param . encode_for_html($whinge));
+	return 0;
+}
+
 sub whinge
 {
 	my ($whinge, $tmpl) = @_;
-	$tmpl->param(WHINGE => encode_for_html($whinge));
+	my $old_param = $tmpl->param('WHINGE') ? $tmpl->param('WHINGE') . ' ' : '';
+	$tmpl->param(WHINGE => $old_param . encode_for_html($whinge));
 	print "Content-Type: text/html\n\n", $tmpl->output;
 	exit;
 }
@@ -855,6 +864,7 @@ sub gen_tcp
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %cf = valid_fee_cfg;
 	$tmpl->param(VACCTS => scalar keys %vaccts, EVENTS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})), CF_UNITS => (exists $cf{Fee} && scalar @{$cf{Fee}}));
+	pre_whinge('Expenses config is broken', $tmpl) if !%cf;
 
 	return $tmpl;
 }
