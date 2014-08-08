@@ -864,7 +864,7 @@ sub gen_tcp
 	my %vaccts = grep_acct_key('accounts', 'Name');
 	my %cf = valid_fee_cfg;
 	$tmpl->param(VACCTS => scalar keys %vaccts, EVENTS => !!%cf, COMMODS => ((scalar keys %{{known_commod_descs}}) + (scalar keys %{{get_cf_drains(%cf)}})), CF_UNITS => (exists $cf{Fee} && scalar @{$cf{Fee}}));
-	pre_whinge('Expenses config is broken', $tmpl) if !%cf;
+	pre_whinge('Expenses config is broken', $tmpl) if !%cf && -e "$config{Root}/config_fees";
 
 	return $tmpl;
 }
@@ -3406,7 +3406,7 @@ sub despatch
 				push (@{$tg{TrnsfrPot}}, 1) if scalar keys %creds > 1;
 			}
 
-			my %cf = read_htsv("$config{Root}/config_fees");
+			my %cf;
 			my %acct_names = get_acct_name_map;
 			my @accts;
 			my @descstrs;
@@ -3419,6 +3419,7 @@ sub despatch
 				unless ($dacct =~ /^V/) {
 					$acct = validate_acct($dacct, ($bank ? \%acct_names : \%ppl), $whinge);
 				} else {
+					%cf = read_htsv("$config{Root}/config_fees") unless %cf;
 					my $fee = clean_word($dacct);
 					$fee =~ s/^V// if defined $fee;
 					$whinge->('Broken expense type') unless defined $fee && !($fee =~ /[A-Z]/);
