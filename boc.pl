@@ -3018,10 +3018,10 @@ sub gen_manage_tgs
 						$drained = 1;
 					} else {
 						my $rate = (scalar keys %rates < 2) ? 1 : $rates{$tgdetails{Currency}[$_]};
-						$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate);
+						$summary{$acct} += $tgdetails{Amount}[$_] * $rate;
 					}
 				}
-				push (@sum_str, { FIRST => !(scalar @sum_str), N => $acct_names{$acct}, A => $acct, VAL => ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . "$summary{$acct} $defcur") });
+				push (@sum_str, { FIRST => !(scalar @sum_str), N => $acct_names{$acct}, A => $acct, VAL => ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . sprintf('%.2f', $summary{$acct}) . " $defcur") });
 			}
 		}
 
