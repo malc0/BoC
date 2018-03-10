@@ -100,6 +100,19 @@ sub flock_wc
 	return write_and_close($fh, $hr);
 }
 
+sub flock_rm
+{
+	my ($filename) = @_;
+
+	if (sysopen (my $fh, $filename, O_WRONLY)) {
+		flock ($fh, LOCK_EX) or die;
+		unlink $filename;
+		close $fh or die;
+	}
+
+	return;
+}
+
 sub push_session_data
 {
 	my ($sessid, $key, $value) = @_;
@@ -3268,6 +3281,8 @@ sub update_event_tg
 		$git->add($tg_file);
 	} else {
 		$git->rm($tg_file) if -e $tg_file;
+		flock_rm("$config{Root}/transaction_groups/.E$edit_id.precomp");
+		clear_caches('');
 	}
 
 	return;
@@ -3494,7 +3509,11 @@ sub despatch
 		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
 			my $edit_id = valid_edit_id($1, "$config{Root}/transaction_groups", 'TG', $whinge, 1);
 			whinge('Deletion not permitted', gen_manage_tgs($session)) unless $session->param('IsAdmin') && $edit_id && !($edit_id =~ /^[A-Z]/);
-			delete_common("$config{Root}/transaction_groups/$edit_id", "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
+			delete_common("$config{Root}/transaction_groups/$edit_id", "TG \"$edit_id\"", $session, sub {
+				flock_rm("$config{Root}/transaction_groups/.$edit_id.json");
+				flock_rm("$config{Root}/transaction_groups/.$edit_id.precomp");
+				clear_caches('');
+				gen_manage_tgs($session) });
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_tg' || ($cgi->param('tmpl') eq 'manage_tgs' && grep (/^force_edit_.+/, $cgi->param))) {
@@ -3523,7 +3542,11 @@ sub despatch
 		}
 		if (defined $cgi->param('delete')) {
 			whinge('Deletion not permitted', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef)) unless $session->param('IsAdmin') && $edit_id && !($edit_id =~ /^[A-Z]/);
-			delete_common($tgfile, "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
+			delete_common($tgfile, "TG \"$edit_id\"", $session, sub {
+				flock_rm("$config{Root}/transaction_groups/.$edit_id.json");
+				flock_rm("$config{Root}/transaction_groups/.$edit_id.precomp");
+				clear_caches('');
+				gen_manage_tgs($session) });
 		}
 
 		# only left with save and cancel now
@@ -3640,7 +3663,10 @@ sub despatch
 			$whinge->('Action not permitted') unless event_edit_ok(\%evnt, $session, 1);
 			$whinge->('Event not empty, you cannot delete it') unless $session->param('IsAdmin') || !(exists $evnt{Person} && scalar @{$evnt{Person}});
 
-			delete_common("$config{Root}/events/$mid", "event \"$mid\"", $session, sub { gen_manage_events($session) }, "$config{Root}/transaction_groups/E$mid");
+			delete_common("$config{Root}/events/$mid", "event \"$mid\"", $session, sub {
+				flock_rm("$config{Root}/events/.evs");
+				clear_caches('');
+				gen_manage_events($session) }, "$config{Root}/transaction_groups/E$mid");
 		}
 	}
 	if ($cgi->param('tmpl') eq 'edit_event' || ($cgi->param('tmpl') eq 'manage_events' && grep (/^force_edit_.+/, $cgi->param))) {
