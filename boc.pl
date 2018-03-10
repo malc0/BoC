@@ -3493,6 +3493,7 @@ sub despatch
 		}
 		if (((grep (/^del_.+$/, $cgi->param))[0] // '') =~ /^del_(.+)$/) {
 			my $edit_id = valid_edit_id($1, "$config{Root}/transaction_groups", 'TG', $whinge, 1);
+			whinge('Deletion not permitted', gen_manage_tgs($session)) unless $session->param('IsAdmin') && $edit_id && !($edit_id =~ /^[A-Z]/);
 			delete_common("$config{Root}/transaction_groups/$edit_id", "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 		}
 	}
@@ -3511,7 +3512,7 @@ sub despatch
 		my $tgfile = $edit_id ? "$config{Root}/transaction_groups/$edit_id" : undef;
 
 		if ($is_edit) {
-			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef)) if $edit_id =~ /^[A-Z]/;
+			whinge('Editing of generated TGs not allowed', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef)) if $edit_id && $edit_id =~ /^[A-Z]/;
 
 			lock_or_whinge($tgfile, "transaction group \"$edit_id\"", $session, sub { gen_manage_tgs($session) }, "edit_$edit_id");
 			unless (-r $tgfile) {
@@ -3521,6 +3522,7 @@ sub despatch
 			emit(gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, get_edit_token($sessid, "edit_$edit_id")));
 		}
 		if (defined $cgi->param('delete')) {
+			whinge('Deletion not permitted', gen_tg($edit_id, undef, scalar $cgi->param('def_cred'), $session, undef)) unless $session->param('IsAdmin') && $edit_id && !($edit_id =~ /^[A-Z]/);
 			delete_common($tgfile, "TG \"$edit_id\"", $session, sub { gen_manage_tgs($session) });
 		}
 
