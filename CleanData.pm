@@ -212,6 +212,7 @@ sub validate_unitname
 
 	$whinge->('Disallowed characters in short code') unless defined $unit;
 	$whinge->('Short code too short') if length $unit < 1;
+	$whinge->('No upper-case letters found in short code') unless $unit =~ /[A-Z]/;
 	$whinge->('Short code too long') if length $unit > 4;
 
 	return $unit;
