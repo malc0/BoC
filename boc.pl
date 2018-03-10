@@ -2982,7 +2982,11 @@ sub gen_add_split
 		my @sorteddescs = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Description}[$_]], grep (defined $cfg{Fee}[$_] && length $cfg{Fee}[$_] && !($cfg{Fee}[$_] =~ /[A-Z]/ || true($cfg{IsBool}[$_])) && true($cfg{Expensable}[$_]) && defined $cfg{Account}[$_] && exists $acct_names{$cfg{Account}[$_]} && defined $cfg{Description}[$_] && length $cfg{Description}[$_], 0 .. $#{$cfg{Description}})));	# Schwartzian transform ftw
 		@vaccts = map ({ NAME => $cfg{Description}[$_], A => "$cfg{Fee}[$_]" }, @sorteddescs);
 	} else {
-		@vaccts = map ({ NAME => $vaccts{$_}, A => $_ }, sort_AoH(\%vaccts));
+		if ($bank and scalar @nas == 1) {
+			@vaccts = map ({ NAME => $vaccts{$_}, A => $_ }, grep ($_ ne $nas[0]{'A'}, sort_AoH(\%vaccts)));
+		} else {
+			@vaccts = map ({ NAME => $vaccts{$_}, A => $_ }, sort_AoH(\%vaccts));
+		}
 	}
 
 	$tmpl->param(BANK => $bank, VACCT => $vacct, PPL => \@pploptions, NAS => \@nas, CUR => (scalar @units > 1), CURS => \@currencies, VACCTS => \@vaccts);
