@@ -176,8 +176,6 @@ sub tg_tp_amnt_per_share
 {
 	my ($head_accts, $cred_accts, $tg, $rates, $resolved, $neg_accts, $calced_tps) = @_;
 
-	$calced_tps //= \(my @tp_amnts);
-
 	my (@tp_shares, my @tp_unres);
 
 	foreach my $row (grep (defined $$cred_accts[$_], 0 .. $#$cred_accts)) {
