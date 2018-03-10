@@ -270,6 +270,14 @@ sub compute_tg
 		}
 	}
 
+	# allow association of a TG with an account even if the TG has no effect
+	unless (%relevant_accts) {
+		foreach (@head_accts) {
+			$relevant_accts{$_} = 0;
+			$vrel_accts->{$_} = 0;
+		}
+	}
+
 	return unless %relevant_accts;
 
 	my $imbalance = $neg_error - sum values %relevant_accts;
