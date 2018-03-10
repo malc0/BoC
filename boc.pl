@@ -2986,6 +2986,8 @@ sub gen_manage_tgs
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts);
 
+	my %units_cfg = read_units_cfg("$config{Root}/config_units");
+	my $defcur = (scalar known_currs(%units_cfg) > 1) ? $units_cfg{Default} : '';
 	my @tglist;
 	my %daterates;
 	foreach my $tg (date_sorted_htsvs('transaction_groups')) {
@@ -3019,7 +3021,7 @@ sub gen_manage_tgs
 						$summary{$acct} += sprintf('%.2f', $tgdetails{Amount}[$_] * $rate);
 					}
 				}
-				push (@sum_str, { FIRST => !(scalar @sum_str), N => $acct_names{$acct}, A => $acct, VAL => ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . $summary{$acct}) });
+				push (@sum_str, { FIRST => !(scalar @sum_str), N => $acct_names{$acct}, A => $acct, VAL => ($drained ? 'drained' : (($summary{$acct} < 0) ? '' : '+') . "$summary{$acct} $defcur") });
 			}
 		}
 
@@ -3034,7 +3036,6 @@ sub gen_manage_tgs
 		);
 		push (@tglist, \%outputdetails);
 	}
-	my %units_cfg = read_units_cfg("$config{Root}/config_units");
 	my @units = known_units(%units_cfg);
 	$tmpl->param(TGS => \@tglist, DEFCUR => (scalar @units) ? "$units_cfg{$units_cfg{Default}} ($units_cfg{Default})" : undef);
 	$tmpl->param(ADDTG => $session->param('MayAddEditTGs'));
