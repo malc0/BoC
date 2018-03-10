@@ -111,7 +111,7 @@ sub clean_unit
 {
 	return undef unless defined $_[0];
 	my $UNIT = uc ($_[0]);
-	return undef unless $UNIT =~ /^([A-Z\-+_]*)$/;	# not '.' as these units are extensively regexp'd
+	return undef unless $UNIT =~ /^([A-Z]*[0-9\-+_]*[A-Z]*)$/;	# not '.' as these units are extensively regexp'd
 	return $1;
 }
 
