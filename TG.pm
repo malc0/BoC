@@ -164,11 +164,12 @@ sub compact_creds_only
 
 sub stround
 {
+	# this whole ridiculous mess is coz Perl does very odd and unhelpful rounding
 	my ($n, $places) = @_;
 	my $sign = ($n < 0) ? '-' : '';
 	my $abs = abs $n;
 
-	return $sign . substr ($abs + ('0.' . '0' x $places . '5'), 0, $places + length (int ($abs)) + 1);
+	return sprintf("%.${places}f", $sign . substr ($abs + ('0.' . '0' x $places . '5'), 0, $places + length (int ($abs)) + 1));
 }
 
 sub tg_tp_amnt_per_share
