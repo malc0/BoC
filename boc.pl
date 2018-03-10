@@ -3878,7 +3878,7 @@ sub despatch
 				my @feecols = %et ? @$fees : grep (exists $cds{$_} || exists $drains{$_}, @{$cf{Fee}});
 
 				splice (@{$evnt{Headings}}, 1, 0, 'CustomFee') if !grep ($_ eq 'CustomFee', @{$evnt{Headings}});	# necessary so subsequent ones added at position 2
-				foreach my $unit (@feecols) {
+				foreach my $unit (reverse @feecols) {
 					splice (@{$evnt{Headings}}, 2, 0, $unit) if !grep ($_ eq $unit, @{$evnt{Headings}});
 				}
 
