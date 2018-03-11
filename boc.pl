@@ -3950,7 +3950,7 @@ sub despatch
 			$whinge->('Zero duration?') unless $evnt{Duration} > 0;
 
 			my %tg;
-			%tg = event_to_tg(%evnt) if (scalar @{$evnt{Person}});
+			%tg = event_to_tg(%evnt) if $evnt{Person} and (scalar @{$evnt{Person}});
 
 			$whinge->('Unable to get commit lock') unless try_commit_lock($sessid);
 			bad_token_whinge(gen_manage_events($session)) unless redeem_edit_token($sessid, "edit_$edit_id", $etoken);
