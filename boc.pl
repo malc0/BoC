@@ -1348,7 +1348,7 @@ sub gen_edit_rates
 {
 	my $tmpl = load_template('edit_rates.html', $_[0]);
 
-	my %cfg = read_units_cfg("$config{Root}/config_units.p1");
+	my %cfg = date_sort_rates(read_units_cfg("$config{Root}/config_units.p1"));
 	# note that similarly to gen_tg we don't validate here -- the form has to give the opportunity to correct invalid data
 	# we make a best-efforts attempt to parse the file here, and display it, but ultimately if our parsing is shit
 	# it doesn't matter, as it won't validate correctly when attempting to save

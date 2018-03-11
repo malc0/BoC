@@ -233,7 +233,12 @@ sub date_sort_rates
 {
 	my %cfg = @_;
 
-	my @order = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Date}[$_] ], 0 .. $#{$cfg{Date}}));	# Schwartzian transform ftw
+	my @order;
+	if ($cfg{Date}[0] =~ /\./) {
+		@order = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf('%04d%02d%02d', (split '\.', $cfg{Date}[$_])[2,1,0]) ], 0 .. $#{$cfg{Date}}));	# Schwartzian transform ftw
+	} else {
+		@order = map ($_->[0], sort { $a->[1] cmp $b->[1] } map ([ $_, $cfg{Date}[$_] ], 0 .. $#{$cfg{Date}}));	# Schwartzian transform ftw
+	}
 
 	foreach (keys %cfg) {
 		next if $_ eq 'Headings' or not ref $cfg{$_};
