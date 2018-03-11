@@ -3340,7 +3340,7 @@ sub despatch
 
 			$tg{Date} = validate_date(scalar $cgi->param('tg_date'), $whinge);
 			push (@{$tg{Creditor}}, validate_acct(scalar $cgi->param('Creditor'), \%acct_names, $whinge));
-			push (@{$tg{Amount}}, clean_word($cgi->param('Amount')));
+			push (@{$tg{Amount}}, CleanData::clean_decimal($cgi->param('Amount')) ? CleanData::clean_decimal($cgi->param('Amount')) : clean_word($cgi->param('Amount')));
 			push (@{$tg{Currency}}, (scalar @units > 1) ? clean_word($cgi->param('Currency')) : $units[0]) if (scalar @units);
 			push (@{$tg{Description}}, clean_words($cgi->param('Description')));
 
@@ -3407,6 +3407,8 @@ sub despatch
 			my %creds;
 			foreach my $acct (map { /^Cred_(.*)/; $1 } grep (/^Cred_.+$/, $cgi->param)) {
 				validate_acct($acct, ($bank ? \%neg_accts : \%ppl), $whinge);
+				# I can't think why you'd want to use `*' in this case
+				# If this changes, see how swap uses clean_decimal to allow comma separators to work
 				my $amnt = validate_decimal(scalar $cgi->param("Cred_$acct"), 'Creditor amount', undef, $whinge);
 				$creds{$acct} = $amnt unless $amnt == 0;
 			}
@@ -3583,7 +3585,7 @@ sub despatch
 			my @units = known_units();
 			foreach my $row (0 .. $max_rows) {
 				push (@{$tg{Creditor}}, clean_word($cgi->param("Creditor_$row")));
-				push (@{$tg{Amount}}, clean_word($cgi->param("Amount_$row")));
+				push (@{$tg{Amount}}, CleanData::clean_decimal($cgi->param("Amount_$row")) ? CleanData::clean_decimal($cgi->param("Amount_$row")) : clean_word($cgi->param("Amount_$row")));
 				push (@{$tg{Currency}}, (scalar @units > 1) ? clean_word($cgi->param("Currency_$row")) : $units[0]) if (scalar @units);
 				push (@{$tg{$_}}, clean_word($cgi->param("${_}_$row"))) foreach (keys %ppl, keys %vaccts);
 				push (@{$tg{TrnsfrPot}}, clean_word($cgi->param("TrnsfrPot_$row")));
