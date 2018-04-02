@@ -13,7 +13,7 @@ use Time::HiRes 1.9725 qw(stat usleep);
 
 # non core
 use CGI::Session '-ip-match';
-use Crypt::Cracklib;
+use Crypt::Cracklib;	# this is optional: comment this and the two lines below containing the substring `rack' to avoid it
 use Crypt::PasswdMD5;
 use File::Slurp;
 use Git::Wrapper;
