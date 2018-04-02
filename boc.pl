@@ -2742,6 +2742,9 @@ sub date_sorted_htsvs
 		$dates{$_} = '0.0.0' unless defined $dates{$_} and $dates{$_} =~ /^\s*\d+\s*[.]\s*\d+\s*[.]\s*\d+\s*$/;
 		push (@{$rds{$dates{$_}}}, $_);	# non-unique dates
 	}
+	foreach (keys %rds) {
+		@{$rds{$_}} = sort @{$rds{$_}};	# stable sort order for HTSVs on the same date
+	}
 	return map (@{$rds{$_->[0]}}, sort { $a->[1] cmp $b->[1] } map ([ $_, sprintf('%04d%02d%02d', (split /[.]/, $_)[2,1,0]) ], keys %rds));	# Schwartzian transform ftw
 }
 
@@ -2804,8 +2807,8 @@ sub gen_ucp
 			}
 			$computed{$user} >= 0 ? $credsum : $debsum += $computed{$user} unless exists $tgdetails{Omit};
 
-			@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep ($_ ne $user && (!$rcomputed{$_} || ($bidi && exists $neg_accts{$user}) || (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} < 0))), keys %rcomputed));
-			@from = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep ($_ ne $user && !($rcomputed{$_} && $bidi && exists $neg_accts{$user}) && (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} >= 0)), keys %rcomputed));
+			@to = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep ($_ ne $user && (!$rcomputed{$_} || ($bidi && exists $neg_accts{$user}) || (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} < 0))), sort keys %rcomputed));
+			@from = map ({ SEP => ', ', N => $acct_names{$_}, A => $_ }, grep ($_ ne $user && !($rcomputed{$_} && $bidi && exists $neg_accts{$user}) && (((exists $neg_accts{$user}) == (exists $neg_accts{$_})) == ($rcomputed{$_} * $rcomputed{$user} >= 0)), sort keys %rcomputed));
 
 			$to[0]->{SEP} = '' if scalar @to;
 			$to[-1]->{SEP} = ' and ' if scalar @to > 1;
