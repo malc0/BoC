@@ -38,6 +38,10 @@ BoC is written in PERL.  You need the following non-core packages:
 3. Give the webserver user/group read/write permission to the datastore.  On Debian this would be `chown -R www-data:www-data <datastore path>`.  On OpenSuSE replace `www-data:www-data` with `wwwrun:www`.
 4. Go to http://\<wherever-you-put-it\>/boc.pl.
 
+## License
+
+AGPL-1.0 (see LICENSE).
+
 ## Thanks
 
 Aiora Zabala originally contributed the default CSS, which makes the interface much less ugly.
