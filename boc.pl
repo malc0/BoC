@@ -54,6 +54,7 @@ sub update_global_config
 	@config{keys %append_cfg} = values %append_cfg;	# merge settings
 	$config{LongName} //= 'Set LongName in installation config!';
 	$config{ShortName} //= 'Set ShortName in installation config!';
+	$config{StyleURL} //= 'boc.pl?serve=bocstyle';
 	$config{TimeoutURL} //= 'boc.pl?serve=timeout';
 
 	return;
