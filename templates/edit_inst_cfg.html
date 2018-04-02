@@ -18,11 +18,13 @@
 			<p><label>System short name: <input type="text" name="ShortName" value="<TMPL_VAR NAME=ShortName>"/></label></p>
 			<p><label>System long name: <input type="text" name="LongName" value="<TMPL_VAR NAME=LongName>"/></label></p>
 			<p><label>System style file location: <input type="text" name="StyleURL" value="<TMPL_VAR NAME=StyleURL>" style="width:50%"/></label></p>
-			<p><label>timeout.js URL (SLOW unless set): <input type="text" name="TimeoutURL" value="<TMPL_VAR NAME=TimeoutURL>" style="width:50%"/></label></p>
+			<p><label>timeout.js URL*: <input type="text" name="TimeoutURL" value="<TMPL_VAR NAME=TimeoutURL>" style="width:50%"/></label></p>
 			<p><label>Allow passwordless user logins?: <input type="checkbox" name="Passwordless" value="" <TMPL_IF NAME=Passwordless>checked="checked"</TMPL_IF>/></label></p>
 			<p><label>System email address: <input type="email" name="email" value="<TMPL_VAR NAME=email>"/></label></p>
 			<p><label>SMTP relay host (or &apos;sendmail&apos; for local): <input type="text" name="Relay" value="<TMPL_VAR NAME=Relay>"/></label></p>
 			<p><label>Boundary for &apos;recent&apos; people in event participation: <input type="text" name="EvMRUPeriod" value="<TMPL_VAR NAME=EvMRUPeriod>" style="width:3ex"/> days</label></p>
+
+			<p><small>* safe to leave unset (default), but if your browser doesn't cache the dynamically served files it may be more performant to supply a static URL here</small><p>
 
 			<p><input type="submit" name="cancel" value="Cancel"/><input type="submit" name="save" value="Save changes"/></p>
 		</div>

@@ -616,6 +616,30 @@ sub emit_with_status
 	exit;
 }
 
+sub serve
+{
+	my ($file, $type) = @_;
+
+	my @st = stat($file);
+	my ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) = gmtime(CleanData::clean_decimal($st[9]));
+	my @weekday = qw(Sun Mon Tue Wed Thu Fri Sat);
+	my @month = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+	$year += 1900;
+
+	print "Content-Type: $type\n";
+	# Last-Modified means browser-side caching might work...
+	printf "Last-Modified: $weekday[$wday], %02d $month[$mon] $year %02d:%02d:%02d GMT\n", $mday, $hour, $min, $sec;
+	print "Content-Length: $st[7]\n\n";
+
+	open (my $fh, '<', $file) or die;
+	while (<$fh>) {
+		print;
+	}
+	close ($fh);
+
+	exit;
+}
+
 sub pre_whinge
 {
 	my ($whinge, $tmpl) = @_;
@@ -4124,8 +4148,8 @@ die "The BoC root directory (set as $config{Root} in ./boc_config) must exist an
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
 
 emit(load_template(untaint($cgi->param('serve')) . '.html')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".html";
-emit(load_template(untaint($cgi->param('serve')) . '.js')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".js";
-emit(load_template(untaint($cgi->param('serve')) . '.css')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".css";
+serve("$config{TemplateDir}/" . untaint($cgi->param('serve')) . '.js', 'application/javascript') if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".js";
+serve("$config{TemplateDir}/" . untaint($cgi->param('serve')) . '.css', 'text/css') if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".css";
 
 $ENV{PATH} = '/bin:/usr/bin';
 $git = Git::Wrapper->new($config{Root});
