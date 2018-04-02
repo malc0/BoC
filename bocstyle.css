@@ -2,7 +2,7 @@
 
 
 body {
-  background: #d9ecec url(http://people.pwf.cam.ac.uk/az296/bocimg/bg.png) repeat-y 50% 0;
+  background-color: #d9ecec;
   max-width: 810px;
   margin: auto;
   font-family: "Trebuchet MS", Verdana, Tahoma, Helvetica, Arial, Sans-Serif;
@@ -47,7 +47,7 @@ h1, h2, h3, h4 {
 }
 h1 {
   font-size: 1.4em;
-  background: #008787 url(http://people.pwf.cam.ac.uk/az296/bocimg/bg-h1.png) repeat-y 0 0;
+  background-color: #008787;
   width: 93%;
   border-top-left-radius: 1em;
   border-bottom-left-radius: 1em;
