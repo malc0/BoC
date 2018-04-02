@@ -1,0 +1,148 @@
+body {
+  background-color: #d9ecec;
+  max-width: 810px;
+  margin: auto;
+  font-family: "Trebuchet MS", Verdana, Tahoma, Helvetica, Arial, Sans-Serif;
+  font-size: 85%;
+  padding: 10px;
+}
+p {
+  text-align: justify;
+}
+p.acctbal {
+  text-align: right;
+  font-size: 1.4em;
+}
+a {
+  color: #008787;
+}
+  a:hover {
+    color: #fff;
+    background-color: #008787;
+  }
+hr  {
+  border: 1px solid #99CCCC;
+  margin: 25px 0;
+}
+div.clear {
+  clear: both;
+  }
+div.nav {
+  position:relative;
+  right:370px;
+  float:left;
+  width:300px;
+  margin-right:-370px
+}
+p.nav {
+  text-align:right;
+}
+
+/*Headings*/
+h1, h2, h3, h4 {
+  font-weight: bold;
+  color: #005151;
+}
+h1 {
+  font-size: 1.4em;
+  background-color: #008787;
+  width: 93%;
+  border-top-left-radius: 1em;
+  border-bottom-left-radius: 1em;
+  color: white;
+  padding: 6px 20px;
+  margin: 30px 0px;
+}
+h2 {
+  font-size: 1.2em;
+  margin-top: 40px;
+}
+h3, h4 {
+  font-size: 1.0em;
+}
+
+/*buttons and fields*/
+body input[type="button"], 
+body input[type="submit"],
+body input[type="text"], 
+body select {
+  padding: 3px 12px;
+  font-family: "Trebuchet MS", Verdana, Tahoma, Helvetica, Arial, Sans-Serif;
+}
+
+input[type="text"] {
+  padding: 3px 6px;
+}
+
+/*tables*/
+table {
+  border-collapse: collapse;
+  background: #fff;
+  width: 100%;
+}
+table, th, td {
+  border: 1px solid #008787;
+  padding: 5px;
+}
+th {
+  background: #008787; /*#BEDFDF*/
+  color: #fff;
+  font-weight: bold;
+  font-size: 0.8em;
+}
+th.negated {
+  background: #fff;
+  color: #008787;
+}
+  th.negated a {
+    color: #008787;
+  }
+td.negated {
+  background: #008787;
+}
+  td.negated a {
+    color: #fff;
+  }
+tr.negated {
+  background: #008787;
+}
+  tr.negated a {
+    color: #fff;
+  }
+td.vacct {
+  background: lavender;
+}
+th a {
+  color: #fff;
+}
+table tr.omitted {
+  background: #aaa;
+  color:#555;
+}
+  table tr.omitted a {
+    color:#555;
+  }
+      table tr.omitted a:hover {
+      color:#fff;
+    }
+table.unknown_accts {
+  background: salmon;
+}
+table.widetable,
+table.widetable th,
+table.widetable td {
+  padding: 5px 2px;
+  text-align: center;
+  border-left: 0;
+  border-right: 0;
+}
+  table.widetable {
+    border: 1px solid #008787;
+  }
+  table.widetable th {
+    padding: 3px 2px;
+  }
+  table.widetable input[type="text"], 
+  table.widetable select {
+    padding: 0;
+  }
