@@ -53,7 +53,7 @@ Installation is minimal, and straightforward for anyone with some experience of 
 \item Place the contents of the `resources' directory somewhere.  It is simplest for this to be a subdirectory `resources' of the directory containing boc.pl.
 \item Create a data-store directory, with read/write permission by the web-server.  This directory need not (and indeed, probably shouldn't) be in a web-visible path.
 \item Set the value of the `Root' key in the configuration file to the absolute path of the data-store directory.
-\item Set the value of the `TemplateDir' key in the configuration file to the path of the templates directory.  If the suggested layout is used, no change is required.
+\item Set the value of the `TemplateDir' key in the configuration file to the path of the resources directory.  If the suggested layout is used, no change is required.
 \item Install necessary Perl modules.  A list is given below, all are available from CPAN:
 	\begin{itemize}
 	\item CGI::Session
@@ -82,7 +82,7 @@ Due to the flexible nature of the software a prescriptive guide to setup is not 
 \item Supply a username and password for the (first) administrator account.  You now have a minimally functional boc installation...
 \item Log in, using the just-supplied account details.
 \item Go to `Admin control panel', then `Edit installation configuration'.
-\item See description of this configuration page in \autoref{inst_cfg}.  Make changes as appropriate, and save.  Setting the system names and style file URL are \emph{highly} recommended.
+\item See description of this configuration page in \autoref{inst_cfg}.  Make changes as appropriate, and save.  Setting the system names is \emph{highly} recommended.
 \item Create some users via `Manage people' (\autoref{manage_ppl}) and/or non-personal accounts via `Manage virtual accounts' (\autoref{manage_vaccts}).\footnote{You may like to set up address alternatives and the attributes system first (\autoref{addr_alts} and \autoref{edit_attrs}), but this is not always necessary}
 \item (Optional) setup a default and presentation currency, via `Edit units', described in \autoref{edit_units}.
 \end{enumerate}
@@ -245,9 +245,9 @@ Note that commodity rates are \emph{Currency Per Unit}, whereas currencies are \
 
 \item[System long name]: a full name for the system (e.g. `Bank of CUCC')
 
-\item[System style file location]: URL for the style file loaded by all boc pages
+\item[System style file location]: URL for the style file loaded by all boc pages.  boc will use the copy distributed in the resources directory if the URL is not supplied.
 
-\item[timeout.js URL]: URL to the file timeout.js.  boc will use the copy distributed in the templates directory if the URL is not supplied, but this will cause \emph{two} boc.pl invocations for every page load, and hence is disagreeably slow.
+\item[timeout.js URL]: URL to the file timeout.js.  boc will use the copy distributed in the resources directory if the URL is not supplied.
 
 \item[Allow passwordless user logins?]: whether users can log-in to their accounts when they don't have a password set
 
