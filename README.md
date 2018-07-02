@@ -10,6 +10,10 @@ The system has since accommodated student outdoor club use, handling accounts fo
 
 All edits are auditable, the backing store being a git repository.
 
+## Documentation
+
+A brief manual is included in doc/boc.pdf.
+
 ## Example
 
 A read-only installation using many of BoC's features may be seen at https://sb476.user.srcf.net/boc14/boc.pl (login as `pwithnall`).
