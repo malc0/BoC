@@ -49,12 +49,11 @@ A few warnings to make your boc experience less irritating:
 Installation is minimal, and straightforward for anyone with some experience of installing CGI applications.
 
 \begin{enumerate}
-\item Put the code (boc.pl, *.pm) in a directory where the web-server will accept boc.pl a CGI executable programme.
-\item Place the contents of the `templates' directory somewhere.  It is simplest for this to be a subdirectory `templates' of the directory containing boc.pl.
+\item Put the code (boc.pl, *.pm) and top-level configuration file (boc\_config) in a directory where the web-server will accept boc.pl as a CGI executable programme.
+\item Place the contents of the `resources' directory somewhere.  It is simplest for this to be a subdirectory `resources' of the directory containing boc.pl.
 \item Create a data-store directory, with read/write permission by the web-server.  This directory need not (and indeed, probably shouldn't) be in a web-visible path.
-\item Place the top-level configuration file in the same directory: an example is included with the software, but the style is one key/value pair per line, separated by a tab.
 \item Set the value of the `Root' key in the configuration file to the absolute path of the data-store directory.
-\item Set the value of the `TemplateDir' key in the configuration file to the path of the templates directory.  If the suggestion configuration is used, this will be `templates'.
+\item Set the value of the `TemplateDir' key in the configuration file to the path of the templates directory.  If the suggested layout is used, no change is required.
 \item Install necessary Perl modules.  A list is given below, all are available from CPAN:
 	\begin{itemize}
 	\item CGI::Session
