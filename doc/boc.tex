@@ -34,7 +34,11 @@ Typeset using the \LaTeX{} document presentation system in the Palatino and Comp
 
 The Bank of CUCC (henceforth, `boc') is a software package designed to ease the life of an unfortunate charged with keeping track of expenses and distributing costs for and between a number of people.  An example of same might be the treasurer of a club or society, but equally might be someone keeping track of expenditure for a group of people on holiday.
 
-boc is designed to permit data to be entered relatively easily, to allow the current state of individuals' tabs to be accessible and to have all day-to-day operations conducted through a web interface (with concurrency of users).  Secondary, but important, features are fairly strong security, sufficient abstraction to be flexible in application, version controlled data-store, and ease of auditing.
+boc is designed to permit data to be entered relatively easily, to allow the current state of individuals' tabs to be accessible and to have all day-to-day operations conducted through a web interface (with concurrency of users).  A distinguishing aspect is that the core of boc is share-based (exact accountancy is however easily accomplished by using currency values for shares).
+
+Secondary, but important, features are cost-pools, correct handling of time-varying exchange rates, fairly strong security, sufficient abstraction to be flexible in application, version controlled data-store, and ease of auditing.  Exchange-rates may refer to currencies and/or commodities: for example EUR per GBP and EUR per beer are both possible.
+
+The share mechanism transparently underlies everything, but for user-friendliness there are various handy web-forms provided which generate the share tables (`Transaction Groups').  These range from a simple person-to-person swap, to a customizable `Event' with costs for various items being automatically squirrelled away into pre-set cost-pools.
 
 A few warnings to make your boc experience less irritating:
 \begin{itemize}
