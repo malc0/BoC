@@ -23,12 +23,14 @@ BoC is written in PERL.  You need the following non-core packages:
 * Crypt::PasswdMD5,
 * File::Slurp,
 * Git::Wrapper,
+* HTML::Entities
 * HTML::Template,
 * HTML::Template::Pro,
 * JSON::XS,
 * MIME::Lite,
 * Text::Password::Pronounceable,
-* Time::ParseDate, and
+* Time::ParseDate,
+* URI::Escape, and
 * UUID::Tiny.
 
 ## Installation
