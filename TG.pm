@@ -207,7 +207,7 @@ sub tg_tp_amnt_per_share
 		my $net = (keys %{$tp_unres[$tp]}) ? 0+'inf' : sum values %{$$calced_tps[$tp]};
 		$taps[$tp] = (sum values %{$tp_shares[$tp]}) ? $net / (sum values %{$tp_shares[$tp]}) : 0;
 
-		foreach (keys $tp_shares[$tp]) {
+		foreach (keys %{$tp_shares[$tp]}) {
 			# 2) skip share if sharee is creditor and amnt is unresolved.  this allows self-draining accts.
 			# not exporting inf is ok, since other shares will still cause drain detection, and if there are no other shares
 			# self-draining is a no-op or calculable in the final pass (for multiple TP drain-sources)
@@ -245,10 +245,10 @@ sub compute_tg
 		if ($vrel_acc && exists $calced_tps[$tp]{$vrel_acc} && $calced_tps[$tp]{$vrel_acc}) {
 			$vrel_amnt = $calced_tps[$tp]{$vrel_acc};
 			my $vrel_same;
-			$vrel_same += $calced_tps[$tp]{$_} foreach (grep ($calced_tps[$tp]{$_} * $vrel_amnt > 0, keys $calced_tps[$tp]));
+			$vrel_same += $calced_tps[$tp]{$_} foreach (grep ($calced_tps[$tp]{$_} * $vrel_amnt > 0, keys %{$calced_tps[$tp]}));
 			$vrel_prop = $vrel_same ? ($vrel_amnt / $vrel_same) : 0;
 		}
-		foreach (grep ($calced_tps[$tp]{$_}, keys $calced_tps[$tp])) {
+		foreach (grep ($calced_tps[$tp]{$_}, keys %{$calced_tps[$tp]})) {
 			my $samnt = $calced_tps[$tp]{$_};
 
 			$vrel_accts->{$_} += $samnt if $vrel_amnt && $_ eq $vrel_acc;
@@ -263,7 +263,7 @@ sub compute_tg
 	}
 
 	if ($vrel_acc) {
-		foreach (keys $vrel_accts) {
+		foreach (keys %$vrel_accts) {
 			$vrel_accts->{$_} *= -1 if exists $nar->{$_};
 		}
 	}
