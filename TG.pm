@@ -176,7 +176,7 @@ sub tg_tp_amnt_per_share
 {
 	my ($head_accts, $cred_accts, $tg, $rates, $resolved, $neg_accts, $calced_tps) = @_;
 
-	my (@tp_shares, my @tp_unres);
+	my (@tp_shares, @tp_unres);
 
 	foreach my $row (grep (defined $$cred_accts[$_], 0 .. $#$cred_accts)) {
 		my $cred = $tg->{Creditor}[$row];
