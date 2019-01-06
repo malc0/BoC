@@ -9,7 +9,7 @@ use CGI::Carp qw(fatalsToBrowser);
 use Digest::SHA qw(sha1_hex);
 use List::Util qw(first max min sum);
 use Text::Wrap;
-use Time::HiRes 1.9725 qw(stat usleep);
+use Time::HiRes 1.9725 qw(stat usleep utime);
 
 # non core
 use CGI::Session '-ip-match';
