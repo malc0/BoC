@@ -292,7 +292,7 @@ sub compute_tg
 
 		my $maxkey;
 		my $max = 0;
-		foreach (keys %resid) {
+		foreach (sort keys %resid) {
 			if (abs $resid{$_} > $max) {
 				$max = abs $resid{$_};
 				$maxkey = $_;
