@@ -2754,7 +2754,7 @@ sub sprint_monetary
 {
 	my ($value, $no_plus) = @_;
 
-	return sprintf(($value && abs $value > .001 )? ($no_plus ? '%.2f' : '%+.2f') : '0.00', $value);
+	return ($value && abs $value > .001) ? sprintf($no_plus ? '%.2f' : '%+.2f', $value) : sprintf('0.00');
 }
 
 sub unk_computed_accts
