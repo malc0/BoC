@@ -724,6 +724,8 @@ sub login
 
 	my $cryptpass = unix_md5_crypt($pass, $salt);
 
+	sleep(1);	# avoid remote brute-forcing
+
 	$whinge->() unless ($cryptpass eq $userdetails{Password});
 
 	$userdetails{User} = $user;
