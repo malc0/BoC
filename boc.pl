@@ -712,7 +712,7 @@ sub gen_login
 sub login
 {
 	my $cgi = $_[0];
-	my $user = clean_username($cgi->param('user'));
+	my $user = clean_username(scalar $cgi->param('user'));
 	my $pass = $cgi->param('pass');
 	my $whinge = sub { whinge('Login failed!', gen_login($user)) };
 
@@ -751,7 +751,7 @@ sub gen_login_nopw
 sub login_nopw
 {
 	my ($cgi, $userdetout) = @_;
-	my $user = clean_username($cgi->param('user'));
+	my $user = clean_username(scalar $cgi->param('user'));
 
 	whinge('Login failed!', gen_login_nopw) unless $user and (-r "$config{Root}/users/$user");
 	my %userdetails = read_simp_cfg("$config{Root}/users/$user");
@@ -4151,9 +4151,9 @@ die 'Can\'t find value for "TemplateDir" key in ./boc_config' unless defined $co
 die "The BoC root directory (set as $config{Root} in ./boc_config) must exist and be readable and writable by the webserver --" unless (-r $config{Root} and -w $config{Root});
 $ENV{HTML_TEMPLATE_ROOT} = $config{TemplateDir};
 
-emit(load_template(untaint($cgi->param('serve')) . '.html')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".html";
-serve("$config{TemplateDir}/" . untaint($cgi->param('serve')) . '.js', 'application/javascript') if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".js";
-serve("$config{TemplateDir}/" . untaint($cgi->param('serve')) . '.css', 'text/css') if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . $cgi->param('serve') . ".css";
+emit(load_template(untaint(scalar $cgi->param('serve')) . '.html')) if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . scalar $cgi->param('serve') . ".html";
+serve("$config{TemplateDir}/" . untaint(scalar $cgi->param('serve')) . '.js', 'application/javascript') if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . scalar $cgi->param('serve') . ".js";
+serve("$config{TemplateDir}/" . untaint(scalar $cgi->param('serve')) . '.css', 'text/css') if defined $cgi->param('serve') && !($cgi->param('serve') =~ /\./) && -r "$config{TemplateDir}/" . scalar $cgi->param('serve') . ".css";
 
 $ENV{PATH} = '/bin:/usr/bin';
 $git = Git::Wrapper->new($config{Root});
