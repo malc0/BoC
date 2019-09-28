@@ -469,7 +469,7 @@ compute_me:
 
 sub drained_accts
 {
-	my ($exempt, $to_zero_only) = @_;
+	my ($exempt, $to_zero_only, $omit_ts) = @_;
 	$exempt = '' unless $exempt;
 	my %drained;
 
@@ -479,6 +479,9 @@ sub drained_accts
 		$tg = $1 if $tg =~ /([^\/]*)$/;
 		$tgds{$tg} = \%{{read_tg2("$config{Root}/transaction_groups/$tg")}} unless exists $tgds{$tg};
 		my %tgdetails = %{$tgds{$tg}};
+		if (defined $omit_ts and defined clean_date($tgdetails{Date}) && clean_date($tgdetails{Date}) > $omit_ts) {
+			$tgds{$tg}->{Omit} = undef;
+		}
 		next if exists $tgdetails{Omit};
 
 		foreach (0 .. $#{$tgdetails{Creditor}}) {
@@ -495,7 +498,8 @@ sub drained_accts
 
 sub double_drainers
 {
-	my %drained = drained_accts;
+	my $omit_ts = $_[0];
+	my %drained = drained_accts(undef, undef, $omit_ts);
 	my %bad;
 
 	foreach my $acct (grep (scalar @{$drained{$_}} > 1, keys %drained)) {
@@ -517,14 +521,15 @@ sub stround
 
 sub resolve_accts
 {
-	my ($ddsr, $nar) = @_;
+	my ($ddsr, $nar, $omit_ts) = @_;
 	my %dds = %{$ddsr};
 	my %neg_accts = %{$nar};
-	my %das = drained_accts(undef, 1);
+	my %das = drained_accts(undef, 1, $omit_ts);
 	my %resolved;
 	my $loops = 50;
 
 	my $newest = fmtime('newest');
+	$newest = 9999999999 if $omit_ts;	# will mean .pres/.res are `old' AND below fmtime('newest') test fails, so nothing written out
 	return %{flock_rc("$config{Root}/transaction_groups/.res")} if fmtime('transaction_groups/.res') > $newest;
 	%pres = %{flock_rc("$config{Root}/transaction_groups/.pres")} if fmtime('transaction_groups/.pres') > $newest;
 	while ($loops--) {
@@ -560,7 +565,7 @@ sub resolve_accts
 
 		if (nonfinite(values %resolved) == 0 || nonfinite(values %resolved) == $unresolved) {
 			if (cache_lock) {
-				if (fmtime('newest') == $newest) {
+				if (fmtime('newest') == $newest) {	# this test is coupled to $no_cache implementation above
 					flock_wc("$config{Root}/transaction_groups/.pres", \%pres) unless !%pres || fmtime('transaction_groups/.pres') > $newest;
 					flock_wc("$config{Root}/transaction_groups/.res", \%resolved) unless !%resolved || nonfinite(values %resolved) || fmtime('transaction_groups/.res') > $newest;
 				}
@@ -2869,12 +2874,13 @@ sub gen_ucp
 
 sub gen_accts_disp
 {
-	my ($session, $nozeros, $by_bal) = @_;
+	my ($session, $nozeros, $by_bal, $limit_date) = @_;
 	my $tmpl = load_template('accts_disp.html', undef, $session);
 
-	my %dds = double_drainers;
+	my $limit_ts = (defined $limit_date) ? clean_date($limit_date) - 1 : undef;	# minus one so TGs from the specified day are *not* included
+	my %dds = double_drainers($limit_ts);
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
-	my %resolved = resolve_accts(\%dds, \%neg_accts);
+	my %resolved = resolve_accts(\%dds, \%neg_accts, $limit_ts);
 	my @tgs = glob ("$config{Root}/transaction_groups/*");
 	if ($@ || (!%resolved && @tgs) || nonfinite(values %resolved)) {
 		$tmpl->param(BROKEN => 1);
@@ -2947,6 +2953,7 @@ sub gen_accts_disp
 		}
 	}
 	$tmpl->param(NOZEROS => $nozeros);
+	$tmpl->param(LDATE => $limit_date);
 	$tmpl->param(SORT => $by_bal ? 'bal' : 'name');
 	$tmpl->param(NOZEROS => $nozeros);
 	$tmpl->param(UNKNOWN => \@unklist) if scalar @unklist;
@@ -3530,7 +3537,14 @@ sub despatch
 		$nozeros = 1 if defined $cgi->param('nozeros');
 		my $sort_bal = ($cgi->param('sort') // 'name') eq 'bal';
 
-		emit(gen_accts_disp($session, $nozeros, $sort_bal));
+		my $limit_date = undef;
+		my $new_limit_date = (defined $cgi->param('limit')) ? $cgi->param('new_limit_date') : $cgi->param('limit_date');
+		if (defined $new_limit_date and $new_limit_date ne '' and not defined $cgi->param('clearlimit')) {
+			my $whinge = sub { whinge($_[0], gen_accts_disp($session, $nozeros, $sort_bal)) };
+			$limit_date = validate_date($new_limit_date, $whinge);
+		}
+
+		emit(gen_accts_disp($session, $nozeros, $sort_bal, $limit_date));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
