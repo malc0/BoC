@@ -3525,13 +3525,12 @@ sub despatch
 		if (defined $cgi->param('view')) {
 			emit(gen_ucp($session, scalar $cgi->param('view')));
 		}
-		my $nozeros = $cgi->param('last_nz') // 0;
-		my $sort = $cgi->param('last_sort') // 'name';
+		my $nozeros = !!($cgi->param('nz') // 0);
 		$nozeros = 0 if defined $cgi->param('showzeros');
 		$nozeros = 1 if defined $cgi->param('nozeros');
-		$sort = $cgi->param('sort') if defined $cgi->param('sort');
+		my $sort_bal = ($cgi->param('sort') // 'name') eq 'bal';
 
-		emit(gen_accts_disp($session, $nozeros, $sort eq 'bal'));
+		emit(gen_accts_disp($session, $nozeros, $sort_bal));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };

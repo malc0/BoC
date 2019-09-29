@@ -9,8 +9,8 @@
 		<form action="boc.pl" method="post">
 		<div>
 			<input type="hidden" name="tmpl" value="accts_disp"/>
-			<input type="hidden" name="last_nz" value="<TMPL_VAR NAME=NOZEROS>"/>
-			<input type="hidden" name="last_sort" value="<TMPL_VAR NAME=SORT>"/>
+			<input type="hidden" name="nz" value="<TMPL_VAR NAME=NOZEROS>"/>
+			<input type="hidden" name="sort" value="<TMPL_VAR NAME=SORT>"/>
 
 			<TMPL_INCLUDE NAME=logout_status.tmpl>
 			<div class="nav">
@@ -29,7 +29,7 @@
 			<TMPL_IF NAME=UNKNOWN>
 			<h2>Unknown Accounts</h2>
 			<table class="unknown_accts" border=1 width="90%">
-				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;last_nz=<TMPL_VAR NAME=NOZEROS>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;last_nz=<TMPL_VAR NAME=NOZEROS>">Balance</a></th></tr>
+				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS>">Balance</a></th></tr>
 				<TMPL_LOOP NAME=UNKNOWN>
 				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
 				</TMPL_LOOP>
@@ -38,7 +38,7 @@
 
 			<h2>Personal Accounts</h2>
 			<table border=1 width="90%">
-				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;last_nz=<TMPL_VAR NAME=NOZEROS>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;last_nz=<TMPL_VAR NAME=NOZEROS>">Balance</a></th></tr>
+				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS>">Balance</a></th></tr>
 				<TMPL_LOOP NAME=PPL>
 				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
 				</TMPL_LOOP>
@@ -48,7 +48,7 @@
 
 			<h2>Virtual Accounts</h2>
 			<table border=1>
-				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;last_nz=<TMPL_VAR NAME=NOZEROS>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;last_nz=<TMPL_VAR NAME=NOZEROS>">Balance</a></th></tr>
+				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS>">Balance</a></th></tr>
 				<TMPL_LOOP NAME=VACCTS>
 				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><TMPL_IF 0><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></TMPL_IF></tr>
 				</TMPL_LOOP>
