@@ -12,6 +12,7 @@
 			<input type="hidden" name="nz" value="<TMPL_VAR NAME=NOZEROS>"/>
 			<input type="hidden" name="sort" value="<TMPL_VAR NAME=SORT>"/>
 			<input type="hidden" name="limit_date" value="<TMPL_VAR NAME=LDATE>"/>
+			<input type="hidden" name="limit_date2" value="<TMPL_VAR NAME=LDATE2>"/>
 
 			<TMPL_INCLUDE NAME=logout_status.tmpl>
 			<div class="nav">
@@ -24,7 +25,7 @@
 
 			<input type="submit" <TMPL_IF NAME=NOZEROS>name="showzeros" value="Show accounts with zero balance"<TMPL_ELSE>name="nozeros" value="Hide accounts with zero balance"</TMPL_IF>/>
 
-			<p><input type="submit" <TMPL_IF NAME=LDATE>name="clearlimit" value="Clear date restriction"<TMPL_ELSE>name="limit" value="Show situation before specified date"</TMPL_IF>/><input type="text" name="new_limit_date" value="<TMPL_VAR NAME=LDATE>" <TMPL_IF NAME=LDATE>readonly="readonly"</TMPL_IF>/></p>
+			<p><input type="submit" <TMPL_IF NAME=LDATE>name="clearlimit" value="Clear date restriction"<TMPL_ELSE>name="limit" value="Show situation before specified date"</TMPL_IF>/><input type="text" name="new_limit_date" value="<TMPL_VAR NAME=LDATE>" <TMPL_IF NAME=LDATE>readonly="readonly"</TMPL_IF>/><TMPL_IF NAME=TCP><TMPL_IF NAME=LDATE> <input type="submit" name="limit2" value="Set a start date"/><input type="text" name="new_limit_date2" value="<TMPL_VAR NAME=LDATE2>"/></p><p style="color:red">The subtraction of states may not work as expected for any transactions involving accounts 'drained' before the start date</TMPL_IF></TMPL_IF></p>
 
 			<TMPL_IF NAME=BROKEN>
 			<h2 style="color:red">BROKEN!</h2>
@@ -32,7 +33,7 @@
 			<TMPL_IF NAME=UNKNOWN>
 			<h2>Unknown Accounts</h2>
 			<table class="unknown_accts" border=1 width="90%">
-				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF>">Balance</a></th></tr>
+				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF><TMPL_IF NAME=LDATE2>;limit_date2=<TMPL_VAR NAME=LDATE2></TMPL_IF>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF><TMPL_IF NAME=LDATE2>;limit_date2=<TMPL_VAR NAME=LDATE2></TMPL_IF>">Balance</a></th></tr>
 				<TMPL_LOOP NAME=UNKNOWN>
 				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
 				</TMPL_LOOP>
@@ -41,7 +42,7 @@
 
 			<h2>Personal Accounts</h2>
 			<table border=1 width="90%">
-				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF>">Balance</a></th></tr>
+				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF><TMPL_IF NAME=LDATE2>;limit_date2=<TMPL_VAR NAME=LDATE2></TMPL_IF>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF><TMPL_IF NAME=LDATE2>;limit_date2=<TMPL_VAR NAME=LDATE2></TMPL_IF>">Balance</a></th></tr>
 				<TMPL_LOOP NAME=PPL>
 				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></tr>
 				</TMPL_LOOP>
@@ -51,7 +52,7 @@
 
 			<h2>Virtual Accounts</h2>
 			<table border=1>
-				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF>">Balance</a></th></tr>
+				<tr><th><a href="boc.pl?tmpl=accts_disp&amp;sort=name&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF><TMPL_IF NAME=LDATE2>;limit_date2=<TMPL_VAR NAME=LDATE2></TMPL_IF>">Name</a></th><th><a href="boc.pl?tmpl=accts_disp&amp;sort=bal&amp;nz=<TMPL_VAR NAME=NOZEROS><TMPL_IF NAME=LDATE>;limit_date=<TMPL_VAR NAME=LDATE></TMPL_IF><TMPL_IF NAME=LDATE2>;limit_date2=<TMPL_VAR NAME=LDATE2></TMPL_IF>">Balance</a></th></tr>
 				<TMPL_LOOP NAME=VACCTS>
 				<tr><td class="<TMPL_VAR NAME=A_CL>" style="white-space: nowrap"><a href="boc.pl?tmpl=accts_disp&amp;view=<TMPL_VAR NAME=ACC>"><TMPL_VAR NAME=NAME></a></td><td style="text-align:right"><TMPL_VAR NAME=VAL></td><TMPL_IF 0><td style="width:50%" align="right"><div style="width:<TMPL_VAR NAME=L>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td><td style="width:50%"><div style="width:<TMPL_VAR NAME=R>%; background-color: <TMPL_VAR NAME=C>;height:1em"/></td></TMPL_IF></tr>
 				</TMPL_LOOP>

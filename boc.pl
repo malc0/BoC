@@ -2874,7 +2874,7 @@ sub gen_ucp
 
 sub gen_accts_disp
 {
-	my ($session, $nozeros, $by_bal, $limit_date) = @_;
+	my ($session, $nozeros, $by_bal, $limit_date, $limit_date2) = @_;
 	my $tmpl = load_template('accts_disp.html', undef, $session);
 
 	my $limit_ts = (defined $limit_date) ? clean_date($limit_date) - 1 : undef;	# minus one so TGs from the specified day are *not* included
@@ -2898,6 +2898,37 @@ sub gen_accts_disp
 		foreach (keys %computed) {
 			$running{$_} = 0 unless exists $running{$_};
 			$running{$_} += $computed{$_};
+			$running{$_} = 0 if abs $running{$_} < .000000001;
+		}
+	}
+
+	if (defined $limit_date2) {
+		my $limit_ts2 = clean_date($limit_date2) - 1;	# minus one so TGs from the specified day are included
+
+		my %dds = double_drainers($limit_ts2);
+		my %resolved = resolve_accts(\%dds, \%neg_accts, $limit_ts2);
+		if ($@ || (!%resolved && @tgs) || nonfinite(values %resolved)) {
+			$tmpl->param(BROKEN => 1);
+			return $tmpl;
+		}
+
+		my %running2;
+		foreach my $tg (@tgs) {
+			$tg = $1 if $tg =~ /([^\/]*)$/;
+			if (exists $dds{$tg}) {
+				$tmpl->param(BROKEN => 1);
+				return $tmpl;
+			}
+			my %computed = compute_tg_c($tg, 1, \%neg_accts, \%resolved);
+			foreach (keys %computed) {
+				$running2{$_} = 0 unless exists $running2{$_};
+				$running2{$_} += $computed{$_};
+				$running2{$_} = 0 if abs $running2{$_} < .000000001;
+			}
+		}
+
+		$running{$_} -= $running2{$_} foreach (keys %running2);
+		foreach (keys %running) {
 			$running{$_} = 0 if abs $running{$_} < .000000001;
 		}
 	}
@@ -2954,6 +2985,7 @@ sub gen_accts_disp
 	}
 	$tmpl->param(NOZEROS => $nozeros);
 	$tmpl->param(LDATE => $limit_date);
+	$tmpl->param(LDATE2 => $limit_date2);
 	$tmpl->param(SORT => $by_bal ? 'bal' : 'name');
 	$tmpl->param(NOZEROS => $nozeros);
 	$tmpl->param(UNKNOWN => \@unklist) if scalar @unklist;
@@ -3543,8 +3575,14 @@ sub despatch
 			my $whinge = sub { whinge($_[0], gen_accts_disp($session, $nozeros, $sort_bal)) };
 			$limit_date = validate_date($new_limit_date, $whinge);
 		}
+		my $limit_date2 = undef;
+		my $new_limit_date2 = (defined $cgi->param('limit2')) ? $cgi->param('new_limit_date2') : $cgi->param('limit_date2');
+		if (defined $new_limit_date2 and $new_limit_date2 ne '' and not defined $cgi->param('clearlimit')) {
+			my $whinge = sub { whinge($_[0], gen_accts_disp($session, $nozeros, $sort_bal)) };
+			$limit_date2 = validate_date($new_limit_date2, $whinge);
+		}
 
-		emit(gen_accts_disp($session, $nozeros, $sort_bal, $limit_date));
+		emit(gen_accts_disp($session, $nozeros, $sort_bal, $limit_date, $limit_date2));
 	}
 	if ($cgi->param('tmpl') eq 'manage_tgs') {
 		my $whinge = sub { whinge($_[0], gen_manage_tgs($session)) };
