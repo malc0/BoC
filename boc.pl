@@ -478,10 +478,10 @@ sub drained_accts
 	foreach my $tg (glob ("$config{Root}/transaction_groups/*")) {
 		$tg = $1 if $tg =~ /([^\/]*)$/;
 		$tgds{$tg} = \%{{read_tg2("$config{Root}/transaction_groups/$tg")}} unless exists $tgds{$tg};
-		my %tgdetails = %{$tgds{$tg}};
-		if (defined $omit_ts and defined clean_date($tgdetails{Date}) && clean_date($tgdetails{Date}) > $omit_ts) {
+		if (defined $omit_ts and defined clean_date($tgds{$tg}->{Date}) && clean_date($tgds{$tg}->{Date}) > $omit_ts) {
 			$tgds{$tg}->{Omit} = undef;
 		}
+		my %tgdetails = %{$tgds{$tg}};
 		next if exists $tgdetails{Omit};
 
 		foreach (0 .. $#{$tgdetails{Creditor}}) {
@@ -2882,7 +2882,7 @@ sub gen_accts_disp
 	my %neg_accts = grep_acct_key('accounts', 'IsNegated');
 	my %resolved = resolve_accts(\%dds, \%neg_accts, $limit_ts);
 	my @tgs = glob ("$config{Root}/transaction_groups/*");
-	if ($@ || (!%resolved && @tgs) || nonfinite(values %resolved)) {
+	if ($@ || (!%resolved && @tgs && !$limit_date) || nonfinite(values %resolved)) {
 		$tmpl->param(BROKEN => 1);
 		return $tmpl;
 	}
@@ -2907,7 +2907,7 @@ sub gen_accts_disp
 
 		my %dds = double_drainers($limit_ts2);
 		my %resolved = resolve_accts(\%dds, \%neg_accts, $limit_ts2);
-		if ($@ || (!%resolved && @tgs) || nonfinite(values %resolved)) {
+		if ($@ || (!%resolved && @tgs && !$limit_date2) || nonfinite(values %resolved)) {
 			$tmpl->param(BROKEN => 1);
 			return $tmpl;
 		}
